@@ -6,7 +6,7 @@ import NavBar from '@/app/components/NavBar'
 import ConsentCard from '@/app/components/ConsentCard'
 import StartJourneyButton from '@/app/components/StartJourneyButton'
 import { startJourney } from '@/app/actions/entries'
-import { ButtonLink, EyeIcon } from '@/app/components/ui'
+import { ButtonLink, ChevronDownIcon, EyeIcon } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
@@ -214,6 +214,22 @@ export default async function DashboardPage() {
                         isMissingEarlierStage: stageIndex < latestSubmittedIndex,
                       }
                     }
+                    const stagePreview = (
+                      <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stages</p>
+                        <div className="mt-3 space-y-2">
+                          {activeParts.map((stage, index) => (
+                            <div key={stage.id} className="flex items-center gap-3 text-sm">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                                {index + 1}
+                              </span>
+                              <span className="font-medium text-slate-800">{stage.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+
                     const previousJourneyList = previousJourneys.length > 0 ? (
                       <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
                         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-slate-800">
@@ -221,7 +237,10 @@ export default async function DashboardPage() {
                             Previous {journeyNamePlural}
                             <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneys.length}</span>
                           </span>
-                          <span className="text-xs font-semibold text-slate-500 transition-colors group-open:text-indigo-600">Open</span>
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition-colors group-open:text-indigo-600">
+                            Review
+                            <ChevronDownIcon className="h-4 w-4 transition-transform group-open:rotate-180" />
+                          </span>
                         </summary>
                         <div className="space-y-2 border-t border-slate-100 px-5 py-4">
                           {startedOtherOpenJourneys.slice(0, 4).map((journey) => {
@@ -270,9 +289,10 @@ export default async function DashboardPage() {
                                   href={`/journey/${journey.id}`}
                                   aria-label={`View ${journey.label ?? journeyName}`}
                                   title={`View ${journey.label ?? journeyName}`}
-                                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 transition-colors hover:bg-emerald-50"
+                                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
                                 >
                                   <EyeIcon />
+                                  <span className="hidden sm:inline">View</span>
                                 </Link>
                               )}
                             </div>
@@ -401,12 +421,12 @@ export default async function DashboardPage() {
                     if (!openJourney) {
                       return (
                         <>
-                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">
-                          <p className="text-sm font-semibold text-indigo-700">Next action</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-950">Start {journeyArticle(journeyName)} {journeyName}</h3>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <h3 className="text-xl font-bold text-slate-950">Start {journeyArticle(journeyName)} {journeyName}</h3>
                           <p className="mt-2 text-sm leading-relaxed text-slate-600">
                             diARI will keep the stages together and guide you through what to answer.
                           </p>
+                          {stagePreview}
                           <form action={startJourney} className="mt-4">
                             <input type="hidden" name="studyId" value={study.id} />
                             <input type="hidden" name="forceNewJourney" value="true" />
@@ -500,9 +520,10 @@ export default async function DashboardPage() {
                                         href={`/entry/${entry.id}`}
                                         aria-label={`View ${stage.name}`}
                                         title={`View ${stage.name}`}
-                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
                                       >
                                         <EyeIcon />
+                                        <span className="hidden sm:inline">View</span>
                                       </Link>
                                     )}
                                     {canAnswerStage && (
@@ -523,7 +544,7 @@ export default async function DashboardPage() {
                       </div>
 
                       {completedCount > 0 && nextStage && (
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900">Need another {journeyName}?</p>
@@ -534,7 +555,7 @@ export default async function DashboardPage() {
                             <form action={startJourney} className="shrink-0">
                               <input type="hidden" name="studyId" value={study.id} />
                               <input type="hidden" name="forceNewJourney" value="true" />
-                              <StartJourneyButton tone="secondary" size="md" className="w-full border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100 sm:w-auto">
+                              <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
                                 Start another
                               </StartJourneyButton>
                             </form>
