@@ -434,23 +434,23 @@ export default async function DashboardPage() {
                       </div>
 
                       {completedCount > 0 && nextStage && (
-                        <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800">
-                            Start a separate visit
-                          </summary>
-                          <div className="border-t border-slate-100 px-5 py-4">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="text-sm leading-relaxed text-slate-600">Use this only if this is a new real-world experience.</p>
-                              <form action={startJourney} className="shrink-0">
-                                <input type="hidden" name="studyId" value={study.id} />
-                                <input type="hidden" name="forceNewJourney" value="true" />
-                                <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
-                                  Start new visit
-                                </StartJourneyButton>
-                              </form>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900">Starting a separate visit?</p>
+                              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                                Use this only if this is a new real-world experience.
+                              </p>
                             </div>
+                            <form action={startJourney} className="shrink-0">
+                              <input type="hidden" name="studyId" value={study.id} />
+                              <input type="hidden" name="forceNewJourney" value="true" />
+                              <StartJourneyButton tone="secondary" size="md" className="w-full border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100 sm:w-auto">
+                                + Start new visit
+                              </StartJourneyButton>
+                            </form>
                           </div>
-                        </details>
+                        </div>
                       )}
 
                       {previousJourneyCount > 0 && (
