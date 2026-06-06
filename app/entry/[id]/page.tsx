@@ -14,6 +14,10 @@ function formatAnswerValue(value: string, type: string) {
   return value
 }
 
+function isJourneyStage(part: { flow?: string | null }) {
+  return part.flow === 'JOURNEY_STAGE'
+}
+
 function localDate(timeZone?: string | null) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: timeZone || undefined,
@@ -31,9 +35,15 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   const entry = await prisma.entry.findUnique({
     where: { id },
     include: {
-      study: true,
+      part: true,
+      study: {
+        include: {
+          parts: { where: { isActive: true }, orderBy: { order: 'asc' } },
+        },
+      },
       user: { select: { name: true, email: true } },
       answers: { include: { question: true } },
+      journey: { include: { entries: { select: { partId: true } } } },
     },
   })
 
@@ -47,6 +57,12 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
     redirect('/dashboard')
   }
   const backHref = `/admin/studies/${entry.studyId}`
+  const journeyParts = entry.study.parts.filter(isJourneyStage)
+  const journeyCompletedPartIds = new Set(entry.journey?.entries.map((journeyEntry) => journeyEntry.partId) ?? [])
+  const nextJourneyPart = entry.journeyId
+    ? journeyParts.find((part) => !journeyCompletedPartIds.has(part.id))
+    : null
+  const isJourneyEntry = !!entry.journeyId && isJourneyStage(entry.part)
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
@@ -70,17 +86,59 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
         {isOwnEntry && (
-          <div className="rounded-2xl border border-emerald-100 bg-white px-5 py-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-base font-bold text-slate-950">Entry submitted</p>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  Your answers were saved. This entry is read-only now.
-                </p>
+          <div className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
+            <div className="border-b border-emerald-50 px-5 py-5">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+                  OK
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-bold text-slate-950">Entry submitted</p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    Your answers were saved. You can review them below.
+                  </p>
+                </div>
               </div>
-              <ButtonLink href="/dashboard" tone="secondary" size="md" className="shrink-0">
-                Back to dashboard
-              </ButtonLink>
+            </div>
+
+            <div className="px-5 py-5">
+              {isJourneyEntry && nextJourneyPart ? (
+                <div className="rounded-2xl bg-indigo-50 px-4 py-4">
+                  <p className="text-sm font-semibold text-indigo-700">Recommended next</p>
+                  <h2 className="mt-1 text-lg font-bold text-slate-950">{nextJourneyPart.name}</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Continue this {entry.study.journeyName || 'journey'} when this moment applies.
+                  </p>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <ButtonLink
+                      href={`/entry/new?studyId=${entry.studyId}&partId=${nextJourneyPart.id}&journeyId=${entry.journeyId}`}
+                      size="md"
+                      className="w-full sm:w-auto"
+                    >
+                      Continue to {nextJourneyPart.name}
+                    </ButtonLink>
+                    <ButtonLink href="/dashboard" tone="secondary" size="md" className="w-full sm:w-auto">
+                      Dashboard
+                    </ButtonLink>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {isJourneyEntry ? `${entry.study.journeyName || 'Journey'} complete` : 'You are done for now'}
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                      {isJourneyEntry
+                        ? 'All stages for this visit are submitted.'
+                        : 'Go back to your dashboard when you are ready.'}
+                    </p>
+                  </div>
+                  <ButtonLink href="/dashboard" tone="secondary" size="md" className="shrink-0">
+                    Back to dashboard
+                  </ButtonLink>
+                </div>
+              )}
             </div>
           </div>
         )}
