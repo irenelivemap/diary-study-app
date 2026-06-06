@@ -1,8 +1,18 @@
 import { Resend } from 'resend'
 
+function normalizeBaseUrl(value: string | undefined | null) {
+  const trimmed = value?.trim().replace(/\/+$/, '')
+  if (!trimmed) return null
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
 export function appBaseUrl() {
   const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
-  return process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3000')
+  return normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL)
+    || normalizeBaseUrl(process.env.APP_URL)
+    || normalizeBaseUrl(vercelUrl)
+    || 'http://localhost:3000'
 }
 
 export function emailFrom() {
