@@ -86,7 +86,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           <p className="text-sm font-semibold text-emerald-700">{journey.study.name}</p>
           <h1 className="mt-1 text-xl font-bold text-slate-950">{journey.label ?? journey.study.journeyName ?? 'Journey'}</h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Read-only summary of what was submitted for this visit.
+            Read-only summary of what was submitted.
           </p>
           <ButtonLink href={backHref} tone="secondary" size="md" className="mt-4 w-full sm:w-auto">
             Back
@@ -100,19 +100,20 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
               entry ? 'border-emerald-100 bg-white' : 'border-slate-100 bg-slate-50'
             }`}>
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
+                  {entry && (
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                        Submitted
+                      </span>
+                      <span className="text-xs font-medium text-slate-500">
+                        {entry.submittedAt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                      </span>
+                    </div>
+                  )}
                   <p className="text-base font-bold text-slate-950">{part.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {entry
-                      ? `Submitted ${entry.submittedAt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
-                      : 'No entry submitted'}
-                  </p>
+                  {!entry && <p className="mt-1 text-sm text-slate-500">No entry submitted</p>}
                 </div>
-                {entry && (
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    Submitted
-                  </span>
-                )}
               </div>
 
               {entry ? (
@@ -140,7 +141,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                 </div>
               ) : (
                 <p className="mt-4 text-sm leading-relaxed text-slate-500">
-                  This stage was not submitted for this visit.
+                  This stage was not submitted.
                 </p>
               )}
             </section>

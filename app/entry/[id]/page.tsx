@@ -130,7 +130,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-slate-600">
                       {isJourneyEntry
-                        ? 'All stages for this visit are submitted.'
+                        ? 'All stages are submitted.'
                         : 'Go back to your dashboard when you are ready.'}
                     </p>
                   </div>

@@ -398,29 +398,36 @@ export default async function DashboardPage() {
                               }`}>
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="min-w-0">
-                                    {entry && (
-                                      <span className="mb-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                                        Submitted
-                                      </span>
-                                    )}
-                                    {isRecommended && (
-                                      <span className="mb-1 inline-flex rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white">
-                                        Recommended next
-                                      </span>
-                                    )}
+                                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                                      {entry && (
+                                        <>
+                                          <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                                            Submitted
+                                          </span>
+                                          <span className="text-xs font-medium text-slate-500">
+                                            {entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                          </span>
+                                        </>
+                                      )}
+                                      {isRecommended && (
+                                        <span className="inline-flex rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white">
+                                          Recommended next
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className={`text-sm font-semibold ${isLocked ? 'text-slate-500' : 'text-slate-900'}`}>
                                       {isLocked ? 'Locked: ' : ''}
                                       {stage.name}
                                     </p>
-                                    <p className="mt-0.5 text-sm text-slate-500">
-                                      {entry
-                                        ? `Submitted ${entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                        : isRecommended
-                                        ? (stage.instructions || 'Answer this when this moment applies.')
-                                        : !isLocked
-                                        ? 'Available if needed'
-                                        : `Available after ${activeParts[index - 1]?.name ?? 'the previous stage'}`}
-                                    </p>
+                                    {!entry && (
+                                      <p className="mt-0.5 text-sm text-slate-500">
+                                        {isRecommended
+                                          ? (stage.instructions || 'Answer this when this moment applies.')
+                                          : !isLocked
+                                          ? 'Available if needed'
+                                          : `Available after ${activeParts[index - 1]?.name ?? 'the previous stage'}`}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="shrink-0">
                                     {entry && canViewPastEntries && (
