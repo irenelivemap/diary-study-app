@@ -692,13 +692,15 @@ function PlotSvg({
 }) {
   const width = 760
   const rowHeight = 36
+  const safeLeft = 34
+  const safeRight = 50
   const hasTitle = Boolean(title)
   const hasSubtitle = Boolean(subtitle)
   const top = hasSubtitle ? 62 : hasTitle ? 50 : 24
   const longestLabel = Math.max(0, ...points.map((point) => point.label.length))
-  const labelWidth = Math.min(190, Math.max(82, longestLabel * 7.2))
-  const left = labelWidth + 26
-  const right = 44
+  const labelWidth = Math.min(210, Math.max(118, longestLabel * 7.8))
+  const left = safeLeft + labelWidth + 12
+  const right = safeRight
   const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + points.length * rowHeight + 28)
   const total = points.reduce((sum, point) => sum + point.value, 0)
   const percentages = points.map((point) => total ? Math.round((point.value / total) * 100) : 0)
@@ -711,7 +713,7 @@ function PlotSvg({
       <defs>
         {points.map((point, index) => (
           <clipPath key={`${point.label}-${index}-label-clip`} id={`plot-label-clip-${index}`}>
-            <rect x="20" y={top + index * rowHeight - 2} width={labelWidth} height="26" />
+            <rect x={safeLeft} y={top + index * rowHeight - 2} width={labelWidth} height="26" />
           </clipPath>
         ))}
       </defs>
@@ -737,7 +739,7 @@ function PlotSvg({
               fontSize="13"
               fontWeight={isTop ? '800' : '600'}
             >
-              {point.label.length > Math.floor(labelWidth / 7.2) ? `${point.label.slice(0, Math.max(3, Math.floor(labelWidth / 7.2) - 1))}...` : point.label}
+              {point.label.length > Math.floor(labelWidth / 7.8) ? `${point.label.slice(0, Math.max(3, Math.floor(labelWidth / 7.8) - 1))}...` : point.label}
             </text>
             <rect x={left} y={y} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
             <rect
@@ -748,7 +750,7 @@ function PlotSvg({
               rx="10"
               fill={isTop ? '#0f766e' : '#4f46e5'}
             />
-            <text x={left + chartWidth + 14} y={y + 15} fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{pct}%</text>
+            <text x={left + chartWidth + 12} y={y + 15} fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{pct}%</text>
           </g>
         )
       })}
