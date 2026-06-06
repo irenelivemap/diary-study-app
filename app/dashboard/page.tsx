@@ -167,7 +167,7 @@ export default async function DashboardPage() {
                 : `${study.parts.length} parts`
               return (
               <div key={study.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-6 pt-5 pb-3 border-b border-slate-50">
+                <div className="px-5 pt-5 pb-3 border-b border-slate-50 sm:px-6">
                   <div className="flex items-start justify-between">
                     <h2 className="font-semibold text-slate-900">{study.name}</h2>
                     {!study.isActive && (
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
                     contactEmail={study.contactEmail}
                   />
                 ) : (
-                <div className="space-y-3 p-4 sm:p-5">
+                <div className="space-y-3 p-5 sm:p-6">
                   {study.mode === 'JOURNEY' ? (() => {
                     const configuredJourneyName = study.journeyName?.trim()
                     const journeyName = configuredJourneyName && configuredJourneyName !== 'Journey' ? configuredJourneyName : 'journey'
@@ -544,7 +544,7 @@ export default async function DashboardPage() {
                       </div>
 
                       {completedCount > 0 && nextStage && (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
+                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-5">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900">Need another {journeyName}?</p>
