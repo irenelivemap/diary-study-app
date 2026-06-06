@@ -130,16 +130,24 @@ export default function StudyForm({
   const [draggedOption, setDraggedOption] = useState<{ partId: string; qId: string; index: number } | null>(null)
   const [contentImageUploading, setContentImageUploading] = useState<Record<string, boolean>>({})
   const [localError, setLocalError] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
   const partsInputRef = useRef<HTMLInputElement>(null)
+  const hasTrackedInitialParts = useRef(false)
 
   useEffect(() => {
     if (partsInputRef.current) partsInputRef.current.value = JSON.stringify(parts)
+    if (hasTrackedInitialParts.current) {
+      setIsDirty(true)
+    } else {
+      hasTrackedInitialParts.current = true
+    }
   }, [parts])
 
   const part = parts[activePart] ?? parts[0]
   const allReminderDaysSelected = reminderDays.length === 0 || reminderDays.length === WEEKDAYS.length
 
   function toggleReminderDay(day: string) {
+    setIsDirty(true)
     setReminderDays((current) => {
       const normalized = current.length === 0 ? WEEKDAYS.map((item) => item.value) : current
       return normalized.includes(day)
@@ -386,7 +394,12 @@ export default function StudyForm({
   )
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form
+      action={formAction}
+      className="space-y-5 pb-24"
+      onInputCapture={() => setIsDirty(true)}
+      onChangeCapture={() => setIsDirty(true)}
+    >
       {/* ── Study basics ── */}
       <div className="h-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
         <div className="p-5 space-y-4">
@@ -554,7 +567,10 @@ export default function StudyForm({
               <label className={fieldLabelCls}>Send on</label>
               <button
                 type="button"
-                onClick={() => setReminderDays([])}
+                onClick={() => {
+                  setReminderDays([])
+                  setIsDirty(true)
+                }}
                 className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
               >
                 Every day
@@ -1215,9 +1231,23 @@ export default function StudyForm({
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{(state?.error as string) || localError}</p>
       )}
 
-      <Button type="submit" disabled={pending} className="w-full" size="lg">
-        {pending ? 'Saving…' : submitLabel}
-      </Button>
+      <div className="sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-8 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {pending ? 'Saving setup…' : isDirty ? 'Unsaved changes' : 'Setup saved'}
+            </p>
+            <p className="text-sm text-slate-500">
+              {isDirty
+                ? 'Save once when you are done editing this study.'
+                : 'Your latest setup changes are saved.'}
+            </p>
+          </div>
+          <Button type="submit" disabled={pending} size="lg" className="w-full sm:w-auto sm:min-w-40">
+            {pending ? 'Saving…' : submitLabel}
+          </Button>
+        </div>
+      </div>
     </form>
   )
 }
