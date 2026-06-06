@@ -107,7 +107,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
-      <NavBar name={session.name} role="PARTICIPANT" />
+      <NavBar name={session.name} role="PARTICIPANT" canSwitchModes={session.role === 'ADMIN'} />
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8">

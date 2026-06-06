@@ -33,6 +33,7 @@ export default async function AdminPage() {
             + New study
           </ButtonLink>
         }
+        canSwitchModes
       />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

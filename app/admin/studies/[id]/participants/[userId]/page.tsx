@@ -188,7 +188,7 @@ export default async function ParticipantEntriesPage({
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
-      <NavBar name={session.name} role="ADMIN" />
+      <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs
         studyId={id}
         active="participants"

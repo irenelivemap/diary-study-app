@@ -134,7 +134,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
-      <NavBar name={session.name} role="ADMIN" />
+      <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

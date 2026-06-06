@@ -94,7 +94,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
-      <NavBar name={session.name} role="ADMIN" />
+      <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="analysis" studyName={study.name} isActive={study.isActive} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8">
