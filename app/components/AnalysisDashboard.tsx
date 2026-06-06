@@ -699,6 +699,35 @@ function YesNoPieSvg({
   )
 }
 
+function wrapPlotLabel(label: string, maxChars: number) {
+  const words = label.trim().split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    if (word.length > maxChars) {
+      if (current) {
+        lines.push(current)
+        current = ''
+      }
+      for (let i = 0; i < word.length; i += maxChars) {
+        lines.push(word.slice(i, i + maxChars))
+      }
+      continue
+    }
+    const next = current ? `${current} ${word}` : word
+    if (next.length > maxChars && current) {
+      lines.push(current)
+      current = word
+    } else {
+      current = next
+    }
+  }
+
+  if (current) lines.push(current)
+  return lines.length ? lines : ['-']
+}
+
 function PlotSvg({
   title,
   subtitle,
@@ -713,27 +742,30 @@ function PlotSvg({
   svgRef: React.RefObject<SVGSVGElement | null>
 }) {
   const width = 760
-  const rowHeight = 36
-  const safeLeft = 48
-  const valueColumnWidth = 58
-  const safeRight = 34
+  const safeLeft = 22
+  const labelWidth = 164
+  const labelToBarGap = 18
+  const valueColumnWidth = 54
+  const safeRight = 20
   const hasTitle = Boolean(title)
   const hasSubtitle = Boolean(subtitle)
-  const top = hasSubtitle ? 62 : hasTitle ? 50 : 24
-  const longestLabel = Math.max(0, ...points.map((point) => point.label.length))
-  const labelWidth = Math.min(230, Math.max(130, longestLabel * 8))
-  const left = safeLeft + labelWidth + 16
+  const top = hasSubtitle ? 62 : hasTitle ? 48 : 18
+  const maxLabelChars = Math.max(10, Math.floor(labelWidth / 7.3))
+  const labelLines = points.map((point) => wrapPlotLabel(point.label, maxLabelChars))
+  const rowHeights = labelLines.map((lines) => Math.max(38, lines.length * 15 + 10))
+  const rowStarts = rowHeights.map((_, index) => top + rowHeights.slice(0, index).reduce((sum, height) => sum + height, 0))
+  const left = safeLeft + labelWidth + labelToBarGap
   const valueX = width - safeRight
   const chartRight = valueX - valueColumnWidth
-  const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + points.length * rowHeight + 28)
+  const chartBodyHeight = rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0)
+  const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + chartBodyHeight + (mean != null ? 38 : 20))
   const total = points.reduce((sum, point) => sum + point.value, 0)
   const percentages = points.map((point) => total ? Math.round((point.value / total) * 100) : 0)
   const topCount = Math.max(...points.map((point) => point.value), 0)
   const chartWidth = Math.max(120, chartRight - left)
-  const maxLabelChars = Math.max(6, Math.floor(labelWidth / 8))
 
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} className="w-full rounded-xl border border-slate-100 bg-white">
+    <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title || 'Categorical response distribution'} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
       {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
       {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="13">{subtitle}</text>}
@@ -741,7 +773,10 @@ function PlotSvg({
         <text x="20" y={top + 22} fill="#64748b" fontSize="14">No answers yet.</text>
       )}
       {points.map((point, index) => {
-        const y = top + index * rowHeight
+        const y = rowStarts[index]
+        const rowHeight = rowHeights[index]
+        const barY = y + Math.max(0, (rowHeight - 20) / 2)
+        const centerY = y + rowHeight / 2
         const pct = percentages[index] ?? 0
         const barWidth = (pct / 100) * chartWidth
         const isTop = topCount > 0 && point.value === topCount
@@ -749,25 +784,29 @@ function PlotSvg({
           <g key={`${point.label}-${index}`}>
             <title>{`${point.value}`}</title>
             <text
-              x={left - 10}
-              y={y + 18}
-              textAnchor="end"
+              x={safeLeft}
+              y={centerY - ((labelLines[index].length - 1) * 15) / 2 + 5}
+              textAnchor="start"
               fill={isTop ? '#0f766e' : '#334155'}
               fontSize="13"
               fontWeight={isTop ? '800' : '600'}
             >
-              {point.label.length > maxLabelChars ? `${point.label.slice(0, Math.max(3, maxLabelChars - 1)).trim()}...` : point.label}
+              {labelLines[index].map((line, lineIndex) => (
+                <tspan key={lineIndex} x={safeLeft} dy={lineIndex === 0 ? 0 : 15}>
+                  {line}
+                </tspan>
+              ))}
             </text>
-            <rect x={left} y={y} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
+            <rect x={left} y={barY} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
             <rect
               x={left}
-              y={y}
+              y={barY}
               width={Math.max(barWidth, pct > 0 ? 8 : 0)}
               height="20"
               rx="10"
               fill={isTop ? '#0f766e' : '#4f46e5'}
             />
-            <text x={valueX} y={y + 15} textAnchor="end" fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{pct}%</text>
+            <text x={valueX} y={centerY + 5} textAnchor="end" fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{pct}%</text>
           </g>
         )
       })}
