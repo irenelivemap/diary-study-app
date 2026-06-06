@@ -15,7 +15,7 @@ import { demographicFieldLabel } from '@/app/lib/demographics'
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
 type ParticipantStatus = {
-  label: 'Not started' | 'Recently active' | 'Quiet'
+  label: 'Not started' | 'Active' | 'Quiet'
   detail: string
   tone: 'neutral' | 'info' | 'warning'
 }
@@ -111,22 +111,26 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
 
     if (latestDate) {
       const daysSince = Math.floor((nowTime - new Date(`${latestDate}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
+      const formattedLatestDate = new Date(`${latestDate}T00:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })
       if (daysSince >= 7) {
         return {
           label: 'Quiet',
-          detail: `Last entry ${latestDate}`,
+          detail: `Last entry ${formattedLatestDate}`,
           tone: 'warning',
         }
       }
       return {
-        label: 'Recently active',
-        detail: `Last entry ${latestDate}`,
+        label: 'Active',
+        detail: `Last entry ${formattedLatestDate}`,
         tone: 'info',
       }
     }
 
     return {
-      label: 'Recently active',
+      label: 'Active',
       detail: 'Has submitted at least one entry',
       tone: 'info',
     }
@@ -181,20 +185,20 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 <p className="text-sm text-slate-400 px-5 py-4">No participants yet.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-[520px] w-full text-sm">
+                  <table className="w-full text-sm" style={{ minWidth: `${640 + study.parts.length * 72}px` }}>
                     <thead>
                       <tr className="border-b border-slate-100">
-                        <th className="text-left text-sm font-semibold text-slate-600 px-5 py-3 min-w-[220px]">Name</th>
-                        <th className="text-left text-sm font-semibold text-slate-600 px-3 py-3 min-w-[150px]">Status</th>
+                        <th className="text-left text-sm font-semibold text-slate-600 px-5 py-3 w-[280px] min-w-[280px]">Name</th>
+                        <th className="text-left text-sm font-semibold text-slate-600 px-4 py-3 w-[190px] min-w-[190px]">Status</th>
                         {study.parts.map((part, pi) => (
-                          <th key={part.id} className="text-center text-sm font-semibold text-slate-600 px-3 py-3 whitespace-nowrap">
+                          <th key={part.id} className="w-[72px] min-w-[72px] px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">
                             <span className={`text-xs font-bold text-white px-2 py-1 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
                               PT {pi + 1}
                             </span>
                           </th>
                         ))}
-                        <th className="text-center text-sm font-semibold text-slate-600 px-3 py-3 whitespace-nowrap">Total</th>
-                        <th className="px-3 py-3" />
+                        <th className="w-[72px] min-w-[72px] px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">Total</th>
+                        <th className="w-[64px] min-w-[64px] px-3 py-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -220,16 +224,16 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 </div>
                               </Link>
                             </td>
-                            <td className="px-3 py-3">
-                              <Link href={participantHref} className="block space-y-1 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <Badge tone={status.tone}>{status.label}</Badge>
-                                <p className="max-w-[180px] text-xs leading-snug text-slate-400">{status.detail}</p>
+                            <td className="px-4 py-3">
+                              <Link href={participantHref} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <Badge tone={status.tone} className="whitespace-nowrap">{status.label}</Badge>
+                                <p className="mt-1 text-xs leading-snug text-slate-500 whitespace-nowrap">{status.detail}</p>
                               </Link>
                             </td>
                             {study.parts.map((part) => {
                               const count = userCounts[part.id] ?? 0
                               return (
-                                <td key={part.id} className="px-3 py-3 text-center whitespace-nowrap">
+                                <td key={part.id} className="px-2 py-3 text-center whitespace-nowrap">
                                   <Link href={participantHref} className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     {count > 0 ? (
                                       <span className="font-semibold text-slate-700">{count}</span>
@@ -240,7 +244,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 </td>
                               )
                             })}
-                            <td className="px-3 py-3 text-center whitespace-nowrap">
+                            <td className="px-2 py-3 text-center whitespace-nowrap">
                               <Link href={participantHref} className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                 <span className={`font-bold text-sm ${total > 0 ? 'text-slate-800' : 'text-slate-200'}`}>
                                   {total || '—'}
