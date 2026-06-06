@@ -392,7 +392,7 @@ export default async function DashboardPage() {
                                       </span>
                                     )}
                                     <p className={`text-sm font-semibold ${isLocked ? 'text-slate-500' : 'text-slate-900'}`}>
-                                      {entry ? 'Done: ' : isLocked ? 'Locked: ' : ''}
+                                      {isLocked ? 'Locked: ' : ''}
                                       {stage.name}
                                     </p>
                                     <p className="mt-0.5 text-sm text-slate-500">
