@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
+import { ButtonLink } from '@/app/components/ui'
 
 function formatAnswerValue(value: string, type: string) {
   if (type !== 'MULTIPLE_CHOICE') return value
@@ -31,14 +32,16 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   if (session.role !== 'ADMIN' && entry.userId !== session.userId) redirect('/dashboard')
 
   const sorted = [...entry.answers].sort((a, b) => a.question.order - b.question.order)
-  const backHref = session.role === 'ADMIN' ? `/admin/studies/${entry.studyId}` : '/dashboard'
+  const isOwnEntry = entry.userId === session.userId
+  const backHref = isOwnEntry ? '/dashboard' : `/admin/studies/${entry.studyId}`
+  const backLabel = isOwnEntry ? 'Back to dashboard' : 'Back to study'
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <header className="bg-white border-b border-slate-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href={backHref} className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
+            <Link href={backHref} aria-label={backLabel} className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
             <div>
               <p className="text-sm font-semibold text-slate-900">{entry.study.name}</p>
               <p className="text-xs text-slate-400">{entry.date}{session.role === 'ADMIN' && ` · ${entry.user.name}`}</p>
@@ -52,9 +55,19 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
       </header>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
-        {session.role !== 'ADMIN' && (
-          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm leading-relaxed text-slate-600 shadow-sm">
-            Submitted entries are read-only. Contact the researcher if something needs to be corrected.
+        {isOwnEntry && (
+          <div className="rounded-2xl border border-emerald-100 bg-white px-5 py-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-base font-bold text-slate-950">Entry submitted</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                  Your answers were saved. This entry is read-only now.
+                </p>
+              </div>
+              <ButtonLink href="/dashboard" tone="secondary" size="md" className="shrink-0">
+                Back to dashboard
+              </ButtonLink>
+            </div>
           </div>
         )}
         {sorted.map((answer) => (
