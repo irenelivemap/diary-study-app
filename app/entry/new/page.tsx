@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import EntryForm from '@/app/components/EntryForm'
+import { normalizeTimezone } from '@/app/lib/validation'
 
 export default async function NewEntryPage({
   searchParams,
@@ -22,8 +23,9 @@ export default async function NewEntryPage({
   if (!participation.consentedAt) redirect('/dashboard')
 
   const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { timezone: true } })
+  const userTimezone = normalizeTimezone(user?.timezone)
   const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: user?.timezone || undefined,
+    timeZone: userTimezone || undefined,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

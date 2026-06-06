@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { decrypt } from '@/app/lib/session'
 
 const publicRoutes = ['/login', '/signup']
+const publicPrefixes = ['/join/']
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname
-  const isPublic = publicRoutes.includes(path)
+  const isPublic = publicRoutes.includes(path) || publicPrefixes.some((prefix) => path.startsWith(prefix))
 
   const cookie = req.cookies.get('session')?.value
   const session = await decrypt(cookie)
@@ -14,7 +15,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.nextUrl))
   }
 
-  if (session && isPublic) {
+  if (session && publicRoutes.includes(path)) {
     return NextResponse.redirect(
       new URL(session.role === 'ADMIN' ? '/admin' : '/dashboard', req.nextUrl)
     )
