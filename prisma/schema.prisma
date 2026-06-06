@@ -58,7 +58,7 @@ model Part {
   name          String
   order         Int
   instructions  String?
-  entryPolicy   EntryPolicy @default(ONCE_PER_DAY)
+  entryPolicy   EntryPolicy @default(MULTIPLE_PER_DAY)
   targetEntries Int?
   durationDays  Int?
   dueDate       DateTime?

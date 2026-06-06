@@ -89,7 +89,7 @@ function sanitizedOptions(options: string[] | undefined) {
 }
 
 function normalizedEntryPolicy(value: string | null | undefined) {
-  return value === EntryPolicy.MULTIPLE_PER_DAY ? EntryPolicy.MULTIPLE_PER_DAY : EntryPolicy.ONCE_PER_DAY
+  return value === EntryPolicy.ONCE_PER_DAY ? EntryPolicy.ONCE_PER_DAY : EntryPolicy.MULTIPLE_PER_DAY
 }
 
 function normalizedStudyFields(formData: FormData) {
