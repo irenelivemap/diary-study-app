@@ -1,5 +1,5 @@
 'use client'
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState } from 'react'
 import { acceptConsent } from '@/app/actions/studies'
 import { Button } from '@/app/components/ui'
 
@@ -13,11 +13,7 @@ type Props = {
 
 export default function ConsentCard({ studyId, studyName, description, consentText, contactEmail }: Props) {
   const [state, action, pending] = useActionState(acceptConsent, null)
-  const [timezone, setTimezone] = useState('')
-
-  useEffect(() => {
-    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
-  }, [])
+  const timezone = typeof Intl === 'undefined' ? '' : Intl.DateTimeFormat().resolvedOptions().timeZone || ''
 
   return (
     <form action={action} className="space-y-5 px-5 py-5 sm:px-6">

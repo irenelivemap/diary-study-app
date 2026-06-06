@@ -80,18 +80,22 @@ function isSummaryAnswer(type: string, text: string) {
   )
 }
 
+function parseMultipleChoiceText(value: string) {
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map(String).join(', ')
+  } catch {}
+  return null
+}
+
 function AnswerValue({ value, type }: { value: string; type: string }) {
   if (!value.trim()) {
     return <span className="text-base text-slate-500">No answer</span>
   }
 
   if (type === 'MULTIPLE_CHOICE') {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) {
-        return <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-900">{parsed.map(String).join(', ')}</p>
-      }
-    } catch {}
+    const parsed = parseMultipleChoiceText(value)
+    if (parsed) return <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-900">{parsed}</p>
   }
 
   if (type === 'SCREENSHOT' || isImageValue(value)) {

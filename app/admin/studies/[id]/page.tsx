@@ -50,15 +50,13 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   })
   if (!study) notFound()
 
-  const totalEntries = study._count.entries
-  const today = new Date().toISOString().split('T')[0]
   const dayKeys = Array.from({ length: 7 }, (_, i) => {
     const date = new Date()
     date.setDate(date.getDate() - (6 - i))
     return date.toISOString().split('T')[0]
   })
   const invitedEmails = [...new Set(study.invitations.map((invitation) => invitation.email.toLowerCase()))]
-  const [entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, participantLatestRaw, entriesToday, invitedUsers] = await Promise.all([
+  const [entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, invitedUsers] = await Promise.all([
     prisma.entry.groupBy({
       by: ['date'],
       where: { studyId: id, date: { in: dayKeys } },
@@ -74,12 +72,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
       where: { studyId: id },
       _count: { id: true },
     }),
-    prisma.entry.groupBy({
-      by: ['userId'],
-      where: { studyId: id },
-      _max: { date: true },
-    }),
-    prisma.entry.count({ where: { studyId: id, date: today } }),
     invitedEmails.length
       ? prisma.user.findMany({
           where: { email: { in: invitedEmails } },
@@ -97,7 +89,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   const entryCountByParticipantPart = new Map(
     entriesByParticipantPartRaw.map((entry) => [`${entry.userId}:${entry.partId}`, entry._count.id])
   )
-  const participantLatestDate = new Map(participantLatestRaw.flatMap((row) => row._max.date ? [[row.userId, row._max.date] as const] : []))
   const invitedUsersByEmail = new Map(invitedUsers.map((user) => [user.email.toLowerCase(), user]))
   const invitedUserIds = invitedEmails
     .map((email) => invitedUsersByEmail.get(email)?.id)
@@ -116,13 +107,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     started: invitedUserIds.filter((userId) => participantsWithEntries.has(userId)).length,
     completed: invitedUserIds.filter(participantCompletedStudy).length,
   }
-  const notStarted = study.participants.length - participantsWithEntries.size
-  const quietParticipants = study.participants.filter(({ user }) => {
-    const latest = participantLatestDate.get(user.id)
-    if (!latest) return false
-    const daysSince = Math.floor((Date.now() - new Date(`${latest}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
-    return daysSince >= 7
-  }).length
   const recentEntries = study.entries.slice(0, 6)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
   const readiness = [
@@ -141,8 +125,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     },
   ]
   const readinessIssues = readiness.filter((item) => !item.ok)
-  const entriesLabel = totalEntries === 1 ? 'entry' : 'entries'
-
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" />

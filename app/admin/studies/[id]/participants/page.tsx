@@ -62,10 +62,6 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
     entryCountMap[row.userId][row.partId] = row._count.id
   }
 
-  const totalEntries = Object.values(entryCountMap).reduce(
-    (sum, byPart) => sum + Object.values(byPart).reduce((a, b) => a + b, 0),
-    0
-  )
   const invitedEmails = [...new Set(study.invitations.map((invitation) => invitation.email.toLowerCase()))]
   const invitedUsers = invitedEmails.length
     ? await prisma.user.findMany({
@@ -97,6 +93,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
     completed: invitedUserIds.filter(participantCompletedStudy).length,
   }
   const pendingInvitations = study.invitations.filter((invitation) => !invitation.acceptedAt)
+  const nowTime = new Date().getTime()
 
   function participantStatus(userId: string): ParticipantStatus {
     const userCounts = entryCountMap[userId] ?? {}
@@ -112,7 +109,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
     }
 
     if (latestDate) {
-      const daysSince = Math.floor((Date.now() - new Date(`${latestDate}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
+      const daysSince = Math.floor((nowTime - new Date(`${latestDate}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
       if (daysSince >= 7) {
         return {
           label: 'Quiet',

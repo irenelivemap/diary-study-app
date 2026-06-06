@@ -1,5 +1,5 @@
 'use client'
-import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { submitEntry } from '@/app/actions/entries'
 import type { Question } from '@prisma/client'
 import RatingInput from './RatingInput'
@@ -7,6 +7,11 @@ import { Button } from '@/app/components/ui'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
 
 const OTHER_SENTINEL = '__OTHER__'
+
+function detectedTimezone() {
+  if (typeof Intl === 'undefined') return ''
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+}
 
 type Study = {
   id: string
@@ -26,7 +31,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
   // Track all answers for conditional logic
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [localError, setLocalError] = useState('')
-  const [timezone, setTimezone] = useState('')
+  const [timezone] = useState(detectedTimezone)
   const formRef = useRef<HTMLFormElement>(null)
   const draftKey = `diari-draft-${study.partId}-${today}`
 
@@ -93,13 +98,9 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
 
   const pageCount = Math.max(...study.questions.map((q) => q.page ?? 1), 1)
   const pageQuestions = study.questions.filter((q) => (q.page ?? 1) === currentPage)
-  const visibleQuestionIds = useMemo(
-    () => study.questions.filter((q) => q.type !== 'CONTENT' && isVisible(q)).map((q) => q.id),
-    [study.questions, answers]
-  )
+  const visibleQuestionIds = study.questions.filter((q) => q.type !== 'CONTENT' && isVisible(q)).map((q) => q.id)
 
   useEffect(() => {
-    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
     const raw = localStorage.getItem(draftKey)
     if (!raw) return
     try {
@@ -248,6 +249,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
                 />
               )}
               {q.options?.[0] && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={q.options[0]} alt="" className="mt-4 max-h-80 rounded-xl border border-slate-200 object-contain" />
               )}
             </div>
@@ -442,6 +444,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
                 />
                 {uploading[q.id] && <p className="text-xs text-slate-400 mt-1">Uploading…</p>}
                 {uploadedUrls[q.id] && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={uploadedUrls[q.id]} alt="Uploaded screenshot"
                     className="mt-2 rounded-lg max-h-48 object-contain border border-slate-200" />
                 )}

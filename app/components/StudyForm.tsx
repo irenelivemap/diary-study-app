@@ -1,6 +1,5 @@
 'use client'
 import { useActionState, useState, useRef, useEffect } from 'react'
-import type { PartInput, QuestionInput } from '@/app/actions/studies'
 import RichTextEditor from './RichTextEditor'
 import { Button, IconButton, SwitchVisual, TextInput, TrashIcon } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
@@ -691,7 +690,6 @@ export default function StudyForm({
                     const scaleType = q.scaleType ?? 'numbers'
                     const collapsed = collapsedQuestions[q.id] === true
                     const questionPreview = plainText(q.text) || 'Untitled question'
-                    const typeLabel = QUESTION_TYPES.find((type) => type.value === q.type)?.label ?? q.type
                     const isContentBlock = q.type === 'CONTENT'
                     const itemLabel = isContentBlock ? `Content block ${i + 1}` : `Question ${i + 1}`
 
@@ -820,6 +818,7 @@ export default function StudyForm({
                               </div>
                               {q.options?.[0] && (
                                 <div className="mt-3">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={q.options[0]} alt="" className="max-h-56 rounded-xl border border-slate-200 object-contain" />
                                   <Button type="button" tone="ghost" size="sm" className="mt-2 text-red-700 hover:bg-red-50"
                                     onClick={() => updateQuestion(part.id, q.id, { options: [] })}>
@@ -1001,7 +1000,7 @@ export default function StudyForm({
                                   tone="secondary" size="sm">+ Add option</Button>
                                 {!hasOther && (
                                   <Button type="button" onClick={() => toggleOther(part.id, q.id, true)}
-                                    tone="secondary" size="sm">+ Add "Other"</Button>
+                                    tone="secondary" size="sm">+ Add &quot;Other&quot;</Button>
                                 )}
                               </div>
                             </div>

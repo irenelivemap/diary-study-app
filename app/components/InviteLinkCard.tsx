@@ -1,18 +1,13 @@
 'use client'
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { ensureInviteLink } from '@/app/actions/studies'
 import { Button } from '@/app/components/ui'
 
 export default function InviteLinkCard({ studyId, initialToken, embedded = false }: { studyId: string; initialToken?: string | null; embedded?: boolean }) {
   const [token, setToken] = useState(initialToken ?? '')
-  const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
   const [pending, startTransition] = useTransition()
-  const link = token && origin ? `${origin}/join/${token}` : ''
-
-  useEffect(() => {
-    setOrigin(window.location.origin)
-  }, [])
+  const link = token ? `/join/${token}` : ''
 
   function createLink() {
     startTransition(async () => {
@@ -22,8 +17,8 @@ export default function InviteLinkCard({ studyId, initialToken, embedded = false
   }
 
   async function copyLink() {
-    if (!link) return
-    await navigator.clipboard.writeText(link)
+    if (!token) return
+    await navigator.clipboard.writeText(`${window.location.origin}/join/${token}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

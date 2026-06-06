@@ -842,18 +842,6 @@ function FreeTextAnswerList({
   const [tagFilter, setTagFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(10)
 
-  useEffect(() => {
-    setTagDefinitions(initialTags)
-  }, [initialTags])
-
-  useEffect(() => {
-    setTagIdsByAnswer(Object.fromEntries(answers.map((answer) => [answer.answerId, answer.tags.map((tag) => tag.id)])))
-  }, [answers])
-
-  useEffect(() => {
-    setVisibleCount(10)
-  }, [tagFilter, answers.length])
-
   const tagById = useMemo(
     () => new Map(tagDefinitions.map((tag) => [tag.id, tag])),
     [tagDefinitions]
@@ -868,6 +856,11 @@ function FreeTextAnswerList({
     : answers.filter((answer) => (tagIdsByAnswer[answer.answerId] ?? []).includes(tagFilter))
   const visibleAnswers = filteredAnswers.slice(0, visibleCount)
   const hasHiddenAnswers = visibleCount < filteredAnswers.length
+
+  function selectTagFilter(nextTagFilter: string) {
+    setTagFilter(nextTagFilter)
+    setVisibleCount(10)
+  }
 
   async function saveTags(answerId: string, nextTagIds: string[]) {
     const finalTagIds = Array.from(new Set(nextTagIds)).filter((tagId) => tagById.has(tagId)).slice(0, 12)
@@ -917,7 +910,7 @@ function FreeTextAnswerList({
         answerId,
         tagIds.filter((id) => id !== tagId),
       ])))
-      if (tagFilter === tagId) setTagFilter('all')
+      if (tagFilter === tagId) selectTagFilter('all')
       router.refresh()
     }
   }
@@ -1018,7 +1011,7 @@ function FreeTextAnswerList({
               <SelectMenu
                 label="Filter by tag"
                 value={tagFilter}
-                onChange={setTagFilter}
+                onChange={selectTagFilter}
                 options={[
                   { value: 'all', label: 'All tags' },
                   ...tagDefinitions.map((tag) => ({ value: tag.id, label: tag.label })),
@@ -1033,7 +1026,7 @@ function FreeTextAnswerList({
                 <button
                   key={tag.id}
                   type="button"
-                  onClick={() => setTagFilter(tag.id)}
+                  onClick={() => selectTagFilter(tag.id)}
                   className={`grid w-full grid-cols-[minmax(120px,180px)_minmax(0,1fr)_48px] items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-slate-50 ${tagFilter === tag.id ? 'bg-indigo-50' : ''}`}
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -1077,7 +1070,7 @@ function FreeTextAnswerList({
                 </button>
               )}
               {tagFilter !== 'all' && (
-                <button type="button" onClick={() => setTagFilter('all')} className="text-sm font-semibold text-indigo-700">
+                <button type="button" onClick={() => selectTagFilter('all')} className="text-sm font-semibold text-indigo-700">
                   Clear filter
                 </button>
               )}
@@ -1181,6 +1174,12 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
   const svgRef = useRef<SVGSVGElement | null>(null)
   const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
   const textAnswers = useMemo(() => question.type === 'FREE_TEXT' ? freeTextAnswers(question, rows) : [], [question, rows])
+  const freeTextStateKey = useMemo(() => {
+    if (question.type !== 'FREE_TEXT') return question.id
+    const tagSignature = (question.tagDefinitions ?? []).map((tag) => `${tag.id}:${tag.label}:${tag.color}`).join('|')
+    const answerSignature = textAnswers.map((answer) => `${answer.answerId}:${answer.tags.map((tag) => tag.id).join('.')}`).join('|')
+    return `${question.id}:${tagSignature}:${answerSignature}`
+  }, [question, textAnswers])
   const choiceStats = useMemo(
     () => question.type === 'MULTIPLE_CHOICE' ? multipleChoiceStats(question, analysis.points) : null,
     [question, analysis.points]
@@ -1385,7 +1384,7 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
         )}
 
         {question.type === 'FREE_TEXT' ? (
-          <FreeTextAnswerList studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
+          <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
         ) : question.type === 'RATING' ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
@@ -1508,7 +1507,10 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
 }
 
 export default function AnalysisDashboard({ studyId, parts, participants, questions, rows }: Props) {
-  const answerQuestions = questions.filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT')
+  const answerQuestions = useMemo(
+    () => questions.filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT'),
+    [questions]
+  )
   const [partId, setPartId] = useState('all')
   const [participantId, setParticipantId] = useState('all')
   const [questionType, setQuestionType] = useState('all')
