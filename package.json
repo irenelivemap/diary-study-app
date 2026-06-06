@@ -13,7 +13,8 @@
     "create-admin": "tsx scripts/create-admin.ts",
     "send-reminders": "tsx scripts/send-reminders.ts",
     "seed-demo": "tsx scripts/seed-demo.ts",
-    "seed-mock": "tsx scripts/seed-mock-data.ts"
+    "seed-mock": "tsx scripts/seed-mock-data.ts",
+    "seed-badi": "tsx scripts/seed-badi-journey-demo.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
