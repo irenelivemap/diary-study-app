@@ -436,11 +436,11 @@ function RatingScaleSvg({
     ? bins.map((bin) => ({ key: bin.label, label: bin.label, sublabel: '', count: bin.count }))
     : points.map((point) => ({ key: String(point.score), label: String(point.score), sublabel: point.label === String(point.score) ? '' : point.label, count: point.count }))
   const width = 760
-  const height = 282
-  const left = 108
+  const height = 260
+  const left = 96
   const right = 44
-  const chartTop = 82
-  const baseline = 206
+  const chartTop = 66
+  const baseline = 188
   const chartWidth = width - left - right
   const plotLeft = left + 48
   const plotWidth = chartWidth - 72
@@ -469,8 +469,8 @@ function RatingScaleSvg({
   return (
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={question.text} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
-      {title && <text x="24" y="30" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
-      <text x="24" y="52" fill="#64748b" fontSize="12">{subtitle}</text>
+      {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
+      {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="12">{subtitle}</text>}
 
       {ticks.map((tick) => {
         const y = yForPct(tick)
@@ -528,7 +528,7 @@ function RatingScaleSvg({
         </g>
       )}
 
-      <text x={left + chartWidth / 2} y={height - 12} textAnchor="middle" fill="#64748b" fontSize="11" fontWeight="700">Scale value</text>
+      <text x={left + chartWidth / 2} y={height - 10} textAnchor="middle" fill="#64748b" fontSize="11" fontWeight="700">Scale value</text>
     </svg>
   )
 }
@@ -550,10 +550,10 @@ function YesNoPieSvg({
   const yesPct = total ? Math.round((yes / total) * 100) : 0
   const noPct = total ? 100 - yesPct : 0
   const width = 760
-  const height = 280
-  const cx = 210
-  const cy = 162
-  const radius = 88
+  const height = 240
+  const cx = 165
+  const cy = 132
+  const radius = 78
   const labelRadius = 58
   const pointOnArc = (angle: number) => ({
     x: cx + Math.cos((angle * Math.PI) / 180) * labelRadius,
@@ -592,8 +592,8 @@ function YesNoPieSvg({
   return (
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Yes / No distribution" className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
-      {title && <text x="24" y="32" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
-      <text x="24" y="54" fill="#64748b" fontSize="12">{subtitle}</text>
+      {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
+      {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="12">{subtitle}</text>}
 
       <circle cx={cx} cy={cy} r={radius} fill="#f8fafc" />
       {total > 0 && (
@@ -634,11 +634,11 @@ function YesNoPieSvg({
         </>
       )}
 
-      <g transform="translate(410 128)">
+      <g transform="translate(330 104)">
         <circle cx="0" cy="0" r="7" fill="#4f46e5" />
         <text x="20" y="5" fill="#0f172a" fontSize="15" fontWeight="700">Yes</text>
       </g>
-      <g transform="translate(410 178)">
+      <g transform="translate(330 154)">
         <circle cx="0" cy="0" r="7" fill="#94a3b8" />
         <text x="20" y="5" fill="#0f172a" fontSize="15" fontWeight="700">No</text>
       </g>
@@ -661,10 +661,12 @@ function PlotSvg({
 }) {
   const width = 760
   const rowHeight = 36
-  const top = subtitle ? 74 : 64
-  const left = 190
-  const right = 70
-  const height = Math.max(250, top + points.length * rowHeight + 34)
+  const hasTitle = Boolean(title)
+  const hasSubtitle = Boolean(subtitle)
+  const top = hasSubtitle ? 62 : hasTitle ? 50 : 24
+  const left = 148
+  const right = 48
+  const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + points.length * rowHeight + 28)
   const total = points.reduce((sum, point) => sum + point.value, 0)
   const percentages = points.map((point) => total ? Math.round((point.value / total) * 100) : 0)
   const topCount = Math.max(...points.map((point) => point.value), 0)
@@ -673,10 +675,10 @@ function PlotSvg({
   return (
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
-      {title && <text x="24" y="32" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
-      {subtitle && <text x="24" y="55" fill="#64748b" fontSize="13">{subtitle}</text>}
+      {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
+      {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="13">{subtitle}</text>}
       {points.length === 0 && (
-        <text x="24" y="112" fill="#64748b" fontSize="14">No answers yet.</text>
+        <text x="20" y={top + 22} fill="#64748b" fontSize="14">No answers yet.</text>
       )}
       {points.map((point, index) => {
         const y = top + index * rowHeight
@@ -686,8 +688,8 @@ function PlotSvg({
         return (
           <g key={`${point.label}-${index}`}>
             <title>{`${point.value}`}</title>
-            <text x={left - 14} y={y + 18} textAnchor="end" fill={isTop ? '#0f766e' : '#334155'} fontSize="13" fontWeight={isTop ? '800' : '600'}>
-              {point.label.length > 24 ? `${point.label.slice(0, 24)}...` : point.label}
+            <text x={left - 12} y={y + 18} textAnchor="end" fill={isTop ? '#0f766e' : '#334155'} fontSize="13" fontWeight={isTop ? '800' : '600'}>
+              {point.label.length > 18 ? `${point.label.slice(0, 18)}...` : point.label}
             </text>
             <rect x={left} y={y} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
             <rect
