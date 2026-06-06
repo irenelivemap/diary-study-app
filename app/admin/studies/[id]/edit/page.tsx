@@ -47,6 +47,7 @@ export default async function EditStudyPage({ params }: { params: Promise<{ id: 
           initialReminderNote={study.reminderNote ?? ''}
           initialRemindersEnabled={study.remindersEnabled}
           initialReminderTime={study.reminderTime ?? '18:00'}
+          initialReminderDays={study.reminderDays}
           initialReminderSubject={study.reminderSubject ?? ''}
           initialReminderBody={study.reminderBody ?? ''}
           initialIsActive={study.isActive}

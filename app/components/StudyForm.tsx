@@ -41,6 +41,7 @@ type Props = {
   initialReminderNote?: string
   initialRemindersEnabled?: boolean
   initialReminderTime?: string
+  initialReminderDays?: string[]
   initialReminderSubject?: string
   initialReminderBody?: string
   initialIsActive?: boolean
@@ -77,6 +78,16 @@ const UNLOCK_RULE_OPTIONS = [
   { value: 'IMMEDIATE', label: 'Immediately' },
 ]
 
+const WEEKDAYS = [
+  { value: '1', label: 'Mon' },
+  { value: '2', label: 'Tue' },
+  { value: '3', label: 'Wed' },
+  { value: '4', label: 'Thu' },
+  { value: '5', label: 'Fri' },
+  { value: '6', label: 'Sat' },
+  { value: '0', label: 'Sun' },
+]
+
 let counter = 0
 function uid() { return `_${++counter}` }
 
@@ -92,6 +103,7 @@ export default function StudyForm({
   action, initialName = '', initialDescription = '', initialIsActive = true,
   initialConsentText = '', initialContactEmail = '', initialReminderNote = '',
   initialRemindersEnabled = false, initialReminderTime = '18:00',
+  initialReminderDays = [],
   initialReminderSubject = '', initialReminderBody = '',
   initialSequential = false, initialParts = [], showStudyStatus = true, submitLabel = 'Create study',
 }: Props) {
@@ -104,6 +116,7 @@ export default function StudyForm({
   const [isActive, setIsActive] = useState(initialIsActive)
   const [isSequential, setIsSequential] = useState(initialSequential)
   const [remindersEnabled, setRemindersEnabled] = useState(initialRemindersEnabled)
+  const [reminderDays, setReminderDays] = useState<string[]>(initialReminderDays)
   const [collapsedQuestions, setCollapsedQuestions] = useState<Record<string, boolean>>({})
   const [draggedQuestion, setDraggedQuestion] = useState<{ partId: string; page: number; qId: string } | null>(null)
   const [draggedOption, setDraggedOption] = useState<{ partId: string; qId: string; index: number } | null>(null)
@@ -116,6 +129,16 @@ export default function StudyForm({
   }, [parts])
 
   const part = parts[activePart] ?? parts[0]
+  const allReminderDaysSelected = reminderDays.length === 0 || reminderDays.length === WEEKDAYS.length
+
+  function toggleReminderDay(day: string) {
+    setReminderDays((current) => {
+      const normalized = current.length === 0 ? WEEKDAYS.map((item) => item.value) : current
+      return normalized.includes(day)
+        ? normalized.filter((item) => item !== day)
+        : [...normalized, day]
+    })
+  }
 
   // ── Part operations ──────────────────────────────────
   function addPart() {
@@ -456,6 +479,46 @@ export default function StudyForm({
               <span className="text-sm text-slate-600">{remindersEnabled ? 'Enabled' : 'Off'}</span>
             </span>
           </label>
+          {(allReminderDaysSelected ? [] : reminderDays).map((day) => (
+            <input key={day} type="hidden" name="reminderDays" value={day} />
+          ))}
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label className={fieldLabelCls}>Send on</label>
+              <button
+                type="button"
+                onClick={() => setReminderDays([])}
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+              >
+                Every day
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {WEEKDAYS.map((day) => {
+                const selected = allReminderDaysSelected || reminderDays.includes(day.value)
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleReminderDay(day.value)}
+                    className={`h-10 rounded-xl border text-sm font-semibold transition-colors ${
+                      selected
+                        ? 'border-indigo-600 bg-indigo-600 text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              {allReminderDaysSelected
+                ? 'Automatic reminders can run every day after the selected time.'
+                : 'Automatic reminders only run on the selected days.'}
+            </p>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-[180px_minmax(0,1fr)] gap-4">
             <div>
               <label className={fieldLabelCls}>Send after</label>
