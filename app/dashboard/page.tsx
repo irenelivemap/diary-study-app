@@ -370,7 +370,7 @@ export default async function DashboardPage() {
                           )}
                         </div>
 
-                        {nextStage && (
+                        {nextStage && completedCount > 0 && (
                           <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900">Starting another {journeyName}?</p>
