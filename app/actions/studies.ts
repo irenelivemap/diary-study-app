@@ -5,7 +5,10 @@ import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
 import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
+import { sendParticipantRemovalEmail } from '@/app/lib/participant-removal'
 import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
+
+const REMOVED_INVITE_PREFIX = 'removed_'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -378,8 +381,16 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
   })
   const study = invitation?.study ?? await prisma.study.findUnique({ where: { inviteToken: token } })
   if (!study || study.isArchived) return { error: 'This invite link is not valid.' }
+  if (invitation?.token.startsWith(REMOVED_INVITE_PREFIX)) return { error: 'This invite link is not valid.' }
   if (invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()) {
     return { error: `This invitation is for ${invitation.email}. Please sign in with that email.` }
+  }
+  const removedInvitation = await prisma.studyInvitation.findUnique({
+    where: { studyId_email: { studyId: study.id, email: session.email.toLowerCase() } },
+    select: { token: true },
+  })
+  if (removedInvitation?.token.startsWith(REMOVED_INVITE_PREFIX)) {
+    return { error: 'You no longer have access to this study. Contact the researcher if this seems wrong.' }
   }
 
   await prisma.studyParticipant.upsert({
@@ -492,18 +503,43 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
   }
 }
 
-export async function removeParticipant(studyId: string, userId: string) {
+export async function removeParticipant(studyId: string, userId: string, options: { notifyParticipant?: boolean } = {}) {
   await requireAdmin()
   const participant = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId, userId } },
-    include: { user: { select: { email: true } } },
+    include: {
+      user: { select: { email: true, name: true } },
+      study: { select: { name: true, contactEmail: true } },
+    },
   })
+  const normalizedEmail = participant?.user.email.toLowerCase()
   await prisma.$transaction([
     prisma.studyParticipant.deleteMany({ where: { studyId, userId } }),
-    ...(participant
-      ? [prisma.studyInvitation.deleteMany({ where: { studyId, email: participant.user.email.toLowerCase() } })]
+    ...(normalizedEmail
+      ? [prisma.studyInvitation.upsert({
+          where: { studyId_email: { studyId, email: normalizedEmail } },
+          update: {
+            token: `${REMOVED_INVITE_PREFIX}${crypto.randomUUID().replaceAll('-', '')}`,
+            acceptedAt: null,
+            invitedBy: null,
+          },
+          create: {
+            studyId,
+            email: normalizedEmail,
+            token: `${REMOVED_INVITE_PREFIX}${crypto.randomUUID().replaceAll('-', '')}`,
+            acceptedAt: null,
+          },
+        })]
       : []),
   ])
+  if (options.notifyParticipant && participant) {
+    await sendParticipantRemovalEmail({
+      to: participant.user.email,
+      participantName: participant.user.name,
+      studyName: participant.study.name,
+      contactEmail: participant.study.contactEmail,
+    })
+  }
   revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
   revalidatePath(`/admin/studies/${studyId}/participants`)
@@ -514,8 +550,9 @@ export async function removeParticipant(studyId: string, userId: string) {
 export async function removeParticipantFromForm(formData: FormData) {
   const studyId = String(formData.get('studyId') ?? '')
   const userId = String(formData.get('userId') ?? '')
+  const notifyParticipant = checkboxValue(formData, 'notifyParticipant')
   if (!studyId || !userId) redirect('/admin')
-  await removeParticipant(studyId, userId)
+  await removeParticipant(studyId, userId, { notifyParticipant })
 }
 
 export async function updateParticipantOps(prevState: unknown, formData: FormData) {
