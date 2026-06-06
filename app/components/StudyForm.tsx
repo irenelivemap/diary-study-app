@@ -82,8 +82,8 @@ const UNLOCK_RULE_OPTIONS = [
 ]
 
 const ENTRY_POLICY_OPTIONS = [
-  { value: 'ONCE_PER_DAY', label: 'One entry per day' },
-  { value: 'MULTIPLE_PER_DAY', label: 'Multiple entries per day' },
+  { value: 'MULTIPLE_PER_DAY', label: 'Allow multiple entries' },
+  { value: 'ONCE_PER_DAY', label: 'Limit to one per day' },
 ]
 
 const WEEKDAYS = [
@@ -102,7 +102,7 @@ function uid() { return `_${++counter}` }
 function defaultPart(order: number): Part {
   return {
     id: uid(), name: `Part ${order}`, order,
-    instructions: '', entryPolicy: 'ONCE_PER_DAY', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
+    instructions: '', entryPolicy: 'MULTIPLE_PER_DAY', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
     questions: [{ id: uid(), text: '', type: 'FREE_TEXT', options: [], required: true, page: 1 }],
   }
 }
@@ -666,7 +666,7 @@ export default function StudyForm({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <SelectMenu
                     label="Entry rule"
-                    value={part.entryPolicy ?? 'ONCE_PER_DAY'}
+                    value={part.entryPolicy ?? 'MULTIPLE_PER_DAY'}
                     onChange={(value) => updatePart(part.id, { entryPolicy: value as Part['entryPolicy'] })}
                     options={ENTRY_POLICY_OPTIONS}
                   />

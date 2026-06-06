@@ -69,6 +69,7 @@ export default async function DashboardPage() {
   function statusText(part: { entryPolicy: string; targetEntries: number | null }, todayCount: number, entryCount: number, goalReached: boolean) {
     if (part.entryPolicy === 'MULTIPLE_PER_DAY') {
       if (todayCount > 0) return `${todayCount} submitted today`
+      if (part.targetEntries && !goalReached) return 'Ready to submit today'
       return 'Ready when something happens'
     }
     if (todayCount > 0) return "Today's entry submitted"
@@ -94,9 +95,9 @@ export default async function DashboardPage() {
     if (!consentedAt) return count
     const pending = study.parts.filter((p, pi) => {
       if (!p.isActive) return false
-      if (p.entryPolicy === 'MULTIPLE_PER_DAY') return false
       if (isPartComplete(p)) return false
       if (p.entries.find((e) => e.date === today)) return false
+      if (p.entryPolicy === 'MULTIPLE_PER_DAY' && !p.targetEntries) return false
       const dur = getDurationState(joinedAt, p.durationDays)
       if (dur?.ended) return false
       if (!isSequentialPartUnlocked(study, pi)) return false
