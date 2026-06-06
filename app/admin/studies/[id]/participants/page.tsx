@@ -193,7 +193,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                             </td>
                             <td className="px-3 py-3 text-right">
                               <form action={async () => { 'use server'; await removeParticipant(id, user.id) }}>
-                                <IconButton label={`Remove ${user.name}`} tone="trash" className="h-9 w-9">
+                                <IconButton type="submit" label={`Remove ${user.name}`} tone="trash" className="h-9 w-9">
                                   <TrashIcon />
                                 </IconButton>
                               </form>

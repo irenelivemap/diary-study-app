@@ -440,7 +440,10 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
 export async function removeParticipant(studyId: string, userId: string) {
   await requireAdmin()
   await prisma.studyParticipant.deleteMany({ where: { studyId, userId } })
+  revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
+  revalidatePath(`/admin/studies/${studyId}/participants`)
+  revalidatePath(`/admin/studies/${studyId}/data`)
 }
 
 export async function updateParticipantOps(prevState: unknown, formData: FormData) {
