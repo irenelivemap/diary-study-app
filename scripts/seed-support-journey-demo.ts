@@ -200,17 +200,17 @@ async function main() {
   const tagRepetition = await prisma.questionTag.create({ data: { questionId: reflection.id, label: 'Repetition', color: '#e11d48' } })
 
   const password = await bcrypt.hash('participant123', 10)
-  const users = [...admins]
+  const mockParticipants = []
   for (const [name, email] of PARTICIPANTS) {
     const user = await prisma.user.upsert({
       where: { email },
       update: { name, role: 'PARTICIPANT', timezone: 'Europe/Zurich' },
       create: { email, password, name, role: 'PARTICIPANT', timezone: 'Europe/Zurich' },
     })
-    users.push(user)
+    mockParticipants.push(user)
   }
 
-  for (const user of users) {
+  for (const user of [...admins, ...mockParticipants]) {
     await prisma.studyParticipant.upsert({
       where: { studyId_userId: { studyId: study.id, userId: user.id } },
       update: { consentedAt: new Date() },
@@ -221,7 +221,7 @@ async function main() {
   let journeyCount = 0
   let entryCount = 0
 
-  for (const [userIndex, user] of users.entries()) {
+  for (const [userIndex, user] of mockParticipants.entries()) {
     for (let requestIndex = 0; requestIndex < 2; requestIndex++) {
       const date = dateDaysAgo(userIndex + requestIndex)
       const startHour = numberBetween(9, 15)
@@ -292,7 +292,7 @@ async function main() {
   console.log(`  Stages: Before support -> During support -> After the outcome`)
   console.log(`  Journey instances: ${journeyCount}`)
   console.log(`  Entries: ${entryCount}`)
-  console.log(`  Admin participant has two support requests to inspect in the participant dashboard.`)
+  console.log(`  Admin accounts are enrolled with no mock support requests, so the participant view starts clean.`)
   console.log(`  Example participant login: marta.support@example.com / participant123`)
 }
 
