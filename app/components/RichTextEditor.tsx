@@ -36,7 +36,7 @@ export default function RichTextEditor({ value, onChange, placeholder, singleLin
     if (ref.current && ref.current.innerHTML !== value) {
       ref.current.innerHTML = value
     }
-  }, []) // only on mount
+  }, [value])
 
   function exec(cmd: string, arg?: string) {
     ref.current?.focus()

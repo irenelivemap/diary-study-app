@@ -105,7 +105,11 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
 
   function toggle<T>(set: Set<T>, val: T): Set<T> {
     const next = new Set(set)
-    next.has(val) ? next.delete(val) : next.add(val)
+    if (next.has(val)) {
+      next.delete(val)
+    } else {
+      next.add(val)
+    }
     return next
   }
 

@@ -141,6 +141,7 @@ export default function PreviewForm({ study }: { study: Study }) {
                 />
               )}
               {q.options?.[0] && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={q.options[0]} alt="" className="mt-4 max-h-80 rounded-xl border border-slate-200 object-contain" />
               )}
             </div>

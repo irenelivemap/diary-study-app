@@ -11,7 +11,6 @@ const PARTICIPANT_NAMES = [
   'Mia Andersen', 'Oliver Chen',
 ]
 
-const MOODS = ['Very bad', 'Bad', 'Neutral', 'Good', 'Very good']
 const ACTIVITIES = ['Work / study', 'Family / social', 'Personal errands', 'Rest / leisure']
 const BEST_MOMENTS = [
   'Had a great coffee in the morning and felt ready for the day.',
@@ -92,10 +91,6 @@ async function main() {
       update: {},
     })
   }
-
-  // Helper: find question by type/order in a part
-  const q = (part: typeof part1, type: string, idx = 0) =>
-    part.questions.filter(q => q.type === type)[idx]
 
   // Create Part 1 entries — 3 entries per participant over past 3 days
   for (const user of participantUsers) {

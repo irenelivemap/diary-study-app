@@ -20,7 +20,7 @@ export default function LoginPage() {
             Capture real experiences,<br />in the moment.
           </h2>
           <p className="text-indigo-200 text-lg leading-relaxed">
-            A research platform for diary studies that lets you understand people's daily lives with rich, longitudinal data.
+            A research platform for diary studies that lets you understand people&apos;s daily lives with rich, longitudinal data.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -66,7 +66,7 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-sm text-slate-500 text-center">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-indigo-600 font-medium hover:underline">Sign up</Link>
           </p>
         </div>

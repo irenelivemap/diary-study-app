@@ -62,7 +62,10 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
             <p className="text-sm font-medium text-slate-500 mb-2" dangerouslySetInnerHTML={{ __html: sanitizeHtml(answer.question.text) }} />
             {answer.question.type === 'SCREENSHOT' ? (
               answer.value
-                ? <img src={answer.value} alt="Screenshot" className="rounded-xl max-h-64 object-contain border border-slate-100" />
+                ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={answer.value} alt="Screenshot" className="rounded-xl max-h-64 object-contain border border-slate-100" />
+                  )
                 : <p className="text-sm text-slate-400">No screenshot provided</p>
             ) : (
               <p className="text-slate-800 text-sm leading-relaxed">

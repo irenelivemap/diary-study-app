@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ButtonLink } from '@/app/components/ui'
 import StudyStatusToggle from '@/app/components/StudyStatusToggle'
 
@@ -26,10 +26,6 @@ const TABS: { id: Tab; label: string; href: (id: string) => string }[] = [
 export default function StudyTabs({ studyId, active, studyName, isActive }: Props) {
   const pathname = usePathname()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
-
-  useEffect(() => {
-    setPendingHref(null)
-  }, [pathname])
 
   return (
     <div className="bg-white border-b border-slate-100">
@@ -68,7 +64,7 @@ export default function StudyTabs({ studyId, active, studyName, isActive }: Prop
               onClick={() => setPendingHref(tab.href(studyId))}
               aria-current={active === tab.id ? 'page' : undefined}
               className={`relative px-4 py-3 text-base font-medium border-b-2 transition-colors -mb-px ${
-                active === tab.id || pendingHref === tab.href(studyId)
+                active === tab.id || (pendingHref === tab.href(studyId) && pathname !== pendingHref)
                   ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
               }`}
