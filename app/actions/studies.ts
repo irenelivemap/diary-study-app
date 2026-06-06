@@ -36,6 +36,7 @@ export type PartInput = {
   name: string
   order: number
   instructions?: string
+  flow?: 'STANDARD' | 'JOURNEY_STAGE'
   entryPolicy?: 'ONCE_PER_DAY' | 'MULTIPLE_PER_DAY'
   targetEntries?: number | null
   durationDays?: number | null
@@ -80,12 +81,16 @@ function normalizedEntryPolicy(value: string | null | undefined) {
   return value === EntryPolicy.ONCE_PER_DAY ? EntryPolicy.ONCE_PER_DAY : EntryPolicy.MULTIPLE_PER_DAY
 }
 
+function normalizedPartFlow(value: string | null | undefined) {
+  return value === 'JOURNEY_STAGE' ? 'JOURNEY_STAGE' : 'STANDARD'
+}
+
 function normalizedStudyFields(formData: FormData) {
   const name = String(formData.get('name') ?? '').trim()
   const description = optionalString(formData, 'description')
   const rawMode = String(formData.get('mode') ?? StudyMode.STANDARD)
   const mode = rawMode === StudyMode.JOURNEY ? StudyMode.JOURNEY : StudyMode.STANDARD
-  const journeyName = mode === StudyMode.JOURNEY ? optionalString(formData, 'journeyName') : null
+  const journeyName = optionalString(formData, 'journeyName')
   const consentText = optionalString(formData, 'consentText')
   const contactEmail = optionalString(formData, 'contactEmail')
   const rawParticipantEntryAccess = String(formData.get('participantEntryAccess') ?? ParticipantEntryAccess.SHOW_READ_ONLY)
@@ -124,6 +129,7 @@ function validateParts(parts: PartInput[]) {
   for (const part of parts) {
     if (!part.name.trim()) return 'Every part needs a name.'
     if (!Number.isInteger(part.order) || part.order < 1) return 'Every part needs a valid order.'
+    if (part.flow && !['STANDARD', 'JOURNEY_STAGE'].includes(part.flow)) return `Part "${part.name}" has an invalid part type.`
     if (part.entryPolicy && !Object.values(EntryPolicy).includes(part.entryPolicy as EntryPolicy)) return `Part "${part.name}" has an invalid entry rule.`
     if (part.targetEntries != null && (!Number.isInteger(part.targetEntries) || part.targetEntries < 1 || part.targetEntries > 365)) {
       return 'Target entries must be between 1 and 365.'
@@ -174,6 +180,7 @@ function buildPartCreate(part: PartInput, studyId: string) {
     name: part.name,
     order: part.order,
     instructions: part.instructions || null,
+    flow: normalizedPartFlow(part.flow),
     entryPolicy: normalizedEntryPolicy(part.entryPolicy),
     targetEntries: part.targetEntries ?? null,
     durationDays: part.durationDays ?? null,
@@ -220,8 +227,14 @@ export async function createStudy(prevState: unknown, formData: FormData) {
   const validationError = validateParts(parts)
   if (validationError) return { error: validationError }
 
+  const hasJourneyStages = parts.some((part) => normalizedPartFlow(part.flow) === 'JOURNEY_STAGE')
   const final = await prisma.study.create({
-    data: { ...studyFields, reminderTime: studyFields.reminderTime },
+    data: {
+      ...studyFields,
+      mode: hasJourneyStages ? StudyMode.JOURNEY : StudyMode.STANDARD,
+      journeyName: hasJourneyStages ? (studyFields.journeyName || 'Journey') : null,
+      reminderTime: studyFields.reminderTime,
+    },
   })
 
   for (const part of parts) {
@@ -252,6 +265,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
 
   const validationError = validateParts(parts)
   if (validationError) return { error: validationError }
+  const hasJourneyStages = parts.some((part) => normalizedPartFlow(part.flow) === 'JOURNEY_STAGE')
 
   const existingEntries = await prisma.entry.count({ where: { studyId } })
   const currentParts = await prisma.part.findMany({
@@ -278,8 +292,8 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
         data: {
           name: studyFields.name,
           description: studyFields.description,
-          mode: studyFields.mode,
-          journeyName: studyFields.journeyName,
+          mode: hasJourneyStages ? StudyMode.JOURNEY : StudyMode.STANDARD,
+          journeyName: hasJourneyStages ? (studyFields.journeyName || 'Journey') : null,
           consentText: studyFields.consentText,
           contactEmail: studyFields.contactEmail,
           participantEntryAccess: studyFields.participantEntryAccess,
@@ -314,6 +328,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
             name: part.name,
             order: part.order,
             instructions: part.instructions || null,
+            flow: normalizedPartFlow(part.flow),
             entryPolicy: normalizedEntryPolicy(part.entryPolicy),
             targetEntries: part.targetEntries ?? null,
             durationDays: part.durationDays ?? null,

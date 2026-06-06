@@ -22,6 +22,7 @@ type Part = {
   name: string
   order: number
   instructions?: string
+  flow?: 'STANDARD' | 'JOURNEY_STAGE'
   entryPolicy?: 'ONCE_PER_DAY' | 'MULTIPLE_PER_DAY'
   targetEntries?: number | null
   durationDays?: number | null
@@ -87,6 +88,11 @@ const ENTRY_POLICY_OPTIONS = [
   { value: 'ONCE_PER_DAY', label: 'Limit to one per day' },
 ]
 
+const PART_FLOW_OPTIONS = [
+  { value: 'STANDARD', label: 'Independent diary part' },
+  { value: 'JOURNEY_STAGE', label: 'Stage inside a journey' },
+]
+
 const WEEKDAYS = [
   { value: '1', label: 'Mon' },
   { value: '2', label: 'Tue' },
@@ -103,7 +109,7 @@ function uid() { return `_${++counter}` }
 function defaultPart(order: number): Part {
   return {
     id: uid(), name: `Part ${order}`, order,
-    instructions: '', entryPolicy: 'MULTIPLE_PER_DAY', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
+    instructions: '', flow: 'STANDARD', entryPolicy: 'MULTIPLE_PER_DAY', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
     questions: [{ id: uid(), text: '', type: 'FREE_TEXT', options: [], required: true, page: 1 }],
   }
 }
@@ -154,6 +160,7 @@ export default function StudyForm({
   }, [parts])
 
   const part = parts[activePart] ?? parts[0]
+  const hasJourneyStages = parts.some((candidate) => candidate.flow === 'JOURNEY_STAGE') || studyMode === 'JOURNEY'
   const allReminderDaysSelected = reminderDays.length === 0 || reminderDays.length === WEEKDAYS.length
 
   function toggleReminderDay(day: string) {
@@ -169,7 +176,7 @@ export default function StudyForm({
 
   // ── Part operations ──────────────────────────────────
   function addPart() {
-    const newPart = defaultPart(parts.length + 1)
+    const newPart = { ...defaultPart(parts.length + 1), flow: studyMode === 'JOURNEY' ? 'JOURNEY_STAGE' as const : 'STANDARD' as const }
     setParts((p) => [...p, newPart])
     setActivePart(parts.length)
   }
@@ -450,6 +457,9 @@ export default function StudyForm({
           </div>
           <fieldset>
             <legend className={fieldLabelCls}>Study structure</legend>
+            <p className="-mt-1 mb-3 text-sm leading-relaxed text-slate-500">
+              Pick a starting structure, then use Part type below if a study needs both independent diary parts and journey stages.
+            </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-100">
                 <div className="flex items-start gap-3">
@@ -458,7 +468,10 @@ export default function StudyForm({
                     name="mode"
                     value="STANDARD"
                     checked={studyMode === 'STANDARD'}
-                    onChange={() => setStudyMode('STANDARD')}
+                    onChange={() => {
+                      setStudyMode('STANDARD')
+                      setParts((current) => current.map((candidate) => ({ ...candidate, flow: 'STANDARD' })))
+                    }}
                     className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   <div>
@@ -474,7 +487,10 @@ export default function StudyForm({
                     name="mode"
                     value="JOURNEY"
                     checked={studyMode === 'JOURNEY'}
-                    onChange={() => setStudyMode('JOURNEY')}
+                    onChange={() => {
+                      setStudyMode('JOURNEY')
+                      setParts((current) => current.map((candidate) => ({ ...candidate, flow: 'JOURNEY_STAGE' })))
+                    }}
                     className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   <div>
@@ -484,11 +500,11 @@ export default function StudyForm({
                 </div>
               </label>
             </div>
-            {studyMode === 'JOURNEY' && (
+            {hasJourneyStages && (
               <div className="mt-3">
                 <label className={fieldLabelCls}>Journey name</label>
                 <TextInput name="journeyName" defaultValue={initialJourneyName} placeholder="e.g. Badi visit" />
-                <p className="mt-2 text-sm text-slate-500">Participants will see actions like “Start a Badi visit”. Parts become the stages of this journey.</p>
+                <p className="mt-2 text-sm text-slate-500">Participants will see actions like “Start a Badi visit”. Only parts marked as journey stages are included in that journey.</p>
               </div>
             )}
           </fieldset>
@@ -718,7 +734,20 @@ export default function StudyForm({
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white resize-y transition-colors" />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <SelectMenu
+                    label="Part type"
+                    value={part.flow ?? (studyMode === 'JOURNEY' ? 'JOURNEY_STAGE' : 'STANDARD')}
+                    onChange={(value) => {
+                      const flow = value as Part['flow']
+                      setParts((current) => {
+                        const next = current.map((candidate) => candidate.id === part.id ? { ...candidate, flow } : candidate)
+                        setStudyMode(next.some((candidate) => candidate.flow === 'JOURNEY_STAGE') ? 'JOURNEY' : 'STANDARD')
+                        return next
+                      })
+                    }}
+                    options={PART_FLOW_OPTIONS}
+                  />
                   <SelectMenu
                     label="Entry rule"
                     value={part.entryPolicy ?? 'MULTIPLE_PER_DAY'}

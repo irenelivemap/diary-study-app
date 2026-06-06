@@ -105,10 +105,10 @@ export default async function DashboardPage() {
 
   const pendingToday = participations.reduce((count, { study, joinedAt, consentedAt }) => {
     if (!consentedAt) return count
-    if (study.mode === 'JOURNEY') {
-      return count + (study.journeys.some((journey) => !journey.completedAt) ? 1 : 0)
-    }
+    const hasJourneyStages = study.parts.some((part) => part.isActive && part.flow === 'JOURNEY_STAGE')
+    const journeyPending = hasJourneyStages && study.journeys.some((journey) => !journey.completedAt) ? 1 : 0
     const pending = study.parts.filter((p, pi) => {
+      if (p.flow === 'JOURNEY_STAGE') return false
       if (!p.isActive) return false
       if (isPartComplete(p)) return false
       if (p.entries.find((e) => e.date === today)) return false
@@ -118,7 +118,7 @@ export default async function DashboardPage() {
       if (!isSequentialPartUnlocked(study, pi)) return false
       return true
     }).length
-    return count + pending
+    return count + journeyPending + pending
   }, 0)
 
   return (
@@ -170,7 +170,8 @@ export default async function DashboardPage() {
                 <div className="space-y-3 p-4 sm:p-5">
                   {study.mode === 'JOURNEY' ? (() => {
                     const journeyName = study.journeyName || study.name
-                    const activeParts = study.parts.filter((stage) => stage.isActive)
+                    const activeParts = study.parts.filter((stage) => stage.isActive && stage.flow === 'JOURNEY_STAGE')
+                    const independentParts = study.parts.filter((candidate) => candidate.flow !== 'JOURNEY_STAGE')
                     const openJourney = study.journeys.find((journey) => !journey.completedAt)
                     const otherOpenJourneys = study.journeys.filter((journey) => !journey.completedAt && journey.id !== openJourney?.id)
                     const completedJourneys = study.journeys.filter((journey) => journey.completedAt)
@@ -179,9 +180,126 @@ export default async function DashboardPage() {
                       const entriesByPart = new Map(journey.entries.map((entry) => [entry.partId, entry]))
                       return activeParts.find((stage) => !entriesByPart.has(stage.id))
                     }
+                    const independentPartCards = independentParts.map((part) => {
+                      const pi = study.parts.findIndex((candidate) => candidate.id === part.id)
+                      const todayEntries = part.entries.filter((e) => e.date === today)
+                      const todayEntry = todayEntries[0]
+                      const pastEntries = part.entries.filter((e) => e.date !== today)
+                      const isOverdue = part.dueDate && new Date(part.dueDate) < new Date()
+                      const dur = getDurationState(joinedAt, part.durationDays)
+                      const entryCount = part._count.entries
+                      const target = part.targetEntries
+                      const allowMultipleEntries = part.entryPolicy === 'MULTIPLE_PER_DAY'
+                      const goalReached = target != null && entryCount >= target
+                      const isClosed = !!dur?.ended || !!isOverdue || part.isActive === false
+                      const canSubmit = part.isActive && !isClosed && (allowMultipleEntries || (!todayEntry && !goalReached))
+                      const currentStatus = statusText(part, todayEntries.length, entryCount, goalReached)
+                      const targetLabel = target ? `${entryCount}/${target} entries` : `${entryCount} submitted`
+                      const timeLabel = isOverdue
+                        ? 'Deadline passed'
+                        : dur?.ended
+                        ? `Ended ${dur.endDate.toLocaleDateString()}`
+                        : dur
+                        ? dur.daysLeft === 1
+                          ? 'Last day today'
+                          : `${dur.daysLeft} days left`
+                        : part.dueDate
+                        ? `Due ${new Date(part.dueDate).toLocaleDateString()}`
+                        : null
+
+                      return (
+                        <div key={part.id} className={`rounded-2xl border p-4 sm:p-5 ${
+                          canSubmit ? 'border-indigo-100 bg-indigo-50/50' : 'border-slate-100 bg-white'
+                        }`}>
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                                  PT {pi + 1}
+                                </span>
+                                <h3 className="text-base font-semibold text-slate-950">{part.name}</h3>
+                              </div>
+                              <p className={`mt-2 text-sm font-medium ${
+                                canSubmit ? 'text-indigo-700' : todayEntry || goalReached ? 'text-emerald-700' : 'text-slate-600'
+                              }`}>
+                                {isClosed ? 'Closed' : currentStatus}
+                              </p>
+                              {part.instructions && (
+                                <p className="mt-2 text-sm leading-relaxed text-slate-600">{part.instructions}</p>
+                              )}
+                            </div>
+                            <div className="shrink-0">
+                              {canSubmit ? (
+                                <ButtonLink
+                                  href={`/entry/new?studyId=${study.id}&partId=${part.id}`}
+                                  size="md"
+                                  className="w-full sm:w-auto"
+                                >
+                                  {allowMultipleEntries && todayEntries.length > 0 ? 'Add another entry' : 'Submit entry'}
+                                </ButtonLink>
+                              ) : todayEntry ? (
+                                <ButtonLink href={`/entry/${todayEntry.id}`} tone="secondary" size="md" className="w-full sm:w-auto">
+                                  View today&apos;s entry
+                                </ButtonLink>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {allowMultipleEntries && (
+                              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                                Multiple entries allowed
+                              </span>
+                            )}
+                            {(target || entryCount > 0) && (
+                              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                                {targetLabel}
+                              </span>
+                            )}
+                            {timeLabel && (
+                              <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                                isOverdue || dur?.ended
+                                  ? 'bg-slate-100 text-slate-600 ring-slate-200'
+                                  : dur && dur.daysLeft <= 3
+                                  ? 'bg-orange-50 text-orange-700 ring-orange-100'
+                                  : 'bg-white text-slate-700 ring-slate-200'
+                              }`}>
+                                {timeLabel}
+                              </span>
+                            )}
+                            {goalReached && (
+                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                                Target reached
+                              </span>
+                            )}
+                          </div>
+
+                          {canViewPastEntries && pastEntries.length > 0 && (
+                            <details className="mt-4 rounded-xl border border-slate-100 bg-white">
+                              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
+                                Previous entries
+                                <span className="ml-2 text-sm font-normal text-slate-400">{pastEntries.length}</span>
+                              </summary>
+                              <div className="border-t border-slate-100 px-4 py-2">
+                                {pastEntries.slice(0, 5).map((entry) => (
+                                  <Link key={entry.id} href={`/entry/${entry.id}`}
+                                    className="flex items-center justify-between rounded-lg py-2 text-sm hover:bg-slate-50">
+                                    <span className="text-slate-600">{entry.date}</span>
+                                    <span className="font-medium text-indigo-600">View</span>
+                                  </Link>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      )
+                    })
+
+                    if (activeParts.length === 0) return independentPartCards
 
                     if (!openJourney) {
                       return (
+                        <>
                         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">
                           <p className="text-sm font-semibold text-indigo-700">Next action</p>
                           <h3 className="mt-1 text-xl font-bold text-slate-950">Start a {journeyName}</h3>
@@ -213,6 +331,8 @@ export default async function DashboardPage() {
                             </details>
                           )}
                         </div>
+                        {independentPartCards}
+                        </>
                       )
                     }
 
@@ -221,6 +341,7 @@ export default async function DashboardPage() {
                     const completedCount = activeParts.filter((stage) => entriesByPart.has(stage.id)).length
 
                     return (
+                      <>
                       <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
                         <div className="rounded-2xl bg-indigo-50 px-4 py-4">
                           <p className="text-sm font-semibold text-indigo-700">Next action</p>
@@ -336,6 +457,8 @@ export default async function DashboardPage() {
                           </details>
                         )}
                       </div>
+                      {independentPartCards}
+                      </>
                     )
                   })() : study.parts.map((part, pi) => {
                     const todayEntries = part.entries.filter((e) => e.date === today)

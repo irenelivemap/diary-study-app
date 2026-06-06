@@ -69,6 +69,7 @@ export default async function EditStudyPage({
             name: p.name,
             order: p.order,
             instructions: p.instructions ?? '',
+            flow: p.flow as 'STANDARD' | 'JOURNEY_STAGE',
             entryPolicy: p.entryPolicy,
             targetEntries: p.targetEntries,
             durationDays: p.durationDays,
