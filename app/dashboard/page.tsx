@@ -486,11 +486,26 @@ export default async function DashboardPage() {
                               )
                             })}
                             {completedJourneys.slice(0, 4).map((journey) => (
-                              <div key={journey.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                                <p className="truncate font-medium text-slate-700">{journey.label ?? journeyName}</p>
-                                <p className="text-slate-500">
-                                  Completed{journey.completedAt ? ` ${journey.completedAt.toLocaleDateString()}` : ''}
-                                </p>
+                              <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
+                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Completed</span>
+                                  </div>
+                                  <p className="text-slate-600">
+                                    {journey.completedAt ? journey.completedAt.toLocaleDateString() : 'All stages submitted'}
+                                  </p>
+                                </div>
+                                {canViewPastEntries && (
+                                  <Link
+                                    href={`/journey/${journey.id}`}
+                                    aria-label={`View ${journey.label ?? journeyName}`}
+                                    title={`View ${journey.label ?? journeyName}`}
+                                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 transition-colors hover:bg-emerald-50"
+                                  >
+                                    <EyeIcon />
+                                  </Link>
+                                )}
                               </div>
                             ))}
                           </div>
