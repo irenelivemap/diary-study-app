@@ -22,6 +22,7 @@ type Part = {
   name: string
   order: number
   instructions?: string
+  entryPolicy?: 'ONCE_PER_DAY' | 'MULTIPLE_PER_DAY'
   targetEntries?: number | null
   durationDays?: number | null
   dueDate?: string | null
@@ -78,6 +79,11 @@ const UNLOCK_RULE_OPTIONS = [
   { value: 'IMMEDIATE', label: 'Immediately' },
 ]
 
+const ENTRY_POLICY_OPTIONS = [
+  { value: 'ONCE_PER_DAY', label: 'One entry per day' },
+  { value: 'MULTIPLE_PER_DAY', label: 'Multiple entries per day' },
+]
+
 const WEEKDAYS = [
   { value: '1', label: 'Mon' },
   { value: '2', label: 'Tue' },
@@ -94,7 +100,7 @@ function uid() { return `_${++counter}` }
 function defaultPart(order: number): Part {
   return {
     id: uid(), name: `Part ${order}`, order,
-    instructions: '', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
+    instructions: '', entryPolicy: 'ONCE_PER_DAY', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
     questions: [{ id: uid(), text: '', type: 'FREE_TEXT', options: [], required: true, page: 1 }],
   }
 }
@@ -619,7 +625,13 @@ export default function StudyForm({
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white resize-y transition-colors" />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <SelectMenu
+                    label="Entry rule"
+                    value={part.entryPolicy ?? 'ONCE_PER_DAY'}
+                    onChange={(value) => updatePart(part.id, { entryPolicy: value as Part['entryPolicy'] })}
+                    options={ENTRY_POLICY_OPTIONS}
+                  />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Target entries</label>
                     <input type="number" min={1} value={part.targetEntries ?? ''}

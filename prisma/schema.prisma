@@ -55,6 +55,7 @@ model Part {
   name          String
   order         Int
   instructions  String?
+  entryPolicy   EntryPolicy @default(ONCE_PER_DAY)
   targetEntries Int?
   durationDays  Int?
   dueDate       DateTime?
@@ -133,7 +134,7 @@ model Entry {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   answers Answer[]
 
-  @@unique([partId, userId, date])
+  @@index([partId, userId, date])
 }
 
 model Answer {
@@ -219,4 +220,9 @@ enum IncentiveStatus {
 enum ParticipantEntryAccess {
   HIDE_PAST_ENTRIES
   SHOW_READ_ONLY
+}
+
+enum EntryPolicy {
+  ONCE_PER_DAY
+  MULTIPLE_PER_DAY
 }

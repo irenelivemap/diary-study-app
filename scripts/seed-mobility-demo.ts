@@ -94,6 +94,7 @@ async function main() {
       name: 'Trip moments',
       order: 1,
       instructions: 'Log a commute or mobility moment soon after it happens. Focus on concrete situations, not general opinions.',
+      entryPolicy: 'MULTIPLE_PER_DAY',
       targetEntries: 5,
       durationDays: 14,
       unlockRule: 'IMMEDIATE',

@@ -111,10 +111,13 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     if (!unlocked) return { error: 'This part is not unlocked yet.' }
   }
 
-  const existing = await prisma.entry.findUnique({
-    where: { partId_userId_date: { partId, userId: session.userId, date } },
-  })
-  if (existing) return { error: 'You already submitted an entry for today.' }
+  if (part.entryPolicy === 'ONCE_PER_DAY') {
+    const existing = await prisma.entry.findFirst({
+      where: { partId, userId: session.userId, date },
+      select: { id: true },
+    })
+    if (existing) return { error: 'You already submitted an entry for today.' }
+  }
 
   const answerByQuestion = new Map<string, string>()
   const shownQuestionIds = new Set<string>()
@@ -183,33 +186,25 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     answerByQuestion.set(q.id, value)
   }
 
-  let entry
-  try {
-    entry = await prisma.entry.create({
-      data: {
-        studyId,
-        partId,
-        userId: session.userId,
-        date,
-        timezone,
-        answers: {
-          create: part.questions.map((q) => {
-            const wasShown = shownQuestionIds.has(q.id)
-            return {
-              questionId: q.id,
-              wasShown,
-              value: wasShown ? (answerByQuestion.get(q.id) ?? '') : 'N/A - not shown',
-            }
-          }),
-        },
+  const entry = await prisma.entry.create({
+    data: {
+      studyId,
+      partId,
+      userId: session.userId,
+      date,
+      timezone,
+      answers: {
+        create: part.questions.map((q) => {
+          const wasShown = shownQuestionIds.has(q.id)
+          return {
+            questionId: q.id,
+            wasShown,
+            value: wasShown ? (answerByQuestion.get(q.id) ?? '') : 'N/A - not shown',
+          }
+        }),
       },
-    })
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-      return { error: 'You already submitted an entry for today.' }
-    }
-    throw error
-  }
+    },
+  })
 
   revalidatePath('/dashboard')
   redirect(`/entry/${entry.id}`)

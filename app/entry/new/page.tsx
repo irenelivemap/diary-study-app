@@ -30,11 +30,6 @@ export default async function NewEntryPage({
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
-  const existing = await prisma.entry.findUnique({
-    where: { partId_userId_date: { partId, userId: session.userId, date: today } },
-  })
-  if (existing) redirect(`/entry/${existing.id}`)
-
   const part = await prisma.part.findUnique({
     where: { id: partId },
     include: {
@@ -54,6 +49,14 @@ export default async function NewEntryPage({
     },
   })
   if (!part || !part.isActive || !part.study.isActive || part.study.isArchived) redirect('/dashboard')
+
+  if (part.entryPolicy === 'ONCE_PER_DAY') {
+    const existing = await prisma.entry.findFirst({
+      where: { partId, userId: session.userId, date: today },
+      orderBy: { submittedAt: 'desc' },
+    })
+    if (existing) redirect(`/entry/${existing.id}`)
+  }
 
   if (part.dueDate && part.dueDate < new Date()) redirect('/dashboard')
   if (part.durationDays) {

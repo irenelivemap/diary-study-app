@@ -35,9 +35,14 @@ export default async function DashboardPage() {
               entries: {
                 where: { userId: session.userId },
                 orderBy: { submittedAt: 'desc' },
-                take: 7,
+                take: 8,
               },
-              _count: { select: { questions: true } },
+              _count: {
+                select: {
+                  questions: true,
+                  entries: { where: { userId: session.userId } },
+                },
+              },
             },
           },
         },
@@ -56,13 +61,24 @@ export default async function DashboardPage() {
 
   // A part is complete for sequential purposes when target entries are reached.
   // Duration is a time limit shown to participants but does NOT gate progression.
-  function isPartComplete(part: { entries: unknown[]; targetEntries: number | null }) {
+  function isPartComplete(part: { entries: unknown[]; targetEntries: number | null; _count?: { entries: number } }) {
     if (part.targetEntries == null) return false // no target = never auto-completes
-    return part.entries.length >= part.targetEntries
+    return (part._count?.entries ?? part.entries.length) >= part.targetEntries
+  }
+
+  function statusText(part: { entryPolicy: string; targetEntries: number | null }, todayCount: number, entryCount: number, goalReached: boolean) {
+    if (part.entryPolicy === 'MULTIPLE_PER_DAY') {
+      if (todayCount > 0) return `${todayCount} submitted today`
+      return 'Ready when something happens'
+    }
+    if (todayCount > 0) return "Today's entry submitted"
+    if (goalReached) return 'Completed'
+    if (part.targetEntries) return `${Math.max(part.targetEntries - entryCount, 0)} left`
+    return 'Ready to submit'
   }
 
   function isSequentialPartUnlocked(
-    study: { sequential: boolean; parts: Array<{ id: string; unlockRule: string | null; unlockAt: Date | null; isActive: boolean; entries: unknown[]; targetEntries: number | null }> },
+    study: { sequential: boolean; parts: Array<{ id: string; unlockRule: string | null; unlockAt: Date | null; isActive: boolean; entries: unknown[]; targetEntries: number | null; _count?: { entries: number } }> },
     index: number
   ) {
     if (!study.sequential || index === 0) return true
@@ -78,6 +94,8 @@ export default async function DashboardPage() {
     if (!consentedAt) return count
     const pending = study.parts.filter((p, pi) => {
       if (!p.isActive) return false
+      if (p.entryPolicy === 'MULTIPLE_PER_DAY') return false
+      if (isPartComplete(p)) return false
       if (p.entries.find((e) => e.date === today)) return false
       const dur = getDurationState(joinedAt, p.durationDays)
       if (dur?.ended) return false
@@ -133,13 +151,33 @@ export default async function DashboardPage() {
                     contactEmail={study.contactEmail}
                   />
                 ) : (
-                <div className="divide-y divide-slate-50">
+                <div className="space-y-3 p-4 sm:p-5">
                   {study.parts.map((part, pi) => {
-                    const todayEntry = part.entries.find((e) => e.date === today)
+                    const todayEntries = part.entries.filter((e) => e.date === today)
+                    const todayEntry = todayEntries[0]
                     const pastEntries = part.entries.filter((e) => e.date !== today)
                     const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
                     const isOverdue = part.dueDate && new Date(part.dueDate) < new Date()
                     const dur = getDurationState(joinedAt, part.durationDays)
+                    const entryCount = part._count.entries
+                    const target = part.targetEntries
+                    const allowMultipleEntries = part.entryPolicy === 'MULTIPLE_PER_DAY'
+                    const goalReached = target != null && entryCount >= target
+                    const isClosed = !!dur?.ended || !!isOverdue || part.isActive === false
+                    const canSubmit = part.isActive && !isClosed && (allowMultipleEntries || (!todayEntry && !goalReached))
+                    const currentStatus = statusText(part, todayEntries.length, entryCount, goalReached)
+                    const targetLabel = target ? `${entryCount}/${target} entries` : `${entryCount} submitted`
+                    const timeLabel = isOverdue
+                      ? 'Deadline passed'
+                      : dur?.ended
+                      ? `Ended ${dur.endDate.toLocaleDateString()}`
+                      : dur
+                      ? dur.daysLeft === 1
+                        ? 'Last day today'
+                        : `${dur.daysLeft} days left`
+                      : part.dueDate
+                      ? `Due ${new Date(part.dueDate).toLocaleDateString()}`
+                      : null
 
                     // Sequential: locked if any previous part is not complete
                     const isLocked = !isSequentialPartUnlocked(study, pi)
@@ -147,25 +185,22 @@ export default async function DashboardPage() {
                       ? study.parts.slice(0, pi).reverse().find((p) => !isPartComplete(p))?.name
                       : null
 
-                    const entryCount = part.entries.length
-                    const target = part.targetEntries
-                    const goalReached = target != null && entryCount >= target
-                    const progressPct = target ? Math.min((entryCount / target) * 100, 100) : null
-
                     if (isLocked) {
                       return (
-                        <div key={part.id} className="px-6 py-4 opacity-60">
-                          <div className="flex items-center gap-3">
-                            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                        <div key={part.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 opacity-75">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
                               PT {pi + 1}
-                            </span>
-                            <span className="text-sm font-medium text-slate-500">{part.name}</span>
-                            <span className="ml-auto text-xs text-slate-400 flex items-center gap-1">
-                              🔒 {part.unlockRule === 'DATE' && part.unlockAt
+                              </span>
+                              <span className="text-sm font-semibold text-slate-700">{part.name}</span>
+                            </div>
+                            <span className="text-sm text-slate-500">
+                              {part.unlockRule === 'DATE' && part.unlockAt
                                 ? `Unlocks ${new Date(part.unlockAt).toLocaleDateString()}`
                                 : part.unlockRule === 'MANUAL'
                                 ? 'Waiting for researcher'
-                                : <>Complete <span className="font-medium text-slate-500">{prevPartName}</span> to unlock</>}
+                                : <>Complete <span className="font-medium text-slate-700">{prevPartName}</span> to unlock</>}
                             </span>
                           </div>
                         </div>
@@ -173,150 +208,88 @@ export default async function DashboardPage() {
                     }
 
                     return (
-                      <div key={part.id} className="px-6 py-5">
-                        {/* Part label row */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
+                      <div key={part.id} className={`rounded-2xl border p-4 sm:p-5 ${
+                        canSubmit ? 'border-indigo-100 bg-indigo-50/50' : 'border-slate-100 bg-white'
+                      }`}>
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
                             <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
                               PT {pi + 1}
                             </span>
-                            <span className="text-sm font-medium text-slate-800">{part.name}</span>
+                              <h3 className="text-base font-semibold text-slate-950">{part.name}</h3>
+                            </div>
+                            <p className={`mt-2 text-sm font-medium ${
+                              canSubmit ? 'text-indigo-700' : todayEntry || goalReached ? 'text-emerald-700' : 'text-slate-600'
+                            }`}>
+                              {isClosed ? 'Closed' : currentStatus}
+                            </p>
+                            {part.instructions && (
+                              <p className="mt-2 text-sm leading-relaxed text-slate-600">{part.instructions}</p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {isOverdue && <span className="text-xs font-medium bg-red-50 text-red-500 px-2 py-0.5 rounded-full">Overdue</span>}
-                            {part.dueDate && !isOverdue && (
-                              <span className="text-xs font-medium bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">
-                                Due {new Date(part.dueDate).toLocaleDateString()}
-                              </span>
-                            )}
-                            {dur?.ended && (
-                              <span className="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-                                Duration ended
-                              </span>
-                            )}
-                            {dur && !dur.ended && dur.daysLeft <= 3 && (
-                              <span className="text-xs font-medium bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full">
-                                {dur.daysLeft} day{dur.daysLeft !== 1 ? 's' : ''} left
-                              </span>
-                            )}
-                            {!part.isActive && <span className="text-xs text-slate-400">Inactive</span>}
+                          <div className="shrink-0">
+                            {canSubmit ? (
+                              <ButtonLink
+                                href={`/entry/new?studyId=${study.id}&partId=${part.id}`}
+                                size="md"
+                                className="w-full sm:w-auto"
+                              >
+                                {allowMultipleEntries && todayEntries.length > 0 ? 'Add another entry' : 'Submit entry'}
+                              </ButtonLink>
+                            ) : todayEntry ? (
+                              <ButtonLink href={`/entry/${todayEntry.id}`} tone="secondary" size="md" className="w-full sm:w-auto">
+                                View today&apos;s entry
+                              </ButtonLink>
+                            ) : null}
                           </div>
                         </div>
 
-                        {part.instructions && (
-                          <p className="text-sm text-slate-500 mb-4 bg-slate-50 rounded-xl px-4 py-3 leading-relaxed">{part.instructions}</p>
-                        )}
-
-                        {/* Duration progress */}
-                        {dur && (
-                          <div className="mb-4">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-xs font-medium text-slate-500">Duration</span>
-                              <span className="text-xs font-semibold text-slate-700">
-                                {dur.ended
-                                  ? `Ended ${dur.endDate.toLocaleDateString()}`
-                                  : dur.daysLeft === 1
-                                  ? 'Last day today'
-                                  : `${dur.daysLeft} days remaining`}
-                              </span>
-                            </div>
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${dur.ended ? 'bg-slate-300' : dur.daysLeft <= 3 ? 'bg-orange-400' : 'bg-indigo-400'}`}
-                                style={{ width: `${Math.min(((part.durationDays! - Math.max(dur.daysLeft, 0)) / part.durationDays!) * 100, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Entry progress bar */}
-                        {target != null && (
-                          <div className="mb-4">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-xs font-medium text-slate-500">Progress</span>
-                              <span className="text-xs font-semibold text-slate-700">
-                                {entryCount} of {target} {entryCount === 1 ? 'entry' : 'entries'}
-                                {goalReached && <span className="ml-1.5 text-emerald-600">· Goal reached!</span>}
-                              </span>
-                            </div>
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${goalReached ? 'bg-emerald-400' : 'bg-indigo-500'}`}
-                                style={{ width: `${progressPct}%` }}
-                              />
-                            </div>
-                            {!goalReached && (
-                              <p className="text-xs text-slate-400 mt-1">{target - entryCount} more to go</p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Today's entry CTA */}
-                        {part.isActive && (
-                          <div className="mb-2">
-                            {dur?.ended ? (
-                              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                                <div className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center shrink-0">
-                                  <span className="text-slate-500 text-xs">⏱</span>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-600">Duration complete</p>
-                                  <p className="text-xs text-slate-400">
-                                    This part ended on {dur.endDate.toLocaleDateString()}. No more entries can be submitted.
-                                  </p>
-                                </div>
-                              </div>
-                            ) : goalReached && !todayEntry ? (
-                              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-5 h-5 bg-emerald-400 rounded-full flex items-center justify-center shrink-0">
-                                    <span className="text-white text-xs font-bold">✓</span>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-semibold text-emerald-700">Goal reached</p>
-                                    <p className="text-xs text-emerald-600">You&apos;ve completed all {target} entries for this part.</p>
-                                  </div>
-                                </div>
-                                <ButtonLink href={`/entry/new?studyId=${study.id}&partId=${part.id}`}
-                                  tone="secondary"
-                                  size="sm"
-                                  className="shrink-0 ml-3">
-                                  Add extra
-                                </ButtonLink>
-                              </div>
-                            ) : todayEntry ? (
-                              <div className="flex items-center justify-between bg-emerald-50 rounded-xl px-4 py-2.5">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-4 h-4 bg-emerald-400 rounded-full flex items-center justify-center">
-                                    <span className="text-white text-[9px]">✓</span>
-                                  </div>
-                                  <span className="text-xs font-medium text-emerald-700">Today&apos;s entry submitted</span>
-                                </div>
-                                <ButtonLink href={`/entry/${todayEntry.id}`} tone="secondary" size="sm">View</ButtonLink>
-                              </div>
-                            ) : (
-                              <ButtonLink href={`/entry/new?studyId=${study.id}&partId=${part.id}`}
-                                size="lg"
-                                className="w-full h-auto min-h-16 justify-between px-4 py-3 group">
-                                <div>
-                                  <p className="text-sm font-semibold">Submit today&apos;s entry</p>
-                                  <p className="text-xs text-indigo-200 mt-0.5">{today}</p>
-                                </div>
-                              </ButtonLink>
-                            )}
-                          </div>
-                        )}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {allowMultipleEntries && (
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                              Multiple entries allowed
+                            </span>
+                          )}
+                          {(target || entryCount > 0) && (
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                              {targetLabel}
+                            </span>
+                          )}
+                          {timeLabel && (
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                              isOverdue || dur?.ended
+                                ? 'bg-slate-100 text-slate-600 ring-slate-200'
+                                : dur && dur.daysLeft <= 3
+                                ? 'bg-orange-50 text-orange-700 ring-orange-100'
+                                : 'bg-white text-slate-700 ring-slate-200'
+                            }`}>
+                              {timeLabel}
+                            </span>
+                          )}
+                          {goalReached && (
+                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                              Target reached
+                            </span>
+                          )}
+                        </div>
 
                         {canViewPastEntries && pastEntries.length > 0 && (
-                          <div className="mt-2 space-y-0.5">
-                            {pastEntries.slice(0, 3).map((entry) => (
-                              <Link key={entry.id} href={`/entry/${entry.id}`}
-                                className="flex items-center justify-between py-1 rounded hover:bg-slate-50 -mx-1 px-1 transition-colors group">
-                                <span className="text-xs text-slate-500">{entry.date}</span>
-                                <span className="text-xs font-medium text-slate-400 group-hover:text-indigo-600">View</span>
-                              </Link>
-                            ))}
-                          </div>
+                          <details className="mt-4 rounded-xl border border-slate-100 bg-white">
+                            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
+                              Previous entries
+                              <span className="ml-2 text-sm font-normal text-slate-400">{pastEntries.length}</span>
+                            </summary>
+                            <div className="border-t border-slate-100 px-4 py-2">
+                              {pastEntries.slice(0, 5).map((entry) => (
+                                <Link key={entry.id} href={`/entry/${entry.id}`}
+                                  className="flex items-center justify-between rounded-lg py-2 text-sm hover:bg-slate-50">
+                                  <span className="text-slate-600">{entry.date}</span>
+                                  <span className="font-medium text-indigo-600">View</span>
+                                </Link>
+                              ))}
+                            </div>
+                          </details>
                         )}
                       </div>
                     )

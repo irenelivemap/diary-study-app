@@ -59,6 +59,7 @@ export default async function EditStudyPage({ params }: { params: Promise<{ id: 
             name: p.name,
             order: p.order,
             instructions: p.instructions ?? '',
+            entryPolicy: p.entryPolicy,
             targetEntries: p.targetEntries,
             durationDays: p.durationDays,
             dueDate: p.dueDate ? p.dueDate.toISOString().split('T')[0] : null,

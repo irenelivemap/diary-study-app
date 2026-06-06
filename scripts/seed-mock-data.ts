@@ -98,8 +98,8 @@ async function main() {
       const date = pastDate(day)
 
       // Check if entry already exists
-      const existing = await prisma.entry.findUnique({
-        where: { partId_userId_date: { partId: part1.id, userId: user.id, date } }
+      const existing = await prisma.entry.findFirst({
+        where: { partId: part1.id, userId: user.id, date }
       })
       if (existing) continue
 
@@ -146,8 +146,8 @@ async function main() {
   for (const user of participantUsers.slice(0, 3)) {
     const date = pastDate(0) // today
 
-    const existing = await prisma.entry.findUnique({
-      where: { partId_userId_date: { partId: part2.id, userId: user.id, date } }
+    const existing = await prisma.entry.findFirst({
+      where: { partId: part2.id, userId: user.id, date }
     })
     if (existing) continue
 
