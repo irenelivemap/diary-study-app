@@ -18,6 +18,11 @@ export async function login(prevState: { error?: string } | null, formData: Form
   const valid = await bcrypt.compare(password, user.password)
   if (!valid) return { error: 'Invalid email or password.' }
 
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  })
+
   await createSession({ userId: user.id, role: user.role, name: user.name, email: user.email })
 
   redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
@@ -37,7 +42,7 @@ export async function signup(prevState: { error?: string } | null, formData: For
 
   const hashed = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({
-    data: { email, password: hashed, name, role: 'PARTICIPANT' },
+    data: { email, password: hashed, name, role: 'PARTICIPANT', lastLoginAt: new Date() },
   })
 
   const invitations = await prisma.studyInvitation.findMany({

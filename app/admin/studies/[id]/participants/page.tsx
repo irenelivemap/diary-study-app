@@ -32,11 +32,10 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
         include: { _count: { select: { entries: true } } },
       },
       participants: {
-        include: { user: { select: { id: true, name: true, email: true } } },
+        include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true } } },
         orderBy: { joinedAt: 'asc' },
       },
       invitations: {
-        where: { acceptedAt: null },
         orderBy: { createdAt: 'desc' },
       },
     },
@@ -67,6 +66,38 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
     (sum, byPart) => sum + Object.values(byPart).reduce((a, b) => a + b, 0),
     0
   )
+  const invitedEmails = [...new Set(study.invitations.map((invitation) => invitation.email.toLowerCase()))]
+  const invitedUsers = invitedEmails.length
+    ? await prisma.user.findMany({
+        where: { email: { in: invitedEmails } },
+        select: { id: true, email: true, lastLoginAt: true },
+      })
+    : []
+  const invitedUsersByEmail = new Map(invitedUsers.map((user) => [user.email.toLowerCase(), user]))
+  const invitedUserIds = invitedEmails
+    .map((email) => invitedUsersByEmail.get(email)?.id)
+    .filter((userId): userId is string => !!userId)
+  const participantsWithEntries = new Set(
+    Object.entries(entryCountMap)
+      .filter(([, byPart]) => Object.values(byPart).some((count) => count > 0))
+      .map(([userId]) => userId)
+  )
+  const activeParts = study.parts.filter((part) => part.isActive)
+  const participantCompletedStudy = (userId: string) => {
+    if (activeParts.length === 0) return false
+    return activeParts.every((part) => {
+      const count = entryCountMap[userId]?.[part.id] ?? 0
+      return part.targetEntries && part.targetEntries > 0 ? count >= part.targetEntries : count > 0
+    })
+  }
+  const funnel = {
+    invited: invitedEmails.length,
+    loggedIn: invitedEmails.filter((email) => !!invitedUsersByEmail.get(email)?.lastLoginAt).length,
+    started: invitedUserIds.filter((userId) => participantsWithEntries.has(userId)).length,
+    completed: invitedUserIds.filter(participantCompletedStudy).length,
+  }
+  const pendingInvitations = study.invitations.filter((invitation) => !invitation.acceptedAt)
+
   function participantStatus(userId: string): ParticipantStatus {
     const userCounts = entryCountMap[userId] ?? {}
     const total = Object.values(userCounts).reduce((a, b) => a + b, 0)
@@ -109,6 +140,29 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
       <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <section className="mb-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Recruitment funnel</h2>
+              <p className="text-sm text-slate-500">Track invited participants from email invite to completed study.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: 'Invited', value: funnel.invited, detail: 'emails sent from this app' },
+              { label: 'Logged in', value: funnel.loggedIn, detail: 'invited people with an account login' },
+              { label: 'Started', value: funnel.started, detail: 'invited people with at least one entry' },
+              { label: 'Completed', value: funnel.completed, detail: 'invited people who reached part targets' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-slate-50 px-4 py-3">
+                <p className="text-sm font-medium text-slate-600">{item.label}</p>
+                <p className="mt-1 text-3xl font-bold leading-none text-slate-950">{item.value}</p>
+                <p className="mt-1 text-sm leading-snug text-slate-500">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
           <div className="space-y-4">
             <section className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -241,14 +295,14 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
               </div>
             </section>
 
-            {study.invitations.length > 0 && (
+            {pendingInvitations.length > 0 && (
               <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100">
                   <h2 className="text-base font-semibold text-slate-800">Pending invitations</h2>
                   <p className="text-sm text-slate-400 mt-0.5">Invited but not signed up yet.</p>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {study.invitations.map((invitation) => (
+                  {pendingInvitations.map((invitation) => (
                     <div key={invitation.id} className="px-5 py-3">
                       <p className="text-sm font-medium text-slate-800">{invitation.email}</p>
                       <p className="text-xs text-slate-400">
