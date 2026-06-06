@@ -141,32 +141,34 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <section className="mb-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm lg:col-span-2">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Recruitment funnel</h2>
               <p className="text-sm text-slate-500">Track invited participants from email invite to completed study.</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-fr">
             {[
               { label: 'Invited', value: funnel.invited, detail: 'emails sent from this app' },
               { label: 'Logged in', value: funnel.loggedIn, detail: 'invited people with an account login' },
               { label: 'Started', value: funnel.started, detail: 'invited people with at least one entry' },
               { label: 'Completed', value: funnel.completed, detail: 'invited people who reached part targets' },
             ].map((item) => (
-              <div key={item.label} className="rounded-xl bg-slate-50 px-4 py-3">
-                <p className="text-sm font-medium text-slate-600">{item.label}</p>
-                <p className="mt-1 text-3xl font-bold leading-none text-slate-950">{item.value}</p>
-                <p className="mt-1 text-sm leading-snug text-slate-500">{item.detail}</p>
+              <div key={item.label} className="flex h-full min-h-32 flex-col justify-between rounded-xl bg-slate-50 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">{item.label}</p>
+                  <p className="mt-2 text-3xl font-bold leading-none text-slate-950">{item.value}</p>
+                </div>
+                <p className="mt-3 text-sm leading-snug text-slate-500">{item.detail}</p>
               </div>
             ))}
           </div>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <section className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
@@ -184,21 +186,28 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
               {study.participants.length === 0 ? (
                 <p className="text-sm text-slate-400 px-5 py-4">No participants yet.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ minWidth: `${640 + study.parts.length * 72}px` }}>
+                <div className="overflow-x-auto overscroll-x-contain">
+                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${Math.max(720, 555 + study.parts.length * 64)}px` }}>
+                    <colgroup>
+                      <col style={{ width: 270 }} />
+                      <col style={{ width: 165 }} />
+                      {study.parts.map((part) => <col key={part.id} style={{ width: 64 }} />)}
+                      <col style={{ width: 64 }} />
+                      <col style={{ width: 56 }} />
+                    </colgroup>
                     <thead>
                       <tr className="border-b border-slate-100">
-                        <th className="text-left text-sm font-semibold text-slate-600 px-5 py-3 w-[280px] min-w-[280px]">Name</th>
-                        <th className="text-left text-sm font-semibold text-slate-600 px-4 py-3 w-[190px] min-w-[190px]">Status</th>
+                        <th className="px-5 py-3 text-left text-sm font-semibold text-slate-600">Name</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">Status</th>
                         {study.parts.map((part, pi) => (
-                          <th key={part.id} className="w-[72px] min-w-[72px] px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">
+                          <th key={part.id} className="px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">
                             <span className={`text-xs font-bold text-white px-2 py-1 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
                               PT {pi + 1}
                             </span>
                           </th>
                         ))}
-                        <th className="w-[72px] min-w-[72px] px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">Total</th>
-                        <th className="w-[64px] min-w-[64px] px-3 py-3" />
+                        <th className="px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">Total</th>
+                        <th className="px-3 py-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -210,7 +219,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                         const participantHref = `/admin/studies/${id}/participants/${user.id}`
                         return (
                           <tr key={user.id} className="hover:bg-slate-50 transition-colors group">
-                            <td className="px-5 py-3">
+                            <td className="px-5 py-3 align-middle">
                               <Link href={participantHref} className="flex items-center gap-2.5 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                 <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
                                   <span className="text-indigo-600 text-xs font-semibold">{user.name.charAt(0).toUpperCase()}</span>
@@ -224,7 +233,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 </div>
                               </Link>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 align-middle">
                               <Link href={participantHref} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                 <Badge tone={status.tone} className="whitespace-nowrap">{status.label}</Badge>
                                 <p className="mt-1 text-xs leading-snug text-slate-500 whitespace-nowrap">{status.detail}</p>
@@ -233,7 +242,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                             {study.parts.map((part) => {
                               const count = userCounts[part.id] ?? 0
                               return (
-                                <td key={part.id} className="px-2 py-3 text-center whitespace-nowrap">
+                                <td key={part.id} className="px-2 py-3 text-center align-middle whitespace-nowrap">
                                   <Link href={participantHref} className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     {count > 0 ? (
                                       <span className="font-semibold text-slate-700">{count}</span>
@@ -244,14 +253,14 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 </td>
                               )
                             })}
-                            <td className="px-2 py-3 text-center whitespace-nowrap">
+                            <td className="px-2 py-3 text-center align-middle whitespace-nowrap">
                               <Link href={participantHref} className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                 <span className={`font-bold text-sm ${total > 0 ? 'text-slate-800' : 'text-slate-200'}`}>
                                   {total || '—'}
                                 </span>
                               </Link>
                             </td>
-                            <td className="px-3 py-3 text-right">
+                            <td className="px-3 py-3 text-right align-middle">
                               <RemoveParticipantForm studyId={id} userId={user.id} participantName={user.name} />
                             </td>
                           </tr>
@@ -302,7 +311,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
             </OverviewSection>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-4">
+          <aside className="min-w-0 space-y-4 lg:sticky lg:top-4">
             <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
                 <h2 className="text-base font-semibold text-slate-800">Invite participant</h2>
