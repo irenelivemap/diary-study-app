@@ -437,7 +437,7 @@ function RatingScaleSvg({
     : points.map((point) => ({ key: String(point.score), label: String(point.score), sublabel: point.label === String(point.score) ? '' : point.label, count: point.count }))
   const width = 760
   const height = 260
-  const left = 72
+  const left = 86
   const right = 34
   const chartTop = 66
   const baseline = 188
@@ -470,7 +470,20 @@ function RatingScaleSvg({
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={question.text} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
       {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
-      {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="12">{subtitle}</text>}
+      {title && subtitle && <text x="20" y="50" fill="#64748b" fontSize="12">{subtitle}</text>}
+      {!title && subtitle && (
+        <text
+          x={-((chartTop + baseline) / 2)}
+          y="18"
+          transform="rotate(-90)"
+          textAnchor="middle"
+          fill="#64748b"
+          fontSize="11"
+          fontWeight="700"
+        >
+          {subtitle}
+        </text>
+      )}
 
       {ticks.map((tick) => {
         const y = yForPct(tick)
