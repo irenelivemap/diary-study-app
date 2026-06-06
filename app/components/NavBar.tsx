@@ -19,10 +19,15 @@ export default function NavBar({ name, role, actions }: Props) {
         <div className="flex items-center gap-2 flex-1 justify-end overflow-x-auto">
           {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
           <div className="flex items-center gap-2 pl-3 border-l border-slate-100 shrink-0">
+            <Link
+              href="/profile"
+              className="flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
               <span className="text-indigo-600 text-xs font-semibold">{name.charAt(0).toUpperCase()}</span>
             </div>
             <span className="text-sm font-medium text-slate-700 hidden sm:block max-w-[150px] truncate">{name}</span>
+            </Link>
             <form action={logout}>
               <button className="inline-flex h-9 items-center rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 whitespace-nowrap">
                 Sign out

@@ -10,6 +10,7 @@ import ParticipantOpsForm from '@/app/components/ParticipantOpsForm'
 import RemoveParticipantForm from '@/app/components/RemoveParticipantForm'
 import StudyTabs from '@/app/components/StudyTabs'
 import { Badge, ButtonLink } from '@/app/components/ui'
+import { demographicFieldLabel } from '@/app/lib/demographics'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
@@ -197,7 +198,8 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {study.participants.map(({ user }) => {
+                      {study.participants.map((participant) => {
+                        const { user } = participant
                         const userCounts = entryCountMap[user.id] ?? {}
                         const total = Object.values(userCounts).reduce((a, b) => a + b, 0)
                         const status = participantStatus(user.id)
@@ -212,6 +214,9 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 <div className="min-w-0">
                                   <p className="font-medium text-slate-800 text-sm leading-tight truncate group-hover:text-indigo-700">{user.name}</p>
                                   <p className="text-xs text-slate-400 leading-tight truncate">{user.email}</p>
+                                  {participant?.externalParticipantId && (
+                                    <p className="text-xs text-slate-500 leading-tight truncate">ID {participant.externalParticipantId}</p>
+                                  )}
                                 </div>
                               </Link>
                             </td>
@@ -263,15 +268,28 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 {study.participants.length === 0 ? (
                   <p className="text-sm text-slate-400">No participants yet.</p>
                 ) : study.participants.map((participant) => (
-                  <ParticipantOpsForm
-                    key={participant.user.id}
-                    studyId={id}
-                    userId={participant.user.id}
-                    name={participant.user.name}
-                    email={participant.user.email}
-                    notes={participant.researcherNotes}
-                    incentiveStatus={participant.incentiveStatus}
-                  />
+                  <div key={participant.user.id} className="space-y-2">
+                    <ParticipantOpsForm
+                      studyId={id}
+                      userId={participant.user.id}
+                      name={participant.user.name}
+                      email={participant.user.email}
+                      notes={participant.researcherNotes}
+                      incentiveStatus={participant.incentiveStatus}
+                    />
+                    {participant.externalParticipantId && (
+                      <p className="px-1 text-xs text-slate-500">External ID: {participant.externalParticipantId}</p>
+                    )}
+                    {participant.demographics && typeof participant.demographics === 'object' && (
+                      <div className="flex flex-wrap gap-1 px-1">
+                        {Object.entries(participant.demographics as Record<string, unknown>).map(([key, value]) => (
+                          <span key={key} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                            {demographicFieldLabel(key)}: {String(value)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </OverviewSection>
@@ -298,6 +316,9 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                   {pendingInvitations.map((invitation) => (
                     <div key={invitation.id} className="px-5 py-3">
                       <p className="text-sm font-medium text-slate-800">{invitation.email}</p>
+                      {invitation.externalParticipantId && (
+                        <p className="text-xs text-slate-500">ID {invitation.externalParticipantId}</p>
+                      )}
                       <p className="text-xs text-slate-400">
                         Sent {invitation.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>

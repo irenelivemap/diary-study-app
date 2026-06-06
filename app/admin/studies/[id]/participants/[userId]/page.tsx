@@ -5,6 +5,7 @@ import { ButtonLink } from '@/app/components/ui'
 import CopyTextButton from '@/app/components/CopyTextButton'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
+import { demographicFieldLabel } from '@/app/lib/demographics'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
@@ -209,7 +210,21 @@ export default async function ParticipantEntriesPage({
         <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-slate-500">Joined {formatDate(participation.joinedAt)}</span>
+            {participation.externalParticipantId && (
+              <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                External ID: {participation.externalParticipantId}
+              </span>
+            )}
           </div>
+          {participation.demographics && typeof participation.demographics === 'object' && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(participation.demographics as Record<string, unknown>).map(([key, value]) => (
+                <span key={key} className="rounded-full bg-indigo-50 px-3 py-1 text-sm text-indigo-800">
+                  <span className="font-semibold">{demographicFieldLabel(key)}:</span> {String(value)}
+                </span>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="space-y-4">

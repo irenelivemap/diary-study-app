@@ -11,6 +11,8 @@ model User {
   email     String   @unique
   password  String
   name      String
+  firstName String?
+  lastName  String?
   role      Role     @default(PARTICIPANT)
   timezone  String?
   lastLoginAt DateTime?
@@ -38,6 +40,7 @@ model Study {
   reminderSubject  String?
   reminderBody     String?
   participantEntryAccess ParticipantEntryAccess @default(SHOW_READ_ONLY)
+  demographicFields String[] @default([])
   version      Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
@@ -95,6 +98,8 @@ model StudyParticipant {
   userId          String
   joinedAt        DateTime        @default(now())
   consentedAt     DateTime?
+  externalParticipantId String?
+  demographics    Json?
   researcherNotes String?
   incentiveStatus IncentiveStatus @default(NOT_TRACKED)
 
@@ -102,6 +107,7 @@ model StudyParticipant {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([studyId, userId])
+  @@index([externalParticipantId])
 }
 
 model StudyInvitation {
@@ -109,6 +115,7 @@ model StudyInvitation {
   studyId    String
   email      String
   token      String    @unique
+  externalParticipantId String?
   invitedBy  String?
   acceptedAt DateTime?
   createdAt  DateTime  @default(now())

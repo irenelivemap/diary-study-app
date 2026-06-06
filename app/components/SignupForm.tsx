@@ -5,11 +5,21 @@ import Link from 'next/link'
 import { signup } from '@/app/actions/auth'
 import { Button, TextInput } from '@/app/components/ui'
 
-export default function SignupForm({ invitedEmail = '' }: { invitedEmail?: string }) {
+export default function SignupForm({
+  invitedEmail = '',
+  inviteToken = '',
+  externalParticipantId = '',
+}: {
+  invitedEmail?: string
+  inviteToken?: string
+  externalParticipantId?: string
+}) {
   const [state, action, pending] = useActionState(signup, null)
 
   return (
     <form action={action} className="space-y-4">
+      {inviteToken && <input type="hidden" name="inviteToken" value={inviteToken} />}
+      {externalParticipantId && <input type="hidden" name="externalParticipantId" value={externalParticipantId} />}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1.5">Full name</label>
         <TextInput

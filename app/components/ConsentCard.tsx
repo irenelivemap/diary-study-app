@@ -2,6 +2,7 @@
 import { useActionState } from 'react'
 import { acceptConsent } from '@/app/actions/studies'
 import { Button } from '@/app/components/ui'
+import { DEMOGRAPHIC_FIELDS } from '@/app/lib/demographics'
 
 type Props = {
   studyId: string
@@ -9,11 +10,13 @@ type Props = {
   description?: string | null
   consentText?: string | null
   contactEmail?: string | null
+  demographicFields?: string[]
 }
 
-export default function ConsentCard({ studyId, studyName, description, consentText, contactEmail }: Props) {
+export default function ConsentCard({ studyId, studyName, description, consentText, contactEmail, demographicFields = [] }: Props) {
   const [state, action, pending] = useActionState(acceptConsent, null)
   const timezone = typeof Intl === 'undefined' ? '' : Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  const selectedDemographics = DEMOGRAPHIC_FIELDS.filter((field) => demographicFields.includes(field.key))
 
   return (
     <form action={action} className="space-y-5 px-5 py-5 sm:px-6">
@@ -40,6 +43,49 @@ export default function ConsentCard({ studyId, studyName, description, consentTe
         <p className="text-sm text-slate-500">
           Questions or technical issues? Contact <a href={`mailto:${contactEmail}`} className="text-indigo-600 hover:underline">{contactEmail}</a>.
         </p>
+      )}
+
+      {selectedDemographics.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="mb-4">
+            <p className="text-base font-semibold text-slate-950">Optional profile questions</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">
+              These help the researcher interpret responses. You can leave any field blank.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {selectedDemographics.map((field) => (
+              <div key={field.key}>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">{field.label}</label>
+                {field.type === 'select' ? (
+                  <select
+                    name={`demographic_${field.key}`}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    defaultValue=""
+                  >
+                    <option value="">Prefer not to answer</option>
+                    {field.options.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                ) : field.type === 'textarea' ? (
+                  <textarea
+                    name={`demographic_${field.key}`}
+                    rows={3}
+                    className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Optional"
+                  />
+                ) : (
+                  <input
+                    name={`demographic_${field.key}`}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Optional"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">

@@ -5,6 +5,7 @@ import { EntryPolicy, ParticipantEntryAccess } from '@prisma/client'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
+import { DEMOGRAPHIC_FIELDS, normalizeDemographicFields } from '@/app/lib/demographics'
 import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
 import { sendParticipantRemovalEmail } from '@/app/lib/participant-removal'
 import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
@@ -59,6 +60,22 @@ function reminderDaysValue(formData: FormData) {
   return Array.from(new Set(formData.getAll('reminderDays').map(String).filter((day) => /^[0-6]$/.test(day))))
 }
 
+function optionalExternalId(formData: FormData) {
+  const value = optionalString(formData, 'externalParticipantId')
+  return value ? value.slice(0, 120) : null
+}
+
+function demographicsValue(formData: FormData, fields: string[]) {
+  const allowed = new Set(fields)
+  const demographics: Record<string, string> = {}
+  for (const field of DEMOGRAPHIC_FIELDS) {
+    if (!allowed.has(field.key)) continue
+    const value = optionalString(formData, `demographic_${field.key}`)
+    if (value) demographics[field.key] = value.slice(0, 500)
+  }
+  return Object.keys(demographics).length > 0 ? demographics : null
+}
+
 function sanitizedOptions(options: string[] | undefined) {
   const seen = new Set<string>()
   const final: string[] = []
@@ -91,6 +108,7 @@ function normalizedStudyFields(formData: FormData) {
   const reminderDays = reminderDaysValue(formData)
   const reminderSubject = optionalString(formData, 'reminderSubject')
   const reminderBody = optionalString(formData, 'reminderBody')
+  const demographicFields = normalizeDemographicFields(formData.getAll('demographicFields'))
   const sequential = checkboxValue(formData, 'sequential')
 
   return {
@@ -105,6 +123,7 @@ function normalizedStudyFields(formData: FormData) {
     reminderDays,
     reminderSubject,
     reminderBody,
+    demographicFields,
     sequential,
   }
 }
@@ -271,6 +290,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
           consentText: studyFields.consentText,
           contactEmail: studyFields.contactEmail,
           participantEntryAccess: studyFields.participantEntryAccess,
+          demographicFields: studyFields.demographicFields,
           reminderNote: studyFields.reminderNote,
           remindersEnabled: studyFields.remindersEnabled,
           reminderTime: studyFields.reminderTime,
@@ -391,6 +411,7 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
   if (!session) redirect('/login')
 
   const token = formData.get('token') as string
+  const externalParticipantId = optionalExternalId(formData)
   const invitation = await prisma.studyInvitation.findUnique({
     where: { token },
     include: { study: true },
@@ -411,8 +432,14 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
 
   await prisma.studyParticipant.upsert({
     where: { studyId_userId: { studyId: study.id, userId: session.userId } },
-    update: {},
-    create: { studyId: study.id, userId: session.userId },
+    update: externalParticipantId || invitation?.externalParticipantId
+      ? { externalParticipantId: externalParticipantId ?? invitation?.externalParticipantId ?? null }
+      : {},
+    create: {
+      studyId: study.id,
+      userId: session.userId,
+      externalParticipantId: externalParticipantId ?? invitation?.externalParticipantId ?? null,
+    },
   })
   if (invitation) {
     await prisma.studyInvitation.update({
@@ -452,15 +479,19 @@ export async function acceptConsent(prevState: unknown, formData: FormData) {
 
   const participation = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId, userId: session.userId } },
-    include: { study: { select: { isActive: true, isArchived: true } } },
+    include: { study: { select: { isActive: true, isArchived: true, demographicFields: true } } },
   })
   if (!participation || participation.study.isArchived || !participation.study.isActive) {
     return { error: 'This study is not available.' }
   }
 
+  const demographics = demographicsValue(formData, participation.study.demographicFields)
   await prisma.studyParticipant.update({
     where: { studyId_userId: { studyId, userId: session.userId } },
-    data: { consentedAt: participation.consentedAt ?? new Date() },
+    data: {
+      consentedAt: participation.consentedAt ?? new Date(),
+      ...(demographics ? { demographics } : {}),
+    },
   })
 
   revalidatePath('/dashboard')
@@ -478,6 +509,7 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
 
   const studyId = formData.get('studyId') as string
   const email = normalizeEmail(formData.get('email'))
+  const externalParticipantId = optionalExternalId(formData)
 
   if (!email) return { error: 'Email is required.' }
   if (!isValidEmail(email)) return { error: 'Enter a valid email address.' }
@@ -490,8 +522,8 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
     if (user) {
       await prisma.studyParticipant.upsert({
         where: { studyId_userId: { studyId, userId: user.id } },
-        update: {},
-        create: { studyId, userId: user.id },
+        update: externalParticipantId ? { externalParticipantId } : {},
+        create: { studyId, userId: user.id, externalParticipantId },
       })
     }
   } catch {
@@ -500,8 +532,8 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
 
   const invitation = await prisma.studyInvitation.upsert({
     where: { studyId_email: { studyId, email } },
-    update: { token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null },
-    create: { studyId, email, token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null },
+    update: { token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null, externalParticipantId },
+    create: { studyId, email, token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null, externalParticipantId },
   })
   const emailResult = await sendStudyInvitationEmail({
     to: email,
