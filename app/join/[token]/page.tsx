@@ -7,7 +7,11 @@ import { Button, ButtonLink } from '@/app/components/ui'
 export default async function JoinStudyPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const session = await getSession()
-  const study = await prisma.study.findUnique({
+  const invitation = await prisma.studyInvitation.findUnique({
+    where: { token },
+    include: { study: { select: { id: true, name: true, description: true, isArchived: true } } },
+  })
+  const study = invitation?.study ?? await prisma.study.findUnique({
     where: { inviteToken: token },
     select: { id: true, name: true, description: true, isArchived: true },
   })
@@ -38,10 +42,14 @@ export default async function JoinStudyPage({ params }: { params: Promise<{ toke
             <ButtonLink href="/login" className="w-full" size="lg">
               Sign in to join
             </ButtonLink>
-            <ButtonLink href="/signup" className="w-full" tone="secondary" size="lg">
+            <ButtonLink href={invitation ? `/signup?email=${encodeURIComponent(invitation.email)}` : '/signup'} className="w-full" tone="secondary" size="lg">
               Create participant account
             </ButtonLink>
-            <p className="text-xs text-slate-400 text-center">After signing in, open this invite link again to join.</p>
+            <p className="text-xs text-slate-400 text-center">
+              {invitation
+                ? `Use ${invitation.email} so the study connects automatically.`
+                : 'After signing in, open this invite link again to join.'}
+            </p>
           </div>
         )}
       </div>

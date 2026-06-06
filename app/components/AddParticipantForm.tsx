@@ -16,13 +16,13 @@ export default function AddParticipantForm({ studyId }: { studyId: string }) {
         required
       />
       {state?.error && <p className="text-xs text-red-500">{state.error}</p>}
-      {state?.success && <p className="text-xs text-emerald-600">Participant added.</p>}
+      {state?.success && <p className="text-xs text-emerald-600">{state.message ?? 'Invitation sent.'}</p>}
       <Button
         type="submit"
         disabled={pending}
         className="w-full"
       >
-        {pending ? 'Adding…' : 'Add participant'}
+        {pending ? 'Sending…' : 'Send invitation'}
       </Button>
     </form>
   )

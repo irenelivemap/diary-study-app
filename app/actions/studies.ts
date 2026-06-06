@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
+import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -325,14 +326,27 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
   if (!session) redirect('/login')
 
   const token = formData.get('token') as string
-  const study = await prisma.study.findUnique({ where: { inviteToken: token } })
+  const invitation = await prisma.studyInvitation.findUnique({
+    where: { token },
+    include: { study: true },
+  })
+  const study = invitation?.study ?? await prisma.study.findUnique({ where: { inviteToken: token } })
   if (!study || study.isArchived) return { error: 'This invite link is not valid.' }
+  if (invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()) {
+    return { error: `This invitation is for ${invitation.email}. Please sign in with that email.` }
+  }
 
   await prisma.studyParticipant.upsert({
     where: { studyId_userId: { studyId: study.id, userId: session.userId } },
     update: {},
     create: { studyId: study.id, userId: session.userId },
   })
+  if (invitation) {
+    await prisma.studyInvitation.update({
+      where: { id: invitation.id },
+      data: { acceptedAt: new Date() },
+    })
+  }
 
   revalidatePath('/dashboard')
   redirect('/dashboard')
@@ -379,24 +393,48 @@ export async function togglePartStatus(partId: string, studyId: string, currentS
 }
 
 export async function addParticipant(prevState: unknown, formData: FormData) {
-  await requireAdmin()
+  const session = await requireAdmin()
 
   const studyId = formData.get('studyId') as string
-  const email = formData.get('email') as string
+  const email = String(formData.get('email') ?? '').trim().toLowerCase()
 
   if (!email) return { error: 'Email is required.' }
 
-  const user = await prisma.user.findUnique({ where: { email } })
-  if (!user) return { error: 'No user found with that email. Ask them to register first.' }
+  const study = await prisma.study.findUnique({ where: { id: studyId }, select: { id: true, name: true, isArchived: true } })
+  if (!study || study.isArchived) return { error: 'Study not found.' }
 
+  const user = await prisma.user.findUnique({ where: { email } })
   try {
-    await prisma.studyParticipant.create({ data: { studyId, userId: user.id } })
+    if (user) {
+      await prisma.studyParticipant.upsert({
+        where: { studyId_userId: { studyId, userId: user.id } },
+        update: {},
+        create: { studyId, userId: user.id },
+      })
+    }
   } catch {
     return { error: 'This participant is already enrolled in the study.' }
   }
 
+  const invitation = await prisma.studyInvitation.upsert({
+    where: { studyId_email: { studyId, email } },
+    update: { token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null },
+    create: { studyId, email, token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null },
+  })
+  const emailResult = await sendStudyInvitationEmail({
+    to: email,
+    studyName: study.name,
+    inviterName: session.name,
+    inviteUrl: invitationUrl(invitation.token),
+  })
+
   revalidatePath(`/admin/studies/${studyId}`)
-  return { success: true }
+  return {
+    success: true,
+    message: emailResult.sent
+      ? user ? 'Participant added and invitation email sent.' : 'Invitation email sent.'
+      : `Invitation saved, but email was not sent: ${emailResult.error}`,
+  }
 }
 
 export async function removeParticipant(studyId: string, userId: string) {

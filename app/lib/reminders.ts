@@ -1,5 +1,5 @@
-import { Resend } from 'resend'
 import { prisma } from '@/app/lib/db'
+import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
 
 type ReminderResult = {
   configured: boolean
@@ -77,14 +77,6 @@ function localDayOfWeek(timeZone: string) {
 function addSkip(result: ReminderResult, reason: string, count = 1) {
   result.skipped += count
   result.skippedByReason[reason] = (result.skippedByReason[reason] ?? 0) + count
-}
-
-function htmlEscape(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
 }
 
 function entryKey(partId: string, userId: string) {
@@ -180,15 +172,15 @@ function emailText(study: StudyWithReminderData, part: ReminderPart, participant
 
 export async function sendDueReminders(options: SendDueRemindersOptions = {}): Promise<ReminderResult> {
   const apiKey = process.env.RESEND_API_KEY
-  const from = process.env.EMAIL_FROM || 'diARI <onboarding@resend.dev>'
-  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3000')
+  const from = emailFrom()
+  const appUrl = appBaseUrl()
   const result: ReminderResult = { configured: !!apiKey, checked: 0, sent: 0, skipped: 0, failed: 0, errors: [], skippedByReason: {} }
 
   const studies = await getReminderStudies(options.studyId)
   if (!apiKey) return result
 
-  const resend = new Resend(apiKey)
+  const resend = resendClient()
+  if (!resend) return result
 
   for (const study of studies) {
     const entries = await prisma.entry.findMany({
