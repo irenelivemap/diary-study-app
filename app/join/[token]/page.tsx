@@ -4,8 +4,16 @@ import { prisma } from '@/app/lib/db'
 import { joinStudyWithInvite } from '@/app/actions/studies'
 import { Button, ButtonLink } from '@/app/components/ui'
 
-export default async function JoinStudyPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function JoinStudyPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>
+  searchParams: Promise<{ external_id?: string; participant_id?: string; tt_id?: string }>
+}) {
   const { token } = await params
+  const query = await searchParams
+  const externalParticipantId = String(query.external_id ?? query.participant_id ?? query.tt_id ?? '').trim().slice(0, 120)
   const session = await getSession()
   const invitation = await prisma.studyInvitation.findUnique({
     where: { token },
@@ -32,6 +40,7 @@ export default async function JoinStudyPage({ params }: { params: Promise<{ toke
         {session ? (
           <form action={join} className="mt-6">
             <input type="hidden" name="token" value={token} />
+            {externalParticipantId && <input type="hidden" name="externalParticipantId" value={externalParticipantId} />}
             <Button className="w-full" size="lg">
               Join study
             </Button>
@@ -42,7 +51,16 @@ export default async function JoinStudyPage({ params }: { params: Promise<{ toke
             <ButtonLink href="/login" className="w-full" size="lg">
               Sign in to join
             </ButtonLink>
-            <ButtonLink href={invitation ? `/signup?email=${encodeURIComponent(invitation.email)}` : '/signup'} className="w-full" tone="secondary" size="lg">
+            <ButtonLink
+              href={`/signup?${new URLSearchParams({
+                ...(invitation ? { email: invitation.email } : {}),
+                inviteToken: token,
+                ...(externalParticipantId ? { externalParticipantId } : {}),
+              }).toString()}`}
+              className="w-full"
+              tone="secondary"
+              size="lg"
+            >
               Create participant account
             </ButtonLink>
             <p className="text-xs text-slate-400 text-center">

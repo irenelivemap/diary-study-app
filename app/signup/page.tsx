@@ -3,9 +3,9 @@ import SignupForm from '@/app/components/SignupForm'
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ email?: string }>
+  searchParams: Promise<{ email?: string; inviteToken?: string; externalParticipantId?: string }>
 }) {
-  const { email } = await searchParams
+  const { email, inviteToken, externalParticipantId } = await searchParams
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -33,7 +33,11 @@ export default async function SignupPage({
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Create your account</h1>
           <p className="text-slate-500 text-sm mb-8">Join a diary study as a participant</p>
 
-          <SignupForm invitedEmail={email ?? ''} />
+          <SignupForm
+            invitedEmail={email ?? ''}
+            inviteToken={inviteToken ?? ''}
+            externalParticipantId={externalParticipantId ?? ''}
+          />
         </div>
       </div>
     </div>

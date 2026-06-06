@@ -149,6 +149,7 @@ export default async function DashboardPage() {
                     description={study.description}
                     consentText={study.consentText}
                     contactEmail={study.contactEmail}
+                    demographicFields={study.demographicFields}
                   />
                 ) : (
                 <div className="space-y-3 p-4 sm:p-5">

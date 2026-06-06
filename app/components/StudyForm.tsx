@@ -3,6 +3,7 @@ import { useActionState, useState, useRef, useEffect } from 'react'
 import RichTextEditor from './RichTextEditor'
 import { Button, IconButton, SwitchVisual, TextInput, TrashIcon } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
+import { DEMOGRAPHIC_FIELDS } from '@/app/lib/demographics'
 
 type Question = {
   id: string
@@ -39,6 +40,7 @@ type Props = {
   initialConsentText?: string
   initialContactEmail?: string
   initialParticipantEntryAccess?: 'HIDE_PAST_ENTRIES' | 'SHOW_READ_ONLY'
+  initialDemographicFields?: string[]
   initialReminderNote?: string
   initialRemindersEnabled?: boolean
   initialReminderTime?: string
@@ -107,7 +109,7 @@ function defaultPart(order: number): Part {
 
 export default function StudyForm({
   action, initialName = '', initialDescription = '', initialIsActive = true,
-  initialConsentText = '', initialContactEmail = '', initialParticipantEntryAccess = 'SHOW_READ_ONLY', initialReminderNote = '',
+  initialConsentText = '', initialContactEmail = '', initialParticipantEntryAccess = 'SHOW_READ_ONLY', initialDemographicFields = [], initialReminderNote = '',
   initialRemindersEnabled = false, initialReminderTime = '18:00',
   initialReminderDays = [],
   initialReminderSubject = '', initialReminderBody = '',
@@ -485,6 +487,26 @@ export default function StudyForm({
                     </div>
                   </div>
                 </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className={fieldLabelCls}>Optional participant profile questions</legend>
+              <p className="-mt-1 mb-3 text-sm leading-relaxed text-slate-500">
+                Ask only for demographics that help interpret this study. Participants can skip these.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {DEMOGRAPHIC_FIELDS.map((field) => (
+                  <label key={field.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
+                    <input
+                      type="checkbox"
+                      name="demographicFields"
+                      value={field.key}
+                      defaultChecked={initialDemographicFields.includes(field.key)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm font-medium text-slate-800">{field.label}</span>
+                  </label>
+                ))}
               </div>
             </fieldset>
             <div>

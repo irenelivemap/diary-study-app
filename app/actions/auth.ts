@@ -1,9 +1,22 @@
 'use server'
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/app/lib/db'
-import { createSession, deleteSession } from '@/app/lib/session'
+import { createSession, deleteSession, getSession } from '@/app/lib/session'
 import { isValidEmail, normalizeEmail } from '@/app/lib/validation'
+
+function splitName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { firstName: null, lastName: null }
+  if (parts.length === 1) return { firstName: parts[0], lastName: null }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
+
+function profileName(firstName: string, lastName: string, fallback: string) {
+  const fullName = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(' ')
+  return fullName || fallback.trim()
+}
 
 export async function login(prevState: { error?: string } | null, formData: FormData) {
   const email = normalizeEmail(formData.get('email'))
@@ -36,6 +49,8 @@ export async function signup(prevState: { error?: string } | null, formData: For
   const email = normalizeEmail(formData.get('email'))
   const password = String(formData.get('password') ?? '')
   const name = String(formData.get('name') ?? '').trim()
+  const inviteToken = String(formData.get('inviteToken') ?? '').trim()
+  const externalParticipantId = String(formData.get('externalParticipantId') ?? '').trim().slice(0, 120) || null
 
   if (!email || !password || !name) {
     return { error: 'All fields are required.' }
@@ -51,24 +66,55 @@ export async function signup(prevState: { error?: string } | null, formData: For
   if (existing) return { error: 'An account with this email already exists.' }
 
   const hashed = await bcrypt.hash(password, 12)
+  const { firstName, lastName } = splitName(name)
   const user = await prisma.user.create({
-    data: { email, password: hashed, name, role: 'PARTICIPANT', lastLoginAt: new Date() },
+    data: { email, password: hashed, name, firstName, lastName, role: 'PARTICIPANT', lastLoginAt: new Date() },
   })
 
   const invitations = await prisma.studyInvitation.findMany({
     where: { email, acceptedAt: null, study: { isArchived: false } },
-    select: { id: true, studyId: true },
+    select: { id: true, studyId: true, externalParticipantId: true },
   })
   for (const invitation of invitations) {
     await prisma.studyParticipant.upsert({
       where: { studyId_userId: { studyId: invitation.studyId, userId: user.id } },
-      update: {},
-      create: { studyId: invitation.studyId, userId: user.id },
+      update: invitation.externalParticipantId ? { externalParticipantId: invitation.externalParticipantId } : {},
+      create: { studyId: invitation.studyId, userId: user.id, externalParticipantId: invitation.externalParticipantId },
     })
     await prisma.studyInvitation.update({
       where: { id: invitation.id },
       data: { acceptedAt: new Date() },
     })
+  }
+
+  if (inviteToken) {
+    const invitation = await prisma.studyInvitation.findUnique({
+      where: { token: inviteToken },
+      include: { study: { select: { id: true, isArchived: true } } },
+    })
+    const study = invitation?.study ?? await prisma.study.findUnique({
+      where: { inviteToken },
+      select: { id: true, isArchived: true },
+    })
+    if (study && !study.isArchived && (!invitation || invitation.email.toLowerCase() === email)) {
+      await prisma.studyParticipant.upsert({
+        where: { studyId_userId: { studyId: study.id, userId: user.id } },
+        update: externalParticipantId || invitation?.externalParticipantId
+          ? { externalParticipantId: externalParticipantId ?? invitation?.externalParticipantId ?? null }
+          : {},
+        create: {
+          studyId: study.id,
+          userId: user.id,
+          externalParticipantId: externalParticipantId ?? invitation?.externalParticipantId ?? null,
+        },
+      })
+      if (invitation) {
+        await prisma.studyInvitation.update({
+          where: { id: invitation.id },
+          data: { acceptedAt: new Date() },
+        })
+      }
+    }
   }
 
   await createSession({ userId: user.id, role: user.role, name: user.name, email: user.email })
@@ -78,4 +124,31 @@ export async function signup(prevState: { error?: string } | null, formData: For
 export async function logout() {
   await deleteSession()
   redirect('/login')
+}
+
+export async function updateProfile(prevState: { error?: string; success?: boolean } | null, formData: FormData) {
+  const session = await getSession()
+  if (!session) redirect('/login')
+
+  const firstName = String(formData.get('firstName') ?? '').trim().slice(0, 80)
+  const lastName = String(formData.get('lastName') ?? '').trim().slice(0, 120)
+  const displayName = profileName(firstName, lastName, String(formData.get('name') ?? session.name))
+
+  if (!displayName) return { error: 'Add at least a first name or display name.' }
+
+  const updated = await prisma.user.update({
+    where: { id: session.userId },
+    data: {
+      firstName: firstName || null,
+      lastName: lastName || null,
+      name: displayName.slice(0, 160),
+    },
+    select: { id: true, role: true, name: true, email: true },
+  })
+
+  await createSession({ userId: updated.id, role: updated.role, name: updated.name, email: updated.email })
+  revalidatePath('/profile')
+  revalidatePath('/admin')
+  revalidatePath('/dashboard')
+  return { success: true }
 }
