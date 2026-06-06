@@ -56,6 +56,33 @@ function answerMatchesCondition(sourceValue: string | undefined, expectedValue: 
   return sourceValue === expectedValue
 }
 
+async function requireAdmin() {
+  const session = await getSession()
+  if (!session || session.role !== 'ADMIN') redirect('/login')
+  return session
+}
+
+export async function deleteEntryFromForm(formData: FormData) {
+  await requireAdmin()
+  const studyId = String(formData.get('studyId') ?? '')
+  const entryId = String(formData.get('entryId') ?? '')
+  if (!studyId || !entryId) redirect('/admin')
+
+  const entry = await prisma.entry.findFirst({
+    where: { id: entryId, studyId },
+    select: { id: true },
+  })
+  if (entry) {
+    await prisma.entry.delete({ where: { id: entry.id } })
+  }
+
+  revalidatePath(`/admin/studies/${studyId}`)
+  revalidatePath(`/admin/studies/${studyId}/data`)
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
+  revalidatePath(`/admin/studies/${studyId}/participants`)
+  redirect(`/admin/studies/${studyId}/data`)
+}
+
 export async function submitEntry(prevState: unknown, formData: FormData) {
   const session = await getSession()
   if (!session) redirect('/login')

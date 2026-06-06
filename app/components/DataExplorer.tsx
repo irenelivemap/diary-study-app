@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Badge, Button, TextInput } from '@/app/components/ui'
+import { deleteEntryFromForm } from '@/app/actions/entries'
+import { Badge, Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
 
 type Question = { id: string; partId: string; partName: string; text: string; type: string }
 type Part = { id: string; name: string }
@@ -20,6 +21,7 @@ type Row = {
 }
 
 type Props = {
+  studyId: string
   studyName: string
   studyVersion: number
   parts: Part[]
@@ -93,7 +95,7 @@ function formatAnswerValue(value: string, type: string) {
   return value
 }
 
-export default function DataExplorer({ studyName, studyVersion, parts, participants, questions, rows }: Props) {
+export default function DataExplorer({ studyId, studyName, studyVersion, parts, participants, questions, rows }: Props) {
   const answerQuestions = questions.filter((q) => q.type !== 'CONTENT')
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set(parts.map((p) => p.id)))
   const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set(participants.map((p) => p.id)))
@@ -102,6 +104,7 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
   const [selectedBaseCols, setSelectedBaseCols] = useState<Set<BaseColumnId>>(new Set(BASE_COLUMNS.map((col) => col.id)))
   const [selectedQuestionCols, setSelectedQuestionCols] = useState<Set<string>>(new Set(answerQuestions.map((q) => q.id)))
   const [anonymize, setAnonymize] = useState(false)
+  const [entryToDelete, setEntryToDelete] = useState<Row | null>(null)
 
   function toggle<T>(set: Set<T>, val: T): Set<T> {
     const next = new Set(set)
@@ -389,6 +392,7 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
                       />
                     </th>
                   ))}
+                  <th className="px-4 py-2 bg-slate-50 min-w-[72px]" />
                 </tr>
                 <tr className="border-b-2 border-slate-100">
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap sticky left-0 z-10 border-r border-slate-100 min-w-[130px]">
@@ -424,6 +428,9 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
                       </div>
                     </th>
                   ))}
+                  <th className="text-right text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[72px]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -470,6 +477,17 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
                         </td>
                       )
                     })}
+                    <td className="px-4 py-3 text-right align-middle">
+                      <IconButton
+                        type="button"
+                        label={`Delete entry from ${row.participantName} on ${row.date}`}
+                        tone="trash"
+                        className="h-9 w-9"
+                        onClick={() => setEntryToDelete(row)}
+                      >
+                        <TrashIcon />
+                      </IconButton>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -480,6 +498,44 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
               {filteredRows.length} {filteredRows.length === 1 ? 'entry' : 'entries'} · {selectedColumnCount} columns selected for download
             </p>
             <p className="text-xs text-slate-400 hidden sm:block">Use the checkboxes above each column to choose export columns</p>
+          </div>
+        </div>
+      )}
+
+      {entryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-950">Delete this entry?</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  This will permanently remove the entry from the data table, analysis dashboard, participant counts, and exports.
+                </p>
+                <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <p className="font-semibold text-slate-900">{entryToDelete.participantName}</p>
+                  <p>{entryToDelete.partName} · {entryToDelete.date} · {formatSubmittedTime(entryToDelete.submittedAt)}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEntryToDelete(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close delete entry dialog"
+              >
+                x
+              </button>
+            </div>
+
+            <form action={deleteEntryFromForm} className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <input type="hidden" name="studyId" value={studyId} />
+              <input type="hidden" name="entryId" value={entryToDelete.entryId} />
+              <Button type="button" tone="secondary" onClick={() => setEntryToDelete(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" tone="danger">
+                Delete entry
+              </Button>
+            </form>
           </div>
         </div>
       )}
