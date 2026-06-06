@@ -469,6 +469,17 @@ function RatingScaleSvg({
   return (
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={question.text} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
+      <defs>
+        {displayPoints.map((point, index) => {
+          const x = plotLeft + index * step
+          const clipWidth = Math.max(30, Math.min(96, step - 4))
+          return (
+            <clipPath key={`${point.key}-rating-label-clip`} id={`rating-label-clip-${index}`}>
+              <rect x={x - clipWidth / 2} y={baseline + 30} width={clipWidth} height="18" />
+            </clipPath>
+          )
+        })}
+      </defs>
       {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
       {title && subtitle && <text x="20" y="50" fill="#64748b" fontSize="12">{subtitle}</text>}
       {!title && subtitle && (
@@ -527,7 +538,14 @@ function RatingScaleSvg({
             <line x1={x} y1={baseline} x2={x} y2={baseline + 7} stroke={isTop ? '#0f766e' : '#94a3b8'} strokeWidth={isTop ? '3' : '2'} />
             <text x={x} y={baseline + 25} textAnchor="middle" fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{point.label}</text>
             {showSublabel && (
-              <text x={x} y={baseline + 42} textAnchor="middle" fill={isTop ? '#0f766e' : '#64748b'} fontSize="10">
+              <text
+                x={x}
+                y={baseline + 42}
+                textAnchor="middle"
+                clipPath={`url(#rating-label-clip-${index})`}
+                fill={isTop ? '#0f766e' : '#64748b'}
+                fontSize="10"
+              >
                 {point.sublabel.length > 12 ? `${point.sublabel.slice(0, 12)}...` : point.sublabel}
               </text>
             )}
@@ -677,7 +695,9 @@ function PlotSvg({
   const hasTitle = Boolean(title)
   const hasSubtitle = Boolean(subtitle)
   const top = hasSubtitle ? 62 : hasTitle ? 50 : 24
-  const left = 82
+  const longestLabel = Math.max(0, ...points.map((point) => point.label.length))
+  const labelWidth = Math.min(190, Math.max(82, longestLabel * 7.2))
+  const left = labelWidth + 26
   const right = 44
   const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + points.length * rowHeight + 28)
   const total = points.reduce((sum, point) => sum + point.value, 0)
@@ -688,6 +708,13 @@ function PlotSvg({
   return (
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
+      <defs>
+        {points.map((point, index) => (
+          <clipPath key={`${point.label}-${index}-label-clip`} id={`plot-label-clip-${index}`}>
+            <rect x="20" y={top + index * rowHeight - 2} width={labelWidth} height="26" />
+          </clipPath>
+        ))}
+      </defs>
       {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
       {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="13">{subtitle}</text>}
       {points.length === 0 && (
@@ -701,8 +728,16 @@ function PlotSvg({
         return (
           <g key={`${point.label}-${index}`}>
             <title>{`${point.value}`}</title>
-            <text x={left - 10} y={y + 18} textAnchor="end" fill={isTop ? '#0f766e' : '#334155'} fontSize="13" fontWeight={isTop ? '800' : '600'}>
-              {point.label.length > 10 ? `${point.label.slice(0, 10)}...` : point.label}
+            <text
+              x={left - 10}
+              y={y + 18}
+              textAnchor="end"
+              clipPath={`url(#plot-label-clip-${index})`}
+              fill={isTop ? '#0f766e' : '#334155'}
+              fontSize="13"
+              fontWeight={isTop ? '800' : '600'}
+            >
+              {point.label.length > Math.floor(labelWidth / 7.2) ? `${point.label.slice(0, Math.max(3, Math.floor(labelWidth / 7.2) - 1))}...` : point.label}
             </text>
             <rect x={left} y={y} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
             <rect
