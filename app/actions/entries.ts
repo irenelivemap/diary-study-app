@@ -94,6 +94,7 @@ export async function startJourney(formData: FormData) {
   if (!session) redirect('/login')
 
   const studyId = String(formData.get('studyId') ?? '')
+  const forceNewJourney = String(formData.get('forceNewJourney') ?? '') === 'true'
   if (!studyId) redirect('/dashboard')
 
   const study = await prisma.study.findUnique({
@@ -113,7 +114,7 @@ export async function startJourney(formData: FormData) {
   if (!study.participants[0]?.consentedAt || study.parts.length === 0) redirect('/dashboard')
 
   const existingJourney = study.journeys[0]
-  if (existingJourney) {
+  if (existingJourney && !forceNewJourney) {
     const completedPartIds = new Set(existingJourney.entries.map((entry) => entry.partId))
     const nextPart = study.parts.find((part) => !completedPartIds.has(part.id))
     if (!nextPart) {
