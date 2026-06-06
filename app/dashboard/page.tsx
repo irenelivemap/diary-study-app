@@ -237,13 +237,6 @@ export default async function DashboardPage() {
                               >
                                 Answer now
                               </ButtonLink>
-                              <form action={startJourney} className="mt-3">
-                                <input type="hidden" name="studyId" value={study.id} />
-                                <input type="hidden" name="forceNewJourney" value="true" />
-                                <Button type="submit" tone="secondary" size="md" className="w-full sm:w-auto">
-                                  Start a new {journeyName}
-                                </Button>
-                              </form>
                             </>
                           ) : (
                             <>
@@ -252,6 +245,24 @@ export default async function DashboardPage() {
                             </>
                           )}
                         </div>
+
+                        {nextStage && (
+                          <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900">Starting another {journeyName}?</p>
+                              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                                Create a separate visit if this is a new real-world experience.
+                              </p>
+                            </div>
+                            <form action={startJourney} className="mt-3 shrink-0 sm:mt-0">
+                              <input type="hidden" name="studyId" value={study.id} />
+                              <input type="hidden" name="forceNewJourney" value="true" />
+                              <Button type="submit" tone="secondary" size="md" className="w-full sm:w-auto">
+                                Start new visit
+                              </Button>
+                            </form>
+                          </div>
+                        )}
 
                         <div className="mt-4 space-y-2">
                           <div className="flex items-center justify-between">
