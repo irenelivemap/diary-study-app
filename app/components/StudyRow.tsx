@@ -1,8 +1,9 @@
 'use client'
 import { useState, useRef, useTransition } from 'react'
 import Link from 'next/link'
-import { toggleStudyStatus, renameStudy, archiveStudy } from '@/app/actions/studies'
-import { ButtonLink, IconButton, SwitchVisual, TrashIcon } from '@/app/components/ui'
+import { toggleStudyStatus, renameStudy } from '@/app/actions/studies'
+import StudyActionsMenu from '@/app/components/StudyActionsMenu'
+import { ButtonLink, SwitchVisual } from '@/app/components/ui'
 
 type Props = {
   study: {
@@ -40,11 +41,6 @@ export default function StudyRow({ study }: Props) {
     const previous = active
     setActive(!previous)
     startTransition(() => toggleStudyStatus(study.id, previous))
-  }
-
-  function handleDelete() {
-    if (!confirm(`Archive "${name}"? Responses will be kept, but the study will disappear from the active studies list.`)) return
-    startTransition(() => archiveStudy(study.id))
   }
 
   return (
@@ -106,13 +102,7 @@ export default function StudyRow({ study }: Props) {
           <SwitchVisual checked={active} />
           <span>{active ? 'Active' : 'Inactive'}</span>
         </button>
-        <IconButton
-          onClick={handleDelete}
-          label="Archive study"
-          tone="trash"
-        >
-          <TrashIcon className="h-5 w-5" />
-        </IconButton>
+        <StudyActionsMenu studyId={study.id} studyName={name} />
       </div>
     </div>
   )

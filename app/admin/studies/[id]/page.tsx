@@ -1,12 +1,11 @@
 import { redirect, notFound } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
-import { archiveStudy } from '@/app/actions/studies'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
 import ReminderSendCard from '@/app/components/ReminderSendCard'
 import OverviewSection from '@/app/components/OverviewSection'
-import { Button, ButtonLink } from '@/app/components/ui'
+import { ButtonLink } from '@/app/components/ui'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
@@ -304,19 +303,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
               />
             </OverviewSection>
 
-            <OverviewSection
-              title="Danger zone"
-              tone="danger"
-            >
-              <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <p className="text-sm text-slate-500">Archived studies disappear from active study lists but keep their data.</p>
-                <form action={async () => { 'use server'; await archiveStudy(id) }}>
-                  <Button tone="danger" size="sm">
-                    Archive study
-                  </Button>
-                </form>
-              </div>
-            </OverviewSection>
           </div>
         </div>
       </main>
