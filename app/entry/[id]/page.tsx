@@ -46,15 +46,16 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   if (isOwnEntry && isPastEntry && entry.study.participantEntryAccess === 'HIDE_PAST_ENTRIES') {
     redirect('/dashboard')
   }
-  const backHref = isOwnEntry ? '/dashboard' : `/admin/studies/${entry.studyId}`
-  const backLabel = isOwnEntry ? 'Back to dashboard' : 'Back to study'
+  const backHref = `/admin/studies/${entry.studyId}`
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <header className="bg-white border-b border-slate-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href={backHref} aria-label={backLabel} className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
+            {!isOwnEntry && (
+              <Link href={backHref} aria-label="Back to study" className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
+            )}
             <div>
               <p className="text-sm font-semibold text-slate-900">{entry.study.name}</p>
               <p className="text-xs text-slate-400">{entry.date}{session.role === 'ADMIN' && ` · ${entry.user.name}`}</p>
