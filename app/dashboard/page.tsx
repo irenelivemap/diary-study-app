@@ -106,7 +106,7 @@ export default async function DashboardPage() {
   const pendingToday = participations.reduce((count, { study, joinedAt, consentedAt }) => {
     if (!consentedAt) return count
     if (study.mode === 'JOURNEY') {
-      return count + study.journeys.filter((journey) => !journey.completedAt).length
+      return count + (study.journeys.some((journey) => !journey.completedAt) ? 1 : 0)
     }
     const pending = study.parts.filter((p, pi) => {
       if (!p.isActive) return false
@@ -173,8 +173,13 @@ export default async function DashboardPage() {
                     const journeyName = study.journeyName || study.name
                     const activeParts = study.parts.filter((stage) => stage.isActive)
                     const openJourney = study.journeys.find((journey) => !journey.completedAt)
+                    const otherOpenJourneys = study.journeys.filter((journey) => !journey.completedAt && journey.id !== openJourney?.id)
                     const completedJourneys = study.journeys.filter((journey) => journey.completedAt)
                     const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
+                    const journeyNextStage = (journey: typeof study.journeys[number]) => {
+                      const entriesByPart = new Map(journey.entries.map((entry) => [entry.partId, entry]))
+                      return activeParts.find((stage) => !entriesByPart.has(stage.id))
+                    }
 
                     if (!openJourney) {
                       return (
@@ -233,6 +238,13 @@ export default async function DashboardPage() {
                               >
                                 Answer now
                               </ButtonLink>
+                              <form action={startJourney} className="mt-3">
+                                <input type="hidden" name="studyId" value={study.id} />
+                                <input type="hidden" name="forceNewJourney" value="true" />
+                                <Button type="submit" tone="secondary" size="md" className="w-full sm:w-auto">
+                                  Start a new {journeyName}
+                                </Button>
+                              </form>
                             </>
                           ) : (
                             <>
@@ -283,6 +295,36 @@ export default async function DashboardPage() {
                             )
                           })}
                         </div>
+                        {otherOpenJourneys.length > 0 && (
+                          <details className="mt-4 rounded-xl border border-slate-100 bg-slate-50">
+                            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
+                              Other unfinished journeys
+                              <span className="ml-2 text-sm font-normal text-slate-400">{otherOpenJourneys.length}</span>
+                            </summary>
+                            <div className="border-t border-slate-100 px-4 py-2">
+                              {otherOpenJourneys.slice(0, 4).map((journey) => {
+                                const nextOtherStage = journeyNextStage(journey)
+                                return (
+                                  <div key={journey.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                                    <div className="min-w-0">
+                                      <p className="truncate font-medium text-slate-700">{journey.label ?? journeyName}</p>
+                                      <p className="text-slate-500">{nextOtherStage ? `Next: ${nextOtherStage.name}` : 'All stages submitted'}</p>
+                                    </div>
+                                    {nextOtherStage && (
+                                      <ButtonLink
+                                        href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
+                                        tone="secondary"
+                                        size="sm"
+                                      >
+                                        Continue
+                                      </ButtonLink>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </details>
+                        )}
                       </div>
                     )
                   })() : study.parts.map((part, pi) => {
