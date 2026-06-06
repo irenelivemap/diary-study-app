@@ -444,6 +444,14 @@ export async function removeParticipant(studyId: string, userId: string) {
   revalidatePath(`/admin/studies/${studyId}`)
   revalidatePath(`/admin/studies/${studyId}/participants`)
   revalidatePath(`/admin/studies/${studyId}/data`)
+  redirect(`/admin/studies/${studyId}/participants`)
+}
+
+export async function removeParticipantFromForm(formData: FormData) {
+  const studyId = String(formData.get('studyId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+  if (!studyId || !userId) redirect('/admin')
+  await removeParticipant(studyId, userId)
 }
 
 export async function updateParticipantOps(prevState: unknown, formData: FormData) {
