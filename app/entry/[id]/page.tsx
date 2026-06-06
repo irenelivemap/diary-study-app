@@ -14,6 +14,15 @@ function formatAnswerValue(value: string, type: string) {
   return value
 }
 
+function localDate(timeZone?: string | null) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone || undefined,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
 export default async function EntryPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) redirect('/login')
@@ -33,6 +42,10 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
 
   const sorted = [...entry.answers].sort((a, b) => a.question.order - b.question.order)
   const isOwnEntry = entry.userId === session.userId
+  const isPastEntry = entry.date !== localDate(entry.timezone)
+  if (isOwnEntry && isPastEntry && entry.study.participantEntryAccess === 'HIDE_PAST_ENTRIES') {
+    redirect('/dashboard')
+  }
   const backHref = isOwnEntry ? '/dashboard' : `/admin/studies/${entry.studyId}`
   const backLabel = isOwnEntry ? 'Back to dashboard' : 'Back to study'
 

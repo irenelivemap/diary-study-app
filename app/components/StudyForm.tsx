@@ -37,6 +37,7 @@ type Props = {
   initialDescription?: string
   initialConsentText?: string
   initialContactEmail?: string
+  initialParticipantEntryAccess?: 'HIDE_PAST_ENTRIES' | 'SHOW_READ_ONLY'
   initialReminderNote?: string
   initialRemindersEnabled?: boolean
   initialReminderTime?: string
@@ -100,7 +101,7 @@ function defaultPart(order: number): Part {
 
 export default function StudyForm({
   action, initialName = '', initialDescription = '', initialIsActive = true,
-  initialConsentText = '', initialContactEmail = '', initialReminderNote = '',
+  initialConsentText = '', initialContactEmail = '', initialParticipantEntryAccess = 'SHOW_READ_ONLY', initialReminderNote = '',
   initialRemindersEnabled = false, initialReminderTime = '18:00',
   initialReminderDays = [],
   initialReminderSubject = '', initialReminderBody = '',
@@ -441,6 +442,45 @@ export default function StudyForm({
                 placeholder="researcher@example.com"
               />
             </div>
+            <fieldset>
+              <legend className={fieldLabelCls}>Participant access to past entries</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-100">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="participantEntryAccess"
+                      value="HIDE_PAST_ENTRIES"
+                      defaultChecked={initialParticipantEntryAccess === 'HIDE_PAST_ENTRIES'}
+                      className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Hide past entries</p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                        Participants only see today&apos;s submission confirmation, not older entries.
+                      </p>
+                    </div>
+                  </div>
+                </label>
+                <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-100">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="participantEntryAccess"
+                      value="SHOW_READ_ONLY"
+                      defaultChecked={initialParticipantEntryAccess === 'SHOW_READ_ONLY'}
+                      className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Show submitted entries as read-only</p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                        Participants can review previous answers but cannot edit them.
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </fieldset>
             <div>
               <label className={fieldLabelCls}>Reminder note</label>
               <TextInput

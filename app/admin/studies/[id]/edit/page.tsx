@@ -44,6 +44,7 @@ export default async function EditStudyPage({ params }: { params: Promise<{ id: 
           initialDescription={study.description ?? ''}
           initialConsentText={study.consentText ?? ''}
           initialContactEmail={study.contactEmail ?? ''}
+          initialParticipantEntryAccess={study.participantEntryAccess}
           initialReminderNote={study.reminderNote ?? ''}
           initialRemindersEnabled={study.remindersEnabled}
           initialReminderTime={study.reminderTime ?? '18:00'}
