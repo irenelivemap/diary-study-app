@@ -4,8 +4,9 @@ import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import NavBar from '@/app/components/NavBar'
 import ConsentCard from '@/app/components/ConsentCard'
+import StartJourneyButton from '@/app/components/StartJourneyButton'
 import { startJourney } from '@/app/actions/entries'
-import { Button, ButtonLink } from '@/app/components/ui'
+import { ButtonLink } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
@@ -308,9 +309,10 @@ export default async function DashboardPage() {
                           </p>
                           <form action={startJourney} className="mt-4">
                             <input type="hidden" name="studyId" value={study.id} />
-                            <Button className="w-full sm:w-auto" size="lg">
+                            <input type="hidden" name="forceNewJourney" value="true" />
+                            <StartJourneyButton className="w-full sm:w-auto">
                               Start a {journeyName}
-                            </Button>
+                            </StartJourneyButton>
                           </form>
                           {completedJourneys.length > 0 && (
                             <details className="mt-4 rounded-xl border border-slate-100 bg-white">
@@ -379,9 +381,9 @@ export default async function DashboardPage() {
                             <form action={startJourney} className="mt-3 shrink-0 sm:mt-0">
                               <input type="hidden" name="studyId" value={study.id} />
                               <input type="hidden" name="forceNewJourney" value="true" />
-                              <Button type="submit" tone="secondary" size="md" className="w-full sm:w-auto">
+                              <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
                                 Start new visit
-                              </Button>
+                              </StartJourneyButton>
                             </form>
                           </div>
                         )}
