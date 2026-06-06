@@ -53,6 +53,7 @@ type Props = {
   initialSequential?: boolean
   initialParts?: Part[]
   showStudyStatus?: boolean
+  initialSaved?: boolean
   submitLabel?: string
 }
 
@@ -116,7 +117,7 @@ export default function StudyForm({
   initialRemindersEnabled = false, initialReminderTime = '18:00',
   initialReminderDays = [],
   initialReminderSubject = '', initialReminderBody = '',
-  initialSequential = false, initialParts = [], showStudyStatus = true, submitLabel = 'Create study',
+  initialSequential = false, initialParts = [], showStudyStatus = true, initialSaved = false, submitLabel = 'Create study',
 }: Props) {
   const [state, formAction, pending] = useActionState(action, null)
   const [parts, setParts] = useState<Part[]>(
@@ -135,8 +136,15 @@ export default function StudyForm({
   const [contentImageUploading, setContentImageUploading] = useState<Record<string, boolean>>({})
   const [localError, setLocalError] = useState('')
   const [isDirty, setIsDirty] = useState(false)
+  const [recentlySaved, setRecentlySaved] = useState(initialSaved)
   const partsInputRef = useRef<HTMLInputElement>(null)
   const hasTrackedInitialParts = useRef(false)
+
+  useEffect(() => {
+    if (!recentlySaved) return
+    const timeout = window.setTimeout(() => setRecentlySaved(false), 3500)
+    return () => window.clearTimeout(timeout)
+  }, [recentlySaved])
 
   useEffect(() => {
     if (partsInputRef.current) partsInputRef.current.value = JSON.stringify(parts)
@@ -151,6 +159,7 @@ export default function StudyForm({
   const allReminderDaysSelected = reminderDays.length === 0 || reminderDays.length === WEEKDAYS.length
 
   function toggleReminderDay(day: string) {
+    setRecentlySaved(false)
     setIsDirty(true)
     setReminderDays((current) => {
       const normalized = current.length === 0 ? WEEKDAYS.map((item) => item.value) : current
@@ -345,7 +354,25 @@ export default function StudyForm({
   const pageCount = part ? Math.max(...part.questions.map((q) => q.page), 1) : 1
   const pages = Array.from({ length: pageCount }, (_, i) => i + 1)
   const hasSaveIssue = Boolean(state?.error || localError)
-  const saveBarShouldStick = isDirty || pending || hasSaveIssue
+  const saveBarShouldStick = isDirty || pending || hasSaveIssue || recentlySaved
+  const saveStatusTitle = pending
+    ? 'Saving setup…'
+    : hasSaveIssue
+    ? 'Could not save setup'
+    : isDirty
+    ? 'Unsaved changes'
+    : recentlySaved
+    ? 'Changes saved'
+    : 'Setup saved'
+  const saveStatusCopy = pending
+    ? 'Keep this page open while diARI saves the setup.'
+    : hasSaveIssue
+    ? 'Fix the issue above, then save again.'
+    : isDirty
+    ? 'Save once when you are done editing this study.'
+    : recentlySaved
+    ? 'Your latest setup changes were saved.'
+    : 'No unsaved changes.'
 
   const inputCls = "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
   const smallInputCls = "w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
@@ -403,8 +430,8 @@ export default function StudyForm({
     <form
       action={formAction}
       className={`space-y-5 ${saveBarShouldStick ? 'pb-24' : ''}`}
-      onInputCapture={() => setIsDirty(true)}
-      onChangeCapture={() => setIsDirty(true)}
+      onInputCapture={() => { setRecentlySaved(false); setIsDirty(true) }}
+      onChangeCapture={() => { setRecentlySaved(false); setIsDirty(true) }}
     >
       {/* ── Study basics ── */}
       <div className="h-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -1288,16 +1315,14 @@ export default function StudyForm({
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-900">
-              {pending ? 'Saving setup…' : isDirty ? 'Unsaved changes' : 'Setup saved'}
+              {saveStatusTitle}
             </p>
             <p className="text-sm text-slate-500">
-              {isDirty
-                ? 'Save once when you are done editing this study.'
-                : 'Your latest setup changes are saved.'}
+              {saveStatusCopy}
             </p>
           </div>
-          <Button type="submit" disabled={pending} size="lg" className="w-full sm:w-auto sm:min-w-40">
-            {pending ? 'Saving…' : submitLabel}
+          <Button type="submit" disabled={pending || (recentlySaved && !isDirty)} size="lg" className="w-full sm:w-auto sm:min-w-40">
+            {pending ? 'Saving…' : recentlySaved && !isDirty ? 'Saved' : submitLabel}
           </Button>
         </div>
       </div>
