@@ -95,7 +95,7 @@ async function main() {
       mode: 'JOURNEY',
       journeyName: 'Badi visit',
       isActive: true,
-      sequential: true,
+      sequential: false,
       remindersEnabled: false,
       participantEntryAccess: 'SHOW_READ_ONLY',
       reminderNote: 'Start a Badi visit when you are planning to go, then continue with the next stage when you arrive and after you leave.',

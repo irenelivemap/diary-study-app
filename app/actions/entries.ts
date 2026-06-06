@@ -190,8 +190,10 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
     const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
-    const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
-    if (nextPartId !== partId) return { error: 'Please complete the journey stages in order from your dashboard.' }
+    if (part.study.sequential) {
+      const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
+      if (nextPartId !== partId) return { error: 'Please complete the journey stages in order from your dashboard.' }
+    }
   }
 
   const effectiveTimezone = timezone || 'Europe/Berlin'
@@ -204,7 +206,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     return { error: 'This part is no longer accepting entries.' }
   }
 
-  if (part.study.sequential) {
+  if (!isJourneyStage(part) && part.study.sequential) {
     const partIndex = part.study.parts.findIndex((candidate) => candidate.id === partId)
     const unlocked =
       partIndex === 0 ||
