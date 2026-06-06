@@ -6,11 +6,18 @@ import StudyForm from '@/app/components/StudyForm'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
 
-export default async function EditStudyPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditStudyPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ saved?: string }>
+}) {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') redirect('/login')
 
   const { id } = await params
+  const { saved } = await searchParams
   const study = await prisma.study.findUnique({
     where: { id },
     include: {
@@ -57,6 +64,7 @@ export default async function EditStudyPage({ params }: { params: Promise<{ id: 
           initialIsActive={study.isActive}
           initialSequential={study.sequential}
           showStudyStatus={false}
+          initialSaved={saved === '1'}
           initialParts={study.parts.map((p) => ({
             id: p.id,
             name: p.name,

@@ -380,7 +380,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
   revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
   revalidatePath('/dashboard')
-  redirect(`/admin/studies/${studyId}/edit`)
+  redirect(`/admin/studies/${studyId}/edit?saved=1`)
 }
 
 export async function deleteStudy(studyId: string) {
