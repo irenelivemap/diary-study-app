@@ -799,7 +799,12 @@ export default function StudyForm({
                         </span>
                       </label>
                       <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <span className="text-sm font-medium text-slate-700">Unlock parts in order</span>
+                        <span>
+                          <span className="block text-sm font-medium text-slate-700">Require order</span>
+                          <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+                            Off keeps the recommended order visible but lets participants answer the stage that fits their situation.
+                          </span>
+                        </span>
                         <span className="flex items-center gap-2.5">
                           <input type="hidden" name="sequential" value="false" />
                           <input
@@ -811,7 +816,7 @@ export default function StudyForm({
                             className="sr-only"
                           />
                           <SwitchVisual checked={isSequential} />
-                          <span className="text-sm text-slate-600">{isSequential ? 'On' : 'Off'}</span>
+                          <span className="text-sm text-slate-600">{isSequential ? 'Strict' : 'Flexible'}</span>
                         </span>
                       </label>
                     </div>

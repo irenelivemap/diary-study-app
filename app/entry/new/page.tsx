@@ -67,8 +67,10 @@ export default async function NewEntryPage({
     const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
     const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
-    const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
-    if (nextPartId !== partId) redirect('/dashboard')
+    if (part.study.sequential) {
+      const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
+      if (nextPartId !== partId) redirect('/dashboard')
+    }
   } else if (journeyId) {
     redirect('/dashboard')
   }
@@ -89,7 +91,7 @@ export default async function NewEntryPage({
   }
 
   // Sequential guard: block access if a previous part has not reached its target entries
-  if (part.study.sequential) {
+  if (!isJourneyStage(part) && part.study.sequential) {
     const thisIndex = part.study.parts.findIndex((p) => p.id === partId)
     const rule = part.unlockRule ?? 'AFTER_PREVIOUS_TARGET'
     const unlocked =

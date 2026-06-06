@@ -339,12 +339,13 @@ export default async function DashboardPage() {
                     const entriesByPart = new Map(openJourney.entries.map((entry) => [entry.partId, entry]))
                     const nextStage = activeParts.find((stage) => !entriesByPart.has(stage.id))
                     const completedCount = activeParts.filter((stage) => entriesByPart.has(stage.id)).length
+                    const strictJourneyOrder = study.sequential
 
                     return (
                       <>
                       <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
                         <div className="rounded-2xl bg-indigo-50 px-4 py-4">
-                          <p className="text-sm font-semibold text-indigo-700">Next action</p>
+                          <p className="text-sm font-semibold text-indigo-700">Recommended next</p>
                           {nextStage ? (
                             <>
                               <h3 className="mt-1 text-xl font-bold text-slate-950">{nextStage.name}</h3>
@@ -390,16 +391,24 @@ export default async function DashboardPage() {
                             <p className="text-sm font-semibold text-slate-900">{openJourney.label ?? journeyName}</p>
                             <p className="text-sm text-slate-500">{completedCount}/{activeParts.length} stages</p>
                           </div>
+                          <p className="text-sm leading-relaxed text-slate-600">
+                            {strictJourneyOrder
+                              ? 'Complete stages in order. Later stages unlock as you submit each step.'
+                              : 'Use the stage that matches what is happening now. The recommended next step is highlighted.'}
+                          </p>
                           {activeParts.map((stage, index) => {
                             const entry = entriesByPart.get(stage.id)
-                            const isNext = nextStage?.id === stage.id
-                            const isLocked = !entry && !isNext
+                            const isRecommended = nextStage?.id === stage.id
+                            const isLocked = strictJourneyOrder && !entry && !isRecommended
+                            const canAnswerStage = !entry && !isLocked
                             return (
                               <div key={stage.id} className={`rounded-xl border px-4 py-3 ${
                                 entry
                                   ? 'border-emerald-100 bg-emerald-50'
-                                  : isNext
+                                  : isRecommended
                                   ? 'border-indigo-200 bg-white'
+                                  : canAnswerStage
+                                  ? 'border-slate-200 bg-white'
                                   : 'border-slate-100 bg-slate-50'
                               }`}>
                                 <div className="flex items-center justify-between gap-3">
@@ -411,16 +420,29 @@ export default async function DashboardPage() {
                                     <p className="mt-0.5 text-sm text-slate-500">
                                       {entry
                                         ? `Submitted ${entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                        : isNext
-                                        ? 'Ready now'
+                                        : isRecommended
+                                        ? 'Recommended next'
+                                        : canAnswerStage
+                                        ? 'Available if this is what happened now'
                                         : `Available after ${activeParts[index - 1]?.name ?? 'the previous stage'}`}
                                     </p>
                                   </div>
-                                  {entry && canViewPastEntries && (
-                                    <ButtonLink href={`/entry/${entry.id}`} tone="secondary" size="sm">
-                                      View
-                                    </ButtonLink>
-                                  )}
+                                  <div className="shrink-0">
+                                    {entry && canViewPastEntries && (
+                                      <ButtonLink href={`/entry/${entry.id}`} tone="secondary" size="sm">
+                                        View
+                                      </ButtonLink>
+                                    )}
+                                    {canAnswerStage && !isRecommended && (
+                                      <ButtonLink
+                                        href={`/entry/new?studyId=${study.id}&partId=${stage.id}&journeyId=${openJourney.id}`}
+                                        tone="secondary"
+                                        size="sm"
+                                      >
+                                        Answer
+                                      </ButtonLink>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             )
