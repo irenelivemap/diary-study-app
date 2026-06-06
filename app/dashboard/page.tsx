@@ -192,11 +192,21 @@ export default async function DashboardPage() {
                     const independentParts = study.parts.filter((candidate) => candidate.flow !== 'JOURNEY_STAGE')
                     const openJourney = study.journeys.find((journey) => !journey.completedAt)
                     const otherOpenJourneys = study.journeys.filter((journey) => !journey.completedAt && journey.id !== openJourney?.id)
+                    const startedOtherOpenJourneys = otherOpenJourneys.filter((journey) => journey.entries.length > 0)
                     const completedJourneys = study.journeys.filter((journey) => journey.completedAt)
                     const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
                     const journeyNextStage = (journey: typeof study.journeys[number]) => {
                       const entriesByPart = new Map(journey.entries.map((entry) => [entry.partId, entry]))
-                      return activeParts.find((stage) => !entriesByPart.has(stage.id))
+                      const stage = activeParts.find((candidate) => !entriesByPart.has(candidate.id))
+                      if (!stage) return null
+                      const stageIndex = activeParts.findIndex((candidate) => candidate.id === stage.id)
+                      const latestSubmittedIndex = activeParts.reduce((latest, candidate, index) => {
+                        return entriesByPart.has(candidate.id) ? Math.max(latest, index) : latest
+                      }, -1)
+                      return {
+                        stage,
+                        isMissingEarlierStage: stageIndex < latestSubmittedIndex,
+                      }
                     }
                     const independentPartCards = independentParts.map((part) => {
                       const pi = study.parts.findIndex((candidate) => candidate.id === part.id)
@@ -359,7 +369,7 @@ export default async function DashboardPage() {
                     const nextStage = activeParts.find((stage) => !entriesByPart.has(stage.id))
                     const completedCount = activeParts.filter((stage) => entriesByPart.has(stage.id)).length
                     const strictJourneyOrder = study.sequential
-                    const previousJourneyCount = otherOpenJourneys.length + completedJourneys.length
+                    const previousJourneyCount = startedOtherOpenJourneys.length + completedJourneys.length
 
                     return (
                       <>
@@ -484,8 +494,9 @@ export default async function DashboardPage() {
                             <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneyCount}</span>
                           </summary>
                           <div className="space-y-2 border-t border-slate-100 px-5 py-4">
-                            {otherOpenJourneys.slice(0, 4).map((journey) => {
-                              const nextOtherStage = journeyNextStage(journey)
+                            {startedOtherOpenJourneys.slice(0, 4).map((journey) => {
+                              const otherStageState = journeyNextStage(journey)
+                              const nextOtherStage = otherStageState?.stage
                               return (
                                 <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm">
                                   <div className="min-w-0">
@@ -495,7 +506,11 @@ export default async function DashboardPage() {
                                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Needs action</span>
                                       )}
                                     </div>
-                                    <p className="text-slate-600">{nextOtherStage ? `Next: ${nextOtherStage.name}` : 'All stages submitted'}</p>
+                                    <p className="text-slate-600">
+                                      {nextOtherStage
+                                        ? `${otherStageState.isMissingEarlierStage ? 'Missing' : 'Next'}: ${nextOtherStage.name}`
+                                        : 'All stages submitted'}
+                                    </p>
                                   </div>
                                   {nextOtherStage && (
                                     <ButtonLink
@@ -503,7 +518,7 @@ export default async function DashboardPage() {
                                       tone="secondary"
                                       size="sm"
                                     >
-                                      Continue
+                                      {otherStageState.isMissingEarlierStage ? 'Answer' : 'Continue'}
                                     </ButtonLink>
                                   )}
                                 </div>
