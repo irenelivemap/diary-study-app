@@ -40,6 +40,22 @@ export async function signup(prevState: { error?: string } | null, formData: For
     data: { email, password: hashed, name, role: 'PARTICIPANT' },
   })
 
+  const invitations = await prisma.studyInvitation.findMany({
+    where: { email: email.toLowerCase(), acceptedAt: null, study: { isArchived: false } },
+    select: { id: true, studyId: true },
+  })
+  for (const invitation of invitations) {
+    await prisma.studyParticipant.upsert({
+      where: { studyId_userId: { studyId: invitation.studyId, userId: user.id } },
+      update: {},
+      create: { studyId: invitation.studyId, userId: user.id },
+    })
+    await prisma.studyInvitation.update({
+      where: { id: invitation.id },
+      data: { acceptedAt: new Date() },
+    })
+  }
+
   await createSession({ userId: user.id, role: user.role, name: user.name, email: user.email })
   redirect('/dashboard')
 }

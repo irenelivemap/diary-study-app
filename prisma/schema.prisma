@@ -17,6 +17,7 @@ model User {
 
   participations StudyParticipant[]
   entries        Entry[]
+  invitations    StudyInvitation[]
 }
 
 model Study {
@@ -43,6 +44,7 @@ model Study {
   participants StudyParticipant[]
   entries      Entry[]
   reminderLogs EmailReminderLog[]
+  invitations  StudyInvitation[]
 }
 
 model Part {
@@ -97,6 +99,22 @@ model StudyParticipant {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([studyId, userId])
+}
+
+model StudyInvitation {
+  id         String    @id @default(cuid())
+  studyId    String
+  email      String
+  token      String    @unique
+  invitedBy  String?
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  study   Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  inviter User? @relation(fields: [invitedBy], references: [id], onDelete: SetNull)
+
+  @@unique([studyId, email])
+  @@index([email])
 }
 
 model Entry {

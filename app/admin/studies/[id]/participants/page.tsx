@@ -35,6 +35,10 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { joinedAt: 'asc' },
       },
+      invitations: {
+        where: { acceptedAt: null },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   })
   if (!study) notFound()
@@ -229,13 +233,32 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
           <aside className="space-y-4 lg:sticky lg:top-4">
             <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
-                <h2 className="text-base font-semibold text-slate-800">Add participant</h2>
-                <p className="text-sm text-slate-400 mt-0.5">Add an existing participant account by email.</p>
+                <h2 className="text-base font-semibold text-slate-800">Invite participant</h2>
+                <p className="text-sm text-slate-400 mt-0.5">Send an email invite. They can sign up after receiving it.</p>
               </div>
               <div className="p-5">
                 <AddParticipantForm studyId={id} />
               </div>
             </section>
+
+            {study.invitations.length > 0 && (
+              <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <h2 className="text-base font-semibold text-slate-800">Pending invitations</h2>
+                  <p className="text-sm text-slate-400 mt-0.5">Invited but not signed up yet.</p>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {study.invitations.map((invitation) => (
+                    <div key={invitation.id} className="px-5 py-3">
+                      <p className="text-sm font-medium text-slate-800">{invitation.email}</p>
+                      <p className="text-xs text-slate-400">
+                        Sent {invitation.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
