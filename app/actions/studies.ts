@@ -5,6 +5,7 @@ import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
 import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
+import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -50,22 +51,70 @@ function checkboxValue(formData: FormData, key: string) {
 }
 
 function reminderDaysValue(formData: FormData) {
-  return formData.getAll('reminderDays').map(String).filter((day) => /^[0-6]$/.test(day))
+  return Array.from(new Set(formData.getAll('reminderDays').map(String).filter((day) => /^[0-6]$/.test(day))))
 }
 
 function sanitizedOptions(options: string[] | undefined) {
-  return (options || []).map((option) => option === '__OTHER__' ? option : sanitizeHtml(option))
+  const seen = new Set<string>()
+  const final: string[] = []
+  for (const rawOption of options || []) {
+    const option = rawOption === '__OTHER__' ? rawOption : sanitizeHtml(rawOption).trim()
+    if (!option || seen.has(option)) continue
+    seen.add(option)
+    final.push(option)
+  }
+  return final
+}
+
+function normalizedStudyFields(formData: FormData) {
+  const name = String(formData.get('name') ?? '').trim()
+  const description = optionalString(formData, 'description')
+  const consentText = optionalString(formData, 'consentText')
+  const contactEmail = optionalString(formData, 'contactEmail')
+  const reminderNote = optionalString(formData, 'reminderNote')
+  const remindersEnabled = checkboxValue(formData, 'remindersEnabled')
+  const rawReminderTime = optionalString(formData, 'reminderTime') ?? '18:00'
+  const reminderTime = isValidReminderTime(rawReminderTime) ? rawReminderTime : null
+  const reminderDays = reminderDaysValue(formData)
+  const reminderSubject = optionalString(formData, 'reminderSubject')
+  const reminderBody = optionalString(formData, 'reminderBody')
+  const sequential = checkboxValue(formData, 'sequential')
+
+  return {
+    name,
+    description,
+    consentText,
+    contactEmail,
+    reminderNote,
+    remindersEnabled,
+    reminderTime,
+    reminderDays,
+    reminderSubject,
+    reminderBody,
+    sequential,
+  }
 }
 
 function validateParts(parts: PartInput[]) {
   if (parts.length === 0) return 'At least one part is required.'
   for (const part of parts) {
     if (!part.name.trim()) return 'Every part needs a name.'
+    if (!Number.isInteger(part.order) || part.order < 1) return 'Every part needs a valid order.'
+    if (part.targetEntries != null && (!Number.isInteger(part.targetEntries) || part.targetEntries < 1 || part.targetEntries > 365)) {
+      return 'Target entries must be between 1 and 365.'
+    }
+    if (part.durationDays != null && (!Number.isInteger(part.durationDays) || part.durationDays < 1 || part.durationDays > 3650)) {
+      return 'Duration must be between 1 and 3650 days.'
+    }
+    if (part.dueDate && Number.isNaN(new Date(part.dueDate).getTime())) return `Part "${part.name}" has an invalid due date.`
+    if (part.unlockAt && Number.isNaN(new Date(part.unlockAt).getTime())) return `Part "${part.name}" has an invalid unlock date.`
     if (part.questions.length === 0) return `Part "${part.name}" needs at least one question or content block.`
-    for (const question of part.questions) {
+    const questionIds = new Set(part.questions.flatMap((question) => question.id ? [question.id] : []))
+    for (const [index, question] of part.questions.entries()) {
+      if (!Number.isInteger(question.page ?? 1) || (question.page ?? 1) < 1) return `One question in "${part.name}" has an invalid page.`
       if (!question.text.trim() && question.type !== 'CONTENT') return `One question in "${part.name}" is missing text.`
       if (question.type === 'MULTIPLE_CHOICE') {
-        const optionCount = (question.options ?? []).filter((option) => option !== '__OTHER__').length
+        const optionCount = sanitizedOptions(question.options).filter((option) => option !== '__OTHER__').length
         const min = question.min ?? (question.required === false ? 0 : 1)
         const max = question.max ?? optionCount
         if (optionCount < 1) return 'Multiple-choice questions need at least one option.'
@@ -73,8 +122,21 @@ function validateParts(parts: PartInput[]) {
           return 'Multiple-choice min/max selections must fit the number of available options.'
         }
       }
-      if (question.type === 'SINGLE_CHOICE' && (question.options ?? []).filter((option) => option !== '__OTHER__').length < 1) {
+      if (question.type === 'SINGLE_CHOICE' && sanitizedOptions(question.options).filter((option) => option !== '__OTHER__').length < 1) {
         return 'Single-choice questions need at least one option.'
+      }
+      if (question.type === 'RATING') {
+        const min = question.min ?? 1
+        const max = question.max ?? 7
+        if (!Number.isInteger(min) || !Number.isInteger(max) || min >= max || max - min > 100) {
+          return 'Rating scales need a valid minimum and maximum.'
+        }
+      }
+      if (question.showIfQuestionId || question.showIfValue) {
+        if (!question.showIfQuestionId || !question.showIfValue) return 'Conditional questions need both a source question and answer.'
+        if (!questionIds.has(question.showIfQuestionId)) return 'Conditional questions must refer to another question in the same part.'
+        const sourceIndex = part.questions.findIndex((candidate) => candidate.id === question.showIfQuestionId)
+        if (sourceIndex < 0 || sourceIndex >= index) return 'Conditional questions can only depend on earlier questions.'
       }
     }
   }
@@ -115,20 +177,12 @@ function buildPartCreate(part: PartInput, studyId: string) {
 export async function createStudy(prevState: unknown, formData: FormData) {
   await requireAdmin()
 
-  const name = formData.get('name') as string
-  const description = optionalString(formData, 'description')
-  const consentText = optionalString(formData, 'consentText')
-  const contactEmail = optionalString(formData, 'contactEmail')
-  const reminderNote = optionalString(formData, 'reminderNote')
-  const remindersEnabled = checkboxValue(formData, 'remindersEnabled')
-  const reminderTime = optionalString(formData, 'reminderTime') ?? '18:00'
-  const reminderDays = reminderDaysValue(formData)
-  const reminderSubject = optionalString(formData, 'reminderSubject')
-  const reminderBody = optionalString(formData, 'reminderBody')
-  const sequential = checkboxValue(formData, 'sequential')
+  const studyFields = normalizedStudyFields(formData)
   const partsJson = formData.get('parts') as string
 
-  if (!name) return { error: 'Study name is required.' }
+  if (!studyFields.name) return { error: 'Study name is required.' }
+  if (studyFields.contactEmail && !isValidEmail(studyFields.contactEmail)) return { error: 'Researcher contact email is not valid.' }
+  if (!studyFields.reminderTime) return { error: 'Reminder time must use HH:MM format.' }
 
   let parts: PartInput[] = []
   try {
@@ -141,7 +195,7 @@ export async function createStudy(prevState: unknown, formData: FormData) {
   if (validationError) return { error: validationError }
 
   const final = await prisma.study.create({
-    data: { name, description, consentText, contactEmail, reminderNote, remindersEnabled, reminderTime, reminderDays, reminderSubject, reminderBody, sequential },
+    data: { ...studyFields, reminderTime: studyFields.reminderTime },
   })
 
   for (const part of parts) {
@@ -155,21 +209,13 @@ export async function createStudy(prevState: unknown, formData: FormData) {
 export async function updateStudy(studyId: string, prevState: unknown, formData: FormData) {
   await requireAdmin()
 
-  const name = formData.get('name') as string
-  const description = optionalString(formData, 'description')
-  const consentText = optionalString(formData, 'consentText')
-  const contactEmail = optionalString(formData, 'contactEmail')
-  const reminderNote = optionalString(formData, 'reminderNote')
-  const remindersEnabled = checkboxValue(formData, 'remindersEnabled')
-  const reminderTime = optionalString(formData, 'reminderTime') ?? '18:00'
-  const reminderDays = reminderDaysValue(formData)
-  const reminderSubject = optionalString(formData, 'reminderSubject')
-  const reminderBody = optionalString(formData, 'reminderBody')
+  const studyFields = normalizedStudyFields(formData)
   const isActive = formData.has('isActive') ? checkboxValue(formData, 'isActive') : undefined
-  const sequential = checkboxValue(formData, 'sequential')
   const partsJson = formData.get('parts') as string
 
-  if (!name) return { error: 'Study name is required.' }
+  if (!studyFields.name) return { error: 'Study name is required.' }
+  if (studyFields.contactEmail && !isValidEmail(studyFields.contactEmail)) return { error: 'Researcher contact email is not valid.' }
+  if (!studyFields.reminderTime) return { error: 'Reminder time must use HH:MM format.' }
 
   let parts: PartInput[] = []
   try {
@@ -204,18 +250,18 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
       await tx.study.update({
         where: { id: studyId },
         data: {
-          name,
-          description,
-          consentText,
-          contactEmail,
-          reminderNote,
-          remindersEnabled,
-          reminderTime,
-          reminderDays,
-          reminderSubject,
-          reminderBody,
+          name: studyFields.name,
+          description: studyFields.description,
+          consentText: studyFields.consentText,
+          contactEmail: studyFields.contactEmail,
+          reminderNote: studyFields.reminderNote,
+          remindersEnabled: studyFields.remindersEnabled,
+          reminderTime: studyFields.reminderTime,
+          reminderDays: studyFields.reminderDays,
+          reminderSubject: studyFields.reminderSubject,
+          reminderBody: studyFields.reminderBody,
           ...(isActive === undefined ? {} : { isActive }),
-          sequential,
+          sequential: studyFields.sequential,
           ...(existingEntries > 0 ? { version: { increment: 1 } } : {}),
         },
       })
@@ -361,7 +407,7 @@ export async function toggleStudyStatus(studyId: string, currentStatus: boolean)
 export async function renameStudy(studyId: string, name: string) {
   await requireAdmin()
   if (!name.trim()) return
-  await prisma.study.update({ where: { id: studyId }, data: { name: name.trim() } })
+  await prisma.study.update({ where: { id: studyId }, data: { name: name.trim().slice(0, 160) } })
   revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
 }
@@ -371,15 +417,23 @@ export async function acceptConsent(prevState: unknown, formData: FormData) {
   if (!session) redirect('/login')
 
   const studyId = formData.get('studyId') as string
-  const timezone = formData.get('timezone') as string
+  const timezone = normalizeTimezone(formData.get('timezone'))
   if (!studyId) return { error: 'Missing study.' }
   if (timezone) {
     await prisma.user.update({ where: { id: session.userId }, data: { timezone } })
   }
 
-  await prisma.studyParticipant.updateMany({
-    where: { studyId, userId: session.userId },
-    data: { consentedAt: new Date() },
+  const participation = await prisma.studyParticipant.findUnique({
+    where: { studyId_userId: { studyId, userId: session.userId } },
+    include: { study: { select: { isActive: true, isArchived: true } } },
+  })
+  if (!participation || participation.study.isArchived || !participation.study.isActive) {
+    return { error: 'This study is not available.' }
+  }
+
+  await prisma.studyParticipant.update({
+    where: { studyId_userId: { studyId, userId: session.userId } },
+    data: { consentedAt: participation.consentedAt ?? new Date() },
   })
 
   revalidatePath('/dashboard')
@@ -396,9 +450,10 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
   const session = await requireAdmin()
 
   const studyId = formData.get('studyId') as string
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const email = normalizeEmail(formData.get('email'))
 
   if (!email) return { error: 'Email is required.' }
+  if (!isValidEmail(email)) return { error: 'Enter a valid email address.' }
 
   const study = await prisma.study.findUnique({ where: { id: studyId }, select: { id: true, name: true, isArchived: true } })
   if (!study || study.isArchived) return { error: 'Study not found.' }
@@ -439,7 +494,16 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
 
 export async function removeParticipant(studyId: string, userId: string) {
   await requireAdmin()
-  await prisma.studyParticipant.deleteMany({ where: { studyId, userId } })
+  const participant = await prisma.studyParticipant.findUnique({
+    where: { studyId_userId: { studyId, userId } },
+    include: { user: { select: { email: true } } },
+  })
+  await prisma.$transaction([
+    prisma.studyParticipant.deleteMany({ where: { studyId, userId } }),
+    ...(participant
+      ? [prisma.studyInvitation.deleteMany({ where: { studyId, email: participant.user.email.toLowerCase() } })]
+      : []),
+  ])
   revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
   revalidatePath(`/admin/studies/${studyId}/participants`)

@@ -3,8 +3,11 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
+import { normalizeTimezone } from '@/app/lib/validation'
 
 const OTHER_SENTINEL = '__OTHER__'
+const MAX_TEXT_ANSWER_LENGTH = 10000
+const MAX_SHORT_ANSWER_LENGTH = 1000
 
 function localDate(timeZone?: string | null) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -36,6 +39,10 @@ function submittedValue(formData: FormData, questionId: string) {
   return String(formData.get(`question_${questionId}`) ?? '').trim()
 }
 
+function answerTooLong(value: string, limit = MAX_TEXT_ANSWER_LENGTH) {
+  return value.length > limit
+}
+
 function includesOtherValue(value: string) {
   return value.startsWith('Other:') && value.replace(/^Other:\s*/, '').trim().length > 0
 }
@@ -56,7 +63,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   const studyId = String(formData.get('studyId') ?? '')
   const partId = String(formData.get('partId') ?? '')
   const date = String(formData.get('date') ?? '')
-  const timezone = String(formData.get('timezone') ?? '')
+  const timezone = normalizeTimezone(formData.get('timezone'))
 
   const part = await prisma.part.findFirst({
     where: { id: partId, studyId },
@@ -126,6 +133,9 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
 
     if (q.type === 'MULTIPLE_CHOICE') {
       const uniqueValues = Array.from(new Set(submittedValues(formData, q.id)))
+      if (uniqueValues.some((value) => answerTooLong(value, MAX_SHORT_ANSWER_LENGTH))) {
+        return { error: 'One selected option is too long. Please reload and try again.' }
+      }
       const invalid = uniqueValues.some((value) => !allowedOptions.has(value) && !(allowsOther && includesOtherValue(value)))
       if (invalid) return { error: 'One selected option is no longer valid. Please reload and try again.' }
 
@@ -143,6 +153,9 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
 
     const value = submittedValue(formData, q.id)
     if (q.required && !value) return { error: 'Please answer every required question.' }
+    if (value && answerTooLong(value, q.type === 'FREE_TEXT' ? MAX_TEXT_ANSWER_LENGTH : MAX_SHORT_ANSWER_LENGTH)) {
+      return { error: 'One answer is too long. Please shorten it and try again.' }
+    }
 
     if (q.type === 'SINGLE_CHOICE' && value && !allowedOptions.has(value) && !(allowsOther && includesOtherValue(value))) {
       return { error: 'One selected option is no longer valid. Please reload and try again.' }
@@ -170,25 +183,33 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     answerByQuestion.set(q.id, value)
   }
 
-  const entry = await prisma.entry.create({
-    data: {
-      studyId,
-      partId,
-      userId: session.userId,
-      date,
-      timezone: timezone || null,
-      answers: {
-        create: part.questions.map((q) => {
-          const wasShown = shownQuestionIds.has(q.id)
-          return {
-            questionId: q.id,
-            wasShown,
-            value: wasShown ? (answerByQuestion.get(q.id) ?? '') : 'N/A - not shown',
-          }
-        }),
+  let entry
+  try {
+    entry = await prisma.entry.create({
+      data: {
+        studyId,
+        partId,
+        userId: session.userId,
+        date,
+        timezone,
+        answers: {
+          create: part.questions.map((q) => {
+            const wasShown = shownQuestionIds.has(q.id)
+            return {
+              questionId: q.id,
+              wasShown,
+              value: wasShown ? (answerByQuestion.get(q.id) ?? '') : 'N/A - not shown',
+            }
+          }),
+        },
       },
-    },
-  })
+    })
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return { error: 'You already submitted an entry for today.' }
+    }
+    throw error
+  }
 
   revalidatePath('/dashboard')
   redirect(`/entry/${entry.id}`)

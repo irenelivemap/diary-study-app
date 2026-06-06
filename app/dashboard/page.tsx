@@ -5,6 +5,7 @@ import { prisma } from '@/app/lib/db'
 import NavBar from '@/app/components/NavBar'
 import ConsentCard from '@/app/components/ConsentCard'
 import { ButtonLink } from '@/app/components/ui'
+import { normalizeTimezone } from '@/app/lib/validation'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
@@ -13,8 +14,9 @@ export default async function DashboardPage() {
   if (!session) redirect('/login')
 
   const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { timezone: true } })
+  const userTimezone = normalizeTimezone(user?.timezone)
   const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: user?.timezone || undefined,
+    timeZone: userTimezone || undefined,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -271,7 +273,7 @@ export default async function DashboardPage() {
                                   </div>
                                   <div>
                                     <p className="text-sm font-semibold text-emerald-700">Goal reached</p>
-                                    <p className="text-xs text-emerald-600">You've completed all {target} entries for this part.</p>
+                                    <p className="text-xs text-emerald-600">You&apos;ve completed all {target} entries for this part.</p>
                                   </div>
                                 </div>
                                 <ButtonLink href={`/entry/new?studyId=${study.id}&partId=${part.id}`}
@@ -287,7 +289,7 @@ export default async function DashboardPage() {
                                   <div className="w-4 h-4 bg-emerald-400 rounded-full flex items-center justify-center">
                                     <span className="text-white text-[9px]">✓</span>
                                   </div>
-                                  <span className="text-xs font-medium text-emerald-700">Today's entry submitted</span>
+                                  <span className="text-xs font-medium text-emerald-700">Today&apos;s entry submitted</span>
                                 </div>
                                 <ButtonLink href={`/entry/${todayEntry.id}`} tone="secondary" size="sm">View</ButtonLink>
                               </div>
@@ -296,7 +298,7 @@ export default async function DashboardPage() {
                                 size="lg"
                                 className="w-full h-auto min-h-16 justify-between px-4 py-3 group">
                                 <div>
-                                  <p className="text-sm font-semibold">Submit today's entry</p>
+                                  <p className="text-sm font-semibold">Submit today&apos;s entry</p>
                                   <p className="text-xs text-indigo-200 mt-0.5">{today}</p>
                                 </div>
                               </ButtonLink>

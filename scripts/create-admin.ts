@@ -6,13 +6,29 @@ import bcrypt from 'bcryptjs'
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
+function normalizeEmail(value: string | undefined) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 async function main() {
-  const email = process.argv[2]
-  const password = process.argv[3]
-  const name = process.argv[4] ?? 'Admin'
+  const email = normalizeEmail(process.argv[2])
+  const password = process.argv[3] ?? ''
+  const name = (process.argv[4] ?? 'Admin').trim()
 
   if (!email || !password) {
     console.error('Usage: npx tsx scripts/create-admin.ts <email> <password> [name]')
+    process.exit(1)
+  }
+  if (!isValidEmail(email)) {
+    console.error('Email is not valid.')
+    process.exit(1)
+  }
+  if (password.length < 8) {
+    console.error('Password must be at least 8 characters.')
     process.exit(1)
   }
 

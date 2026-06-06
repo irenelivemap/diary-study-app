@@ -1,5 +1,6 @@
 import { prisma } from '@/app/lib/db'
 import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
+import { normalizeTimezone } from '@/app/lib/validation'
 
 type ReminderResult = {
   configured: boolean
@@ -197,15 +198,16 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
     }
 
     for (const participant of study.participants) {
-      const timeZone = participant.user.timezone || 'Europe/Berlin'
+      const timeZone = normalizeTimezone(participant.user.timezone) || 'Europe/Berlin'
       const today = localDate(timeZone)
       const reminderDays = study.reminderDays.length > 0 ? study.reminderDays : ['0', '1', '2', '3', '4', '5', '6']
+      const activePartCount = Math.max(study.parts.filter((part) => part.isActive).length, 1)
       if (!reminderDays.includes(localDayOfWeek(timeZone))) {
-        addSkip(result, 'not scheduled today', study.parts.length)
+        addSkip(result, 'not scheduled today', activePartCount)
         continue
       }
       if (!options.force && !timeReached(study.reminderTime, timeZone)) {
-        addSkip(result, 'before reminder time', study.parts.length)
+        addSkip(result, 'before reminder time', activePartCount)
         continue
       }
 

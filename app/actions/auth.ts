@@ -3,13 +3,17 @@ import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/app/lib/db'
 import { createSession, deleteSession } from '@/app/lib/session'
+import { isValidEmail, normalizeEmail } from '@/app/lib/validation'
 
 export async function login(prevState: { error?: string } | null, formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = normalizeEmail(formData.get('email'))
+  const password = String(formData.get('password') ?? '')
 
   if (!email || !password) {
     return { error: 'Email and password are required.' }
+  }
+  if (!isValidEmail(email)) {
+    return { error: 'Enter a valid email address.' }
   }
 
   const user = await prisma.user.findUnique({ where: { email } })
@@ -29,12 +33,18 @@ export async function login(prevState: { error?: string } | null, formData: Form
 }
 
 export async function signup(prevState: { error?: string } | null, formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  const name = formData.get('name') as string
+  const email = normalizeEmail(formData.get('email'))
+  const password = String(formData.get('password') ?? '')
+  const name = String(formData.get('name') ?? '').trim()
 
   if (!email || !password || !name) {
     return { error: 'All fields are required.' }
+  }
+  if (!isValidEmail(email)) {
+    return { error: 'Enter a valid email address.' }
+  }
+  if (password.length < 8) {
+    return { error: 'Password must be at least 8 characters.' }
   }
 
   const existing = await prisma.user.findUnique({ where: { email } })
@@ -46,7 +56,7 @@ export async function signup(prevState: { error?: string } | null, formData: For
   })
 
   const invitations = await prisma.studyInvitation.findMany({
-    where: { email: email.toLowerCase(), acceptedAt: null, study: { isArchived: false } },
+    where: { email, acceptedAt: null, study: { isArchived: false } },
     select: { id: true, studyId: true },
   })
   for (const invitation of invitations) {
