@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { ParticipantEntryAccess } from '@prisma/client'
+import { EntryPolicy, ParticipantEntryAccess } from '@prisma/client'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
@@ -36,6 +36,7 @@ export type PartInput = {
   name: string
   order: number
   instructions?: string
+  entryPolicy?: 'ONCE_PER_DAY' | 'MULTIPLE_PER_DAY'
   targetEntries?: number | null
   durationDays?: number | null
   dueDate?: string | null
@@ -68,6 +69,10 @@ function sanitizedOptions(options: string[] | undefined) {
     final.push(option)
   }
   return final
+}
+
+function normalizedEntryPolicy(value: string | null | undefined) {
+  return value === EntryPolicy.MULTIPLE_PER_DAY ? EntryPolicy.MULTIPLE_PER_DAY : EntryPolicy.ONCE_PER_DAY
 }
 
 function normalizedStudyFields(formData: FormData) {
@@ -109,6 +114,7 @@ function validateParts(parts: PartInput[]) {
   for (const part of parts) {
     if (!part.name.trim()) return 'Every part needs a name.'
     if (!Number.isInteger(part.order) || part.order < 1) return 'Every part needs a valid order.'
+    if (part.entryPolicy && !Object.values(EntryPolicy).includes(part.entryPolicy as EntryPolicy)) return `Part "${part.name}" has an invalid entry rule.`
     if (part.targetEntries != null && (!Number.isInteger(part.targetEntries) || part.targetEntries < 1 || part.targetEntries > 365)) {
       return 'Target entries must be between 1 and 365.'
     }
@@ -158,6 +164,7 @@ function buildPartCreate(part: PartInput, studyId: string) {
     name: part.name,
     order: part.order,
     instructions: part.instructions || null,
+    entryPolicy: normalizedEntryPolicy(part.entryPolicy),
     targetEntries: part.targetEntries ?? null,
     durationDays: part.durationDays ?? null,
     dueDate: part.dueDate ? new Date(part.dueDate) : null,
@@ -295,6 +302,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
             name: part.name,
             order: part.order,
             instructions: part.instructions || null,
+            entryPolicy: normalizedEntryPolicy(part.entryPolicy),
             targetEntries: part.targetEntries ?? null,
             durationDays: part.durationDays ?? null,
             dueDate: part.dueDate ? new Date(part.dueDate) : null,
