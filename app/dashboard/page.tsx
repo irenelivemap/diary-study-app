@@ -342,10 +342,21 @@ export default async function DashboardPage() {
                     const nextStage = activeParts.find((stage) => !entriesByPart.has(stage.id))
                     const completedCount = activeParts.filter((stage) => entriesByPart.has(stage.id)).length
                     const strictJourneyOrder = study.sequential
+                    const alternateStages = nextStage
+                      ? activeParts.filter((stage) => !entriesByPart.has(stage.id) && stage.id !== nextStage.id)
+                      : []
+                    const answerableAlternateStages = strictJourneyOrder ? [] : alternateStages
+                    const secondaryActionCount = answerableAlternateStages.length + (completedCount > 0 ? 1 : 0) + otherOpenJourneys.length
 
                     return (
                       <>
                       <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900">{openJourney.label ?? journeyName}</p>
+                            <p className="mt-0.5 text-sm text-slate-500">{completedCount}/{activeParts.length} stages submitted</p>
+                          </div>
+                        </div>
                         <div className="rounded-2xl bg-indigo-50 px-4 py-4">
                           <p className="text-sm font-semibold text-indigo-700">Recommended next</p>
                           {nextStage ? (
@@ -366,50 +377,30 @@ export default async function DashboardPage() {
                             <>
                               <h3 className="mt-1 text-xl font-bold text-slate-950">{journeyName} completed</h3>
                               <p className="mt-2 text-sm leading-relaxed text-slate-600">All stages for this journey are submitted.</p>
+                              <form action={startJourney} className="mt-4">
+                                <input type="hidden" name="studyId" value={study.id} />
+                                <input type="hidden" name="forceNewJourney" value="true" />
+                                <StartJourneyButton className="w-full sm:w-auto">
+                                  Start another {journeyName}
+                                </StartJourneyButton>
+                              </form>
                             </>
                           )}
                         </div>
 
-                        {nextStage && completedCount > 0 && (
-                          <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900">Starting another {journeyName}?</p>
-                              <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                                Create a separate visit if this is a new real-world experience.
-                              </p>
-                            </div>
-                            <form action={startJourney} className="mt-3 shrink-0 sm:mt-0">
-                              <input type="hidden" name="studyId" value={study.id} />
-                              <input type="hidden" name="forceNewJourney" value="true" />
-                              <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
-                                Start new visit
-                              </StartJourneyButton>
-                            </form>
-                          </div>
-                        )}
-
                         <div className="mt-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold text-slate-900">{openJourney.label ?? journeyName}</p>
-                            <p className="text-sm text-slate-500">{completedCount}/{activeParts.length} stages</p>
-                          </div>
-                          <p className="text-sm leading-relaxed text-slate-600">
-                            {strictJourneyOrder
-                              ? 'Complete stages in order. Later stages unlock as you submit each step.'
-                              : 'Use the stage that matches what is happening now. The recommended next step is highlighted.'}
-                          </p>
+                          <p className="text-sm font-semibold text-slate-900">Visit progress</p>
                           {activeParts.map((stage, index) => {
                             const entry = entriesByPart.get(stage.id)
                             const isRecommended = nextStage?.id === stage.id
                             const isLocked = strictJourneyOrder && !entry && !isRecommended
-                            const canAnswerStage = !entry && !isLocked
                             return (
                               <div key={stage.id} className={`rounded-xl border px-4 py-3 ${
                                 entry
                                   ? 'border-emerald-100 bg-emerald-50'
                                   : isRecommended
                                   ? 'border-indigo-200 bg-white'
-                                  : canAnswerStage
+                                  : !isLocked
                                   ? 'border-slate-200 bg-white'
                                   : 'border-slate-100 bg-slate-50'
                               }`}>
@@ -424,8 +415,8 @@ export default async function DashboardPage() {
                                         ? `Submitted ${entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                                         : isRecommended
                                         ? 'Recommended next'
-                                        : canAnswerStage
-                                        ? 'Available if this is what happened now'
+                                        : !isLocked
+                                        ? 'Available if needed'
                                         : `Available after ${activeParts[index - 1]?.name ?? 'the previous stage'}`}
                                     </p>
                                   </div>
@@ -435,37 +426,104 @@ export default async function DashboardPage() {
                                         View
                                       </ButtonLink>
                                     )}
-                                    {canAnswerStage && !isRecommended && (
-                                      <ButtonLink
-                                        href={`/entry/new?studyId=${study.id}&partId=${stage.id}&journeyId=${openJourney.id}`}
-                                        tone="secondary"
-                                        size="sm"
-                                      >
-                                        Answer
-                                      </ButtonLink>
-                                    )}
                                   </div>
                                 </div>
                               </div>
                             )
                           })}
                         </div>
-                        {otherOpenJourneys.length > 0 && (
-                          <details className="mt-4 rounded-xl border border-slate-100 bg-slate-50">
+
+                        {nextStage && secondaryActionCount > 0 && (
+                          <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
                             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                              Other unfinished journeys
-                              <span className="ml-2 text-sm font-normal text-slate-400">{otherOpenJourneys.length}</span>
+                              Need a different action?
+                              <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-sm font-medium text-slate-600">{secondaryActionCount}</span>
                             </summary>
-                            <div className="border-t border-slate-100 px-4 py-2">
+                            <div className="space-y-4 border-t border-slate-200 px-4 py-4">
+                              {answerableAlternateStages.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">Answer another stage in this visit</p>
+                                  <p className="mt-1 text-sm text-slate-600">Use this if the recommended step is not what is happening now.</p>
+                                  <div className="mt-3 space-y-2">
+                                    {answerableAlternateStages.map((stage) => (
+                                      <div key={stage.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <span className="font-medium text-slate-700">{stage.name}</span>
+                                        <ButtonLink
+                                          href={`/entry/new?studyId=${study.id}&partId=${stage.id}&journeyId=${openJourney.id}`}
+                                          tone="secondary"
+                                          size="sm"
+                                        >
+                                          Answer
+                                        </ButtonLink>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {completedCount > 0 && (
+                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold text-slate-900">Start a separate {journeyName}</p>
+                                      <p className="mt-1 text-sm text-slate-600">Use this only if this is a new real-world experience.</p>
+                                    </div>
+                                    <form action={startJourney} className="shrink-0">
+                                      <input type="hidden" name="studyId" value={study.id} />
+                                      <input type="hidden" name="forceNewJourney" value="true" />
+                                      <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
+                                        Start new visit
+                                      </StartJourneyButton>
+                                    </form>
+                                  </div>
+                                </div>
+                              )}
+
+                              {otherOpenJourneys.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">Other unfinished visits</p>
+                                  <div className="mt-2 space-y-2">
+                                    {otherOpenJourneys.slice(0, 4).map((journey) => {
+                                      const nextOtherStage = journeyNextStage(journey)
+                                      return (
+                                        <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                                          <div className="min-w-0">
+                                            <p className="truncate font-medium text-slate-700">{journey.label ?? journeyName}</p>
+                                            <p className="text-slate-500">{nextOtherStage ? `Next: ${nextOtherStage.name}` : 'All stages submitted'}</p>
+                                          </div>
+                                          {nextOtherStage && (
+                                            <ButtonLink
+                                              href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
+                                              tone="secondary"
+                                              size="sm"
+                                            >
+                                              Continue
+                                            </ButtonLink>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
+                        {!nextStage && otherOpenJourneys.length > 0 && (
+                          <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+                            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
+                              Other unfinished visits
+                              <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-sm font-medium text-slate-600">{otherOpenJourneys.length}</span>
+                            </summary>
+                            <div className="space-y-2 border-t border-slate-200 px-4 py-4">
                               {otherOpenJourneys.slice(0, 4).map((journey) => {
                                 const nextOtherStage = journeyNextStage(journey)
-                                return (
-                                  <div key={journey.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                                return nextOtherStage ? (
+                                  <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
                                     <div className="min-w-0">
                                       <p className="truncate font-medium text-slate-700">{journey.label ?? journeyName}</p>
-                                      <p className="text-slate-500">{nextOtherStage ? `Next: ${nextOtherStage.name}` : 'All stages submitted'}</p>
+                                      <p className="text-slate-500">Next: {nextOtherStage.name}</p>
                                     </div>
-                                    {nextOtherStage && (
                                       <ButtonLink
                                         href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
                                         tone="secondary"
@@ -473,9 +531,8 @@ export default async function DashboardPage() {
                                       >
                                         Continue
                                       </ButtonLink>
-                                    )}
                                   </div>
-                                )
+                                ) : null
                               })}
                             </div>
                           </details>
