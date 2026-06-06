@@ -5,6 +5,10 @@ import { prisma } from '@/app/lib/db'
 import EntryForm from '@/app/components/EntryForm'
 import { normalizeTimezone } from '@/app/lib/validation'
 
+function isJourneyStage(part: { flow?: string | null }) {
+  return part.flow === 'JOURNEY_STAGE'
+}
+
 export default async function NewEntryPage({
   searchParams,
 }: {
@@ -57,9 +61,9 @@ export default async function NewEntryPage({
   if (!part || !part.isActive || !part.study.isActive || part.study.isArchived) redirect('/dashboard')
 
   const journey = journeyId ? part.study.journeys[0] : null
-  if (part.study.mode === 'JOURNEY') {
+  if (isJourneyStage(part)) {
     if (!journey) redirect('/dashboard')
-    const activePartIds = part.study.parts.filter((candidate) => candidate.isActive).map((candidate) => candidate.id)
+    const activePartIds = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate)).map((candidate) => candidate.id)
     const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
     const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
@@ -69,7 +73,7 @@ export default async function NewEntryPage({
     redirect('/dashboard')
   }
 
-  if (part.study.mode !== 'JOURNEY' && part.entryPolicy === 'ONCE_PER_DAY') {
+  if (!isJourneyStage(part) && part.entryPolicy === 'ONCE_PER_DAY') {
     const existing = await prisma.entry.findFirst({
       where: { partId, userId: session.userId, date: today },
       orderBy: { submittedAt: 'desc' },
@@ -107,7 +111,7 @@ export default async function NewEntryPage({
             <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
             <div>
               <p className="text-xs text-slate-400">
-                {part.study.mode === 'JOURNEY' ? `${journey?.label ?? part.study.journeyName ?? 'Journey'} · ${today}` : `${part.study.name} · ${today}`}
+                {isJourneyStage(part) ? `${journey?.label ?? part.study.journeyName ?? 'Journey'} · ${today}` : `${part.study.name} · ${today}`}
               </p>
               <p className="text-sm font-semibold text-slate-900">{part.name}</p>
             </div>

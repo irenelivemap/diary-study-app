@@ -31,6 +31,10 @@ function isPartComplete(part: { targetEntries: number | null; entries: { id: str
   return !!part.targetEntries && part.entries.length >= part.targetEntries
 }
 
+function isJourneyStage(part: { flow?: string | null }) {
+  return part.flow === 'JOURNEY_STAGE'
+}
+
 function submittedValues(formData: FormData, questionId: string) {
   return formData.getAll(`question_${questionId}`).map(String).map((value) => value.trim()).filter(Boolean)
 }
@@ -101,7 +105,7 @@ export async function startJourney(formData: FormData) {
     where: { id: studyId },
     include: {
       participants: { where: { userId: session.userId }, select: { consentedAt: true } },
-      parts: { where: { isActive: true }, orderBy: { order: 'asc' }, select: { id: true } },
+      parts: { where: { isActive: true, flow: 'JOURNEY_STAGE' }, orderBy: { order: 'asc' }, select: { id: true } },
       journeys: {
         where: { userId: session.userId, completedAt: null },
         orderBy: { createdAt: 'desc' },
@@ -110,7 +114,7 @@ export async function startJourney(formData: FormData) {
       },
     },
   })
-  if (!study || study.mode !== 'JOURNEY' || study.isArchived || !study.isActive) redirect('/dashboard')
+  if (!study || study.isArchived || !study.isActive) redirect('/dashboard')
   if (!study.participants[0]?.consentedAt || study.parts.length === 0) redirect('/dashboard')
 
   const existingJourney = study.journeys[0]
@@ -180,9 +184,9 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   }
 
   const journey = journeyId ? part.study.journeys[0] : null
-  if (part.study.mode === 'JOURNEY') {
+  if (isJourneyStage(part)) {
     if (!journey) return { error: 'Please start this journey from your dashboard.' }
-    const activePartIds = part.study.parts.filter((candidate) => candidate.isActive).map((candidate) => candidate.id)
+    const activePartIds = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate)).map((candidate) => candidate.id)
     const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
     const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
@@ -211,7 +215,11 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     if (!unlocked) return { error: 'This part is not unlocked yet.' }
   }
 
-  if (part.study.mode !== 'JOURNEY' && part.entryPolicy === 'ONCE_PER_DAY') {
+  if (!isJourneyStage(part) && journeyId) {
+    return { error: 'This entry is not part of a journey.' }
+  }
+
+  if (!isJourneyStage(part) && part.entryPolicy === 'ONCE_PER_DAY') {
     const existing = await prisma.entry.findFirst({
       where: { partId, userId: session.userId, date },
       select: { id: true },
@@ -308,7 +316,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   })
 
   if (journeyId) {
-    const activeParts = part.study.parts.filter((candidate) => candidate.isActive)
+    const activeParts = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate))
     const journeyEntryCount = await prisma.entry.count({ where: { journeyId } })
     if (journeyEntryCount >= activeParts.length) {
       await prisma.journey.update({ where: { id: journeyId }, data: { completedAt: new Date() } })
