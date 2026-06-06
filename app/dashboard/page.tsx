@@ -372,7 +372,7 @@ export default async function DashboardPage() {
                             return (
                               <div key={stage.id} className={`rounded-xl border px-4 py-3 ${
                                 entry
-                                  ? 'border-emerald-100 bg-emerald-50'
+                                  ? 'border-slate-200 bg-white'
                                   : isRecommended
                                   ? 'border-indigo-200 bg-indigo-50'
                                   : !isLocked
@@ -381,13 +381,18 @@ export default async function DashboardPage() {
                               }`}>
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="min-w-0">
+                                    {entry && (
+                                      <span className="mb-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                                        Submitted
+                                      </span>
+                                    )}
                                     {isRecommended && (
                                       <span className="mb-1 inline-flex rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white">
                                         Recommended next
                                       </span>
                                     )}
                                     <p className={`text-sm font-semibold ${isLocked ? 'text-slate-500' : 'text-slate-900'}`}>
-                                      {entry ? '' : isLocked ? 'Locked: ' : ''}
+                                      {entry ? 'Done: ' : isLocked ? 'Locked: ' : ''}
                                       {stage.name}
                                     </p>
                                     <p className="mt-0.5 text-sm text-slate-500">
@@ -406,7 +411,7 @@ export default async function DashboardPage() {
                                         href={`/entry/${entry.id}`}
                                         aria-label={`View ${stage.name}`}
                                         title={`View ${stage.name}`}
-                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 transition-colors hover:bg-emerald-50"
+                                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
                                       >
                                         <EyeIcon />
                                       </Link>
@@ -426,71 +431,72 @@ export default async function DashboardPage() {
                             )
                           })}
                         </div>
-
-                        {completedCount > 0 && nextStage && (
-                          <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
-                            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                              Start a separate visit
-                            </summary>
-                            <div className="border-t border-slate-200 px-4 py-4">
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="text-sm text-slate-600">Use this only if this is a new real-world experience.</p>
-                                <form action={startJourney} className="shrink-0">
-                                  <input type="hidden" name="studyId" value={study.id} />
-                                  <input type="hidden" name="forceNewJourney" value="true" />
-                                  <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
-                                    Start new visit
-                                  </StartJourneyButton>
-                                </form>
-                              </div>
-                            </div>
-                          </details>
-                        )}
-
-                        {previousJourneyCount > 0 && (
-                          <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
-                            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                              Previous visits
-                              <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneyCount}</span>
-                            </summary>
-                            <div className="space-y-2 border-t border-slate-200 px-4 py-4">
-                              {otherOpenJourneys.slice(0, 4).map((journey) => {
-                                const nextOtherStage = journeyNextStage(journey)
-                                return (
-                                  <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm">
-                                    <div className="min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
-                                        {nextOtherStage && (
-                                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Needs action</span>
-                                        )}
-                                      </div>
-                                      <p className="text-slate-600">{nextOtherStage ? `Next: ${nextOtherStage.name}` : 'All stages submitted'}</p>
-                                    </div>
-                                    {nextOtherStage && (
-                                      <ButtonLink
-                                        href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
-                                        tone="secondary"
-                                        size="sm"
-                                      >
-                                        Continue
-                                      </ButtonLink>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                              {completedJourneys.slice(0, 4).map((journey) => (
-                                <div key={journey.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                                  <p className="truncate font-medium text-slate-700">{journey.label ?? journeyName}</p>
-                                  <p className="text-slate-500">
-                                    Completed{journey.completedAt ? ` ${journey.completedAt.toLocaleDateString()}` : ''}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
                       </div>
+
+                      {completedCount > 0 && nextStage && (
+                        <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800">
+                            Start a separate visit
+                          </summary>
+                          <div className="border-t border-slate-100 px-5 py-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm leading-relaxed text-slate-600">Use this only if this is a new real-world experience.</p>
+                              <form action={startJourney} className="shrink-0">
+                                <input type="hidden" name="studyId" value={study.id} />
+                                <input type="hidden" name="forceNewJourney" value="true" />
+                                <StartJourneyButton tone="secondary" size="md" className="w-full sm:w-auto">
+                                  Start new visit
+                                </StartJourneyButton>
+                              </form>
+                            </div>
+                          </div>
+                        </details>
+                      )}
+
+                      {previousJourneyCount > 0 && (
+                        <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800">
+                            Previous visits
+                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneyCount}</span>
+                          </summary>
+                          <div className="space-y-2 border-t border-slate-100 px-5 py-4">
+                            {otherOpenJourneys.slice(0, 4).map((journey) => {
+                              const nextOtherStage = journeyNextStage(journey)
+                              return (
+                                <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
+                                      {nextOtherStage && (
+                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Needs action</span>
+                                      )}
+                                    </div>
+                                    <p className="text-slate-600">{nextOtherStage ? `Next: ${nextOtherStage.name}` : 'All stages submitted'}</p>
+                                  </div>
+                                  {nextOtherStage && (
+                                    <ButtonLink
+                                      href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
+                                      tone="secondary"
+                                      size="sm"
+                                    >
+                                      Continue
+                                    </ButtonLink>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            {completedJourneys.slice(0, 4).map((journey) => (
+                              <div key={journey.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <p className="truncate font-medium text-slate-700">{journey.label ?? journeyName}</p>
+                                <p className="text-slate-500">
+                                  Completed{journey.completedAt ? ` ${journey.completedAt.toLocaleDateString()}` : ''}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+
                       {independentPartCards}
                       </>
                     )
