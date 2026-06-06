@@ -37,6 +37,8 @@ type Props = {
   action: (prevState: unknown, formData: FormData) => Promise<{ error?: string } | void>
   initialName?: string
   initialDescription?: string
+  initialMode?: 'STANDARD' | 'JOURNEY'
+  initialJourneyName?: string
   initialConsentText?: string
   initialContactEmail?: string
   initialParticipantEntryAccess?: 'HIDE_PAST_ENTRIES' | 'SHOW_READ_ONLY'
@@ -109,6 +111,7 @@ function defaultPart(order: number): Part {
 
 export default function StudyForm({
   action, initialName = '', initialDescription = '', initialIsActive = true,
+  initialMode = 'STANDARD', initialJourneyName = '',
   initialConsentText = '', initialContactEmail = '', initialParticipantEntryAccess = 'SHOW_READ_ONLY', initialDemographicFields = [], initialReminderNote = '',
   initialRemindersEnabled = false, initialReminderTime = '18:00',
   initialReminderDays = [],
@@ -122,6 +125,7 @@ export default function StudyForm({
   const [activePart, setActivePart] = useState(0)
   const [renamingPart, setRenamingPart] = useState<string | null>(null)
   const [isActive, setIsActive] = useState(initialIsActive)
+  const [studyMode, setStudyMode] = useState<'STANDARD' | 'JOURNEY'>(initialMode)
   const [isSequential, setIsSequential] = useState(initialSequential)
   const [remindersEnabled, setRemindersEnabled] = useState(initialRemindersEnabled)
   const [reminderDays, setReminderDays] = useState<string[]>(initialReminderDays)
@@ -419,6 +423,50 @@ export default function StudyForm({
               placeholder="Short description (optional)"
             />
           </div>
+          <fieldset>
+            <legend className={fieldLabelCls}>Study structure</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-100">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="STANDARD"
+                    checked={studyMode === 'STANDARD'}
+                    onChange={() => setStudyMode('STANDARD')}
+                    className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Standard diary</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-500">Participants choose the entry form they need.</p>
+                  </div>
+                </div>
+              </label>
+              <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-100">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="JOURNEY"
+                    checked={studyMode === 'JOURNEY'}
+                    onChange={() => setStudyMode('JOURNEY')}
+                    className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Journey-based study</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-500">Guide participants through stages like before, during and after.</p>
+                  </div>
+                </div>
+              </label>
+            </div>
+            {studyMode === 'JOURNEY' && (
+              <div className="mt-3">
+                <label className={fieldLabelCls}>Journey name</label>
+                <TextInput name="journeyName" defaultValue={initialJourneyName} placeholder="e.g. Badi visit" />
+                <p className="mt-2 text-sm text-slate-500">Participants will see actions like “Start a Badi visit”. Parts become the stages of this journey.</p>
+              </div>
+            )}
+          </fieldset>
           <div className={`grid grid-cols-1 gap-3 ${showStudyStatus ? 'sm:grid-cols-2' : ''}`}>
             {showStudyStatus && <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
               <span className="text-sm font-medium text-slate-800">Study status</span>

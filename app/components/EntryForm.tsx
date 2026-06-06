@@ -16,6 +16,7 @@ function detectedTimezone() {
 type Study = {
   id: string
   partId: string
+  journeyId?: string
   name: string
   questions: Question[]
 }
@@ -33,7 +34,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
   const [localError, setLocalError] = useState('')
   const [timezone] = useState(detectedTimezone)
   const formRef = useRef<HTMLFormElement>(null)
-  const draftKey = `diari-draft-${study.partId}-${today}`
+  const draftKey = `diari-draft-${study.journeyId ?? study.partId}-${today}`
 
   function setAnswer(qId: string, value: string) {
     setAnswers((a) => ({ ...a, [qId]: value }))
@@ -190,6 +191,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
     >
       <input type="hidden" name="studyId" value={study.id} />
       <input type="hidden" name="partId" value={study.partId} />
+      {study.journeyId && <input type="hidden" name="journeyId" value={study.journeyId} />}
       <input type="hidden" name="date" value={today} />
       <input type="hidden" name="timezone" value={timezone} />
       <input type="hidden" name="visibleQuestionIds" value={JSON.stringify(visibleQuestionIds)} />

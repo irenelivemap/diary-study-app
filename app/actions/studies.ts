@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { EntryPolicy, ParticipantEntryAccess } from '@prisma/client'
+import { EntryPolicy, ParticipantEntryAccess, StudyMode } from '@prisma/client'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
@@ -95,6 +95,9 @@ function normalizedEntryPolicy(value: string | null | undefined) {
 function normalizedStudyFields(formData: FormData) {
   const name = String(formData.get('name') ?? '').trim()
   const description = optionalString(formData, 'description')
+  const rawMode = String(formData.get('mode') ?? StudyMode.STANDARD)
+  const mode = rawMode === StudyMode.JOURNEY ? StudyMode.JOURNEY : StudyMode.STANDARD
+  const journeyName = mode === StudyMode.JOURNEY ? optionalString(formData, 'journeyName') : null
   const consentText = optionalString(formData, 'consentText')
   const contactEmail = optionalString(formData, 'contactEmail')
   const rawParticipantEntryAccess = String(formData.get('participantEntryAccess') ?? ParticipantEntryAccess.SHOW_READ_ONLY)
@@ -114,6 +117,8 @@ function normalizedStudyFields(formData: FormData) {
   return {
     name,
     description,
+    mode,
+    journeyName,
     consentText,
     contactEmail,
     participantEntryAccess,
@@ -287,6 +292,8 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
         data: {
           name: studyFields.name,
           description: studyFields.description,
+          mode: studyFields.mode,
+          journeyName: studyFields.journeyName,
           consentText: studyFields.consentText,
           contactEmail: studyFields.contactEmail,
           participantEntryAccess: studyFields.participantEntryAccess,
@@ -567,7 +574,10 @@ export async function removeParticipant(
   const normalizedEmail = participant?.user.email.toLowerCase()
   await prisma.$transaction([
     ...(options.deleteParticipantData
-      ? [prisma.entry.deleteMany({ where: { studyId, userId } })]
+      ? [
+          prisma.entry.deleteMany({ where: { studyId, userId } }),
+          prisma.journey.deleteMany({ where: { studyId, userId } }),
+        ]
       : []),
     prisma.studyParticipant.deleteMany({ where: { studyId, userId } }),
     ...(normalizedEmail
