@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge, Card, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
@@ -430,6 +430,7 @@ function RatingScaleSvg({
   yAxisMax: number | null
   yAxisStep: number | null
 }) {
+  const clipPrefix = useId().replace(/:/g, '')
   const points = analysis.scalePoints ?? []
   const bins = analysis.ratingBins ?? []
   const displayPoints = analysis.shouldBin
@@ -474,7 +475,7 @@ function RatingScaleSvg({
           const x = plotLeft + index * step
           const clipWidth = Math.max(30, Math.min(96, step - 4))
           return (
-            <clipPath key={`${point.key}-rating-label-clip`} id={`rating-label-clip-${index}`}>
+            <clipPath key={`${point.key}-rating-label-clip`} id={`${clipPrefix}-rating-label-clip-${index}`}>
               <rect x={x - clipWidth / 2} y={baseline + 30} width={clipWidth} height="18" />
             </clipPath>
           )
@@ -542,7 +543,7 @@ function RatingScaleSvg({
                 x={x}
                 y={baseline + 42}
                 textAnchor="middle"
-                clipPath={`url(#rating-label-clip-${index})`}
+                clipPath={`url(#${clipPrefix}-rating-label-clip-${index})`}
                 fill={isTop ? '#0f766e' : '#64748b'}
                 fontSize="10"
               >
@@ -692,31 +693,27 @@ function PlotSvg({
 }) {
   const width = 760
   const rowHeight = 36
-  const safeLeft = 34
-  const safeRight = 50
+  const safeLeft = 48
+  const valueColumnWidth = 58
+  const safeRight = 34
   const hasTitle = Boolean(title)
   const hasSubtitle = Boolean(subtitle)
   const top = hasSubtitle ? 62 : hasTitle ? 50 : 24
   const longestLabel = Math.max(0, ...points.map((point) => point.label.length))
-  const labelWidth = Math.min(210, Math.max(118, longestLabel * 7.8))
-  const left = safeLeft + labelWidth + 12
-  const right = safeRight
+  const labelWidth = Math.min(230, Math.max(130, longestLabel * 8))
+  const left = safeLeft + labelWidth + 16
+  const valueX = width - safeRight
+  const chartRight = valueX - valueColumnWidth
   const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + points.length * rowHeight + 28)
   const total = points.reduce((sum, point) => sum + point.value, 0)
   const percentages = points.map((point) => total ? Math.round((point.value / total) * 100) : 0)
   const topCount = Math.max(...points.map((point) => point.value), 0)
-  const chartWidth = width - left - right
+  const chartWidth = Math.max(120, chartRight - left)
+  const maxLabelChars = Math.max(6, Math.floor(labelWidth / 8))
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} className="w-full rounded-xl border border-slate-100 bg-white">
       <rect width={width} height={height} fill="#ffffff" />
-      <defs>
-        {points.map((point, index) => (
-          <clipPath key={`${point.label}-${index}-label-clip`} id={`plot-label-clip-${index}`}>
-            <rect x={safeLeft} y={top + index * rowHeight - 2} width={labelWidth} height="26" />
-          </clipPath>
-        ))}
-      </defs>
       {title && <text x="20" y="28" fill="#0f172a" fontSize="16" fontWeight="700">{title}</text>}
       {subtitle && <text x="20" y={title ? 50 : 28} fill="#64748b" fontSize="13">{subtitle}</text>}
       {points.length === 0 && (
@@ -734,12 +731,11 @@ function PlotSvg({
               x={left - 10}
               y={y + 18}
               textAnchor="end"
-              clipPath={`url(#plot-label-clip-${index})`}
               fill={isTop ? '#0f766e' : '#334155'}
               fontSize="13"
               fontWeight={isTop ? '800' : '600'}
             >
-              {point.label.length > Math.floor(labelWidth / 7.8) ? `${point.label.slice(0, Math.max(3, Math.floor(labelWidth / 7.8) - 1))}...` : point.label}
+              {point.label.length > maxLabelChars ? `${point.label.slice(0, Math.max(3, maxLabelChars - 1)).trim()}...` : point.label}
             </text>
             <rect x={left} y={y} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
             <rect
@@ -750,7 +746,7 @@ function PlotSvg({
               rx="10"
               fill={isTop ? '#0f766e' : '#4f46e5'}
             />
-            <text x={left + chartWidth + 12} y={y + 15} fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{pct}%</text>
+            <text x={valueX} y={y + 15} textAnchor="end" fill={isTop ? '#0f766e' : '#0f172a'} fontSize="13" fontWeight="800">{pct}%</text>
           </g>
         )
       })}
