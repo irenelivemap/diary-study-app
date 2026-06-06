@@ -98,7 +98,6 @@ async function main() {
       sequential: true,
       remindersEnabled: false,
       participantEntryAccess: 'SHOW_READ_ONLY',
-      demographicFields: ['age_range', 'city_area', 'visit_frequency'],
       reminderNote: 'Start a Badi visit when you are planning to go, then continue with the next stage when you arrive and after you leave.',
     },
   })
@@ -385,10 +384,17 @@ async function main() {
   const password = await bcrypt.hash('participant123', 10)
   const users = []
   for (const [name, email] of PARTICIPANTS) {
+    const demographics = {
+      ageRange: pick(['18-24', '25-34', '35-44', '45-54']),
+      countryRegion: 'Switzerland',
+      language: pick(['German', 'English', 'French', 'Italian']),
+      occupation: pick(['Student', 'Designer', 'Researcher', 'Product manager', 'Engineer', 'Service worker']),
+      device: pick(['iPhone', 'Android phone']),
+    }
     const user = await prisma.user.upsert({
       where: { email },
-      update: { name, role: 'PARTICIPANT', timezone: 'Europe/Zurich' },
-      create: { email, password, name, role: 'PARTICIPANT', timezone: 'Europe/Zurich' },
+      update: { name, role: 'PARTICIPANT', timezone: 'Europe/Zurich', demographics },
+      create: { email, password, name, role: 'PARTICIPANT', timezone: 'Europe/Zurich', demographics },
     })
     users.push(user)
     await prisma.studyParticipant.upsert({
@@ -398,11 +404,6 @@ async function main() {
         studyId: study.id,
         userId: user.id,
         consentedAt: new Date(),
-        demographics: {
-          age_range: pick(['18-24', '25-34', '35-44', '45-54']),
-          city_area: pick(['Zürich Kreis 1', 'Zürich Kreis 3', 'Zürich Kreis 4', 'Zürich Kreis 8']),
-          visit_frequency: pick(['Weekly', 'Monthly', 'A few times per summer']),
-        },
       },
     })
   }

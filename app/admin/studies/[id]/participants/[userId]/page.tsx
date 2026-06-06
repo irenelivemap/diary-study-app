@@ -136,7 +136,7 @@ export default async function ParticipantEntriesPage({
   const participation = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId: id, userId } },
     include: {
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, name: true, email: true, demographics: true } },
       study: {
         select: {
           id: true,
@@ -152,6 +152,14 @@ export default async function ParticipantEntriesPage({
   })
 
   if (!participation) notFound()
+
+  const legacyDemographics = participation.demographics && typeof participation.demographics === 'object'
+    ? participation.demographics as Record<string, unknown>
+    : {}
+  const profileDemographics = participation.user.demographics && typeof participation.user.demographics === 'object'
+    ? participation.user.demographics as Record<string, unknown>
+    : {}
+  const demographics = { ...legacyDemographics, ...profileDemographics }
 
   const entries = await prisma.entry.findMany({
     where: { studyId: id, userId },
@@ -216,9 +224,9 @@ export default async function ParticipantEntriesPage({
               </span>
             )}
           </div>
-          {participation.demographics && typeof participation.demographics === 'object' && (
+          {Object.keys(demographics).length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {Object.entries(participation.demographics as Record<string, unknown>).map(([key, value]) => (
+              {Object.entries(demographics).map(([key, value]) => (
                 <span key={key} className="rounded-full bg-indigo-50 px-3 py-1 text-sm text-indigo-800">
                   <span className="font-semibold">{demographicFieldLabel(key)}:</span> {String(value)}
                 </span>

@@ -15,6 +15,7 @@ model User {
   lastName  String?
   role      Role     @default(PARTICIPANT)
   timezone  String?
+  demographics Json?
   lastLoginAt DateTime?
   createdAt DateTime @default(now())
 

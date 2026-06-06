@@ -5,7 +5,6 @@ import { EntryPolicy, ParticipantEntryAccess, StudyMode } from '@prisma/client'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
-import { DEMOGRAPHIC_FIELDS, normalizeDemographicFields } from '@/app/lib/demographics'
 import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
 import { sendParticipantRemovalEmail } from '@/app/lib/participant-removal'
 import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
@@ -65,17 +64,6 @@ function optionalExternalId(formData: FormData) {
   return value ? value.slice(0, 120) : null
 }
 
-function demographicsValue(formData: FormData, fields: string[]) {
-  const allowed = new Set(fields)
-  const demographics: Record<string, string> = {}
-  for (const field of DEMOGRAPHIC_FIELDS) {
-    if (!allowed.has(field.key)) continue
-    const value = optionalString(formData, `demographic_${field.key}`)
-    if (value) demographics[field.key] = value.slice(0, 500)
-  }
-  return Object.keys(demographics).length > 0 ? demographics : null
-}
-
 function sanitizedOptions(options: string[] | undefined) {
   const seen = new Set<string>()
   const final: string[] = []
@@ -111,7 +99,6 @@ function normalizedStudyFields(formData: FormData) {
   const reminderDays = reminderDaysValue(formData)
   const reminderSubject = optionalString(formData, 'reminderSubject')
   const reminderBody = optionalString(formData, 'reminderBody')
-  const demographicFields = normalizeDemographicFields(formData.getAll('demographicFields'))
   const sequential = checkboxValue(formData, 'sequential')
 
   return {
@@ -128,7 +115,6 @@ function normalizedStudyFields(formData: FormData) {
     reminderDays,
     reminderSubject,
     reminderBody,
-    demographicFields,
     sequential,
   }
 }
@@ -297,7 +283,6 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
           consentText: studyFields.consentText,
           contactEmail: studyFields.contactEmail,
           participantEntryAccess: studyFields.participantEntryAccess,
-          demographicFields: studyFields.demographicFields,
           reminderNote: studyFields.reminderNote,
           remindersEnabled: studyFields.remindersEnabled,
           reminderTime: studyFields.reminderTime,
@@ -486,18 +471,16 @@ export async function acceptConsent(prevState: unknown, formData: FormData) {
 
   const participation = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId, userId: session.userId } },
-    include: { study: { select: { isActive: true, isArchived: true, demographicFields: true } } },
+    include: { study: { select: { isActive: true, isArchived: true } } },
   })
   if (!participation || participation.study.isArchived || !participation.study.isActive) {
     return { error: 'This study is not available.' }
   }
 
-  const demographics = demographicsValue(formData, participation.study.demographicFields)
   await prisma.studyParticipant.update({
     where: { studyId_userId: { studyId, userId: session.userId } },
     data: {
       consentedAt: participation.consentedAt ?? new Date(),
-      ...(demographics ? { demographics } : {}),
     },
   })
 

@@ -33,7 +33,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
         include: { _count: { select: { entries: true } } },
       },
       participants: {
-        include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true } } },
+        include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true, demographics: true } } },
         orderBy: { joinedAt: 'asc' },
       },
       invitations: {
@@ -284,9 +284,12 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                     {participant.externalParticipantId && (
                       <p className="px-1 text-xs text-slate-500">External ID: {participant.externalParticipantId}</p>
                     )}
-                    {participant.demographics && typeof participant.demographics === 'object' && (
+                    {((participant.user.demographics && typeof participant.user.demographics === 'object') || (participant.demographics && typeof participant.demographics === 'object')) && (
                       <div className="flex flex-wrap gap-1 px-1">
-                        {Object.entries(participant.demographics as Record<string, unknown>).map(([key, value]) => (
+                        {Object.entries({
+                          ...(participant.demographics && typeof participant.demographics === 'object' ? participant.demographics as Record<string, unknown> : {}),
+                          ...(participant.user.demographics && typeof participant.user.demographics === 'object' ? participant.user.demographics as Record<string, unknown> : {}),
+                        }).map(([key, value]) => (
                           <span key={key} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
                             {demographicFieldLabel(key)}: {String(value)}
                           </span>

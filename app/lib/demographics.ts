@@ -59,3 +59,12 @@ export function normalizeDemographicFields(values: FormDataEntryValue[]) {
   }
   return fields
 }
+
+export function demographicsFromFormData(formData: FormData) {
+  const demographics: Record<string, string> = {}
+  for (const field of DEMOGRAPHIC_FIELDS) {
+    const value = String(formData.get(`demographic_${field.key}`) ?? '').trim()
+    if (value) demographics[field.key] = value.slice(0, 500)
+  }
+  return Object.keys(demographics).length > 0 ? demographics : null
+}

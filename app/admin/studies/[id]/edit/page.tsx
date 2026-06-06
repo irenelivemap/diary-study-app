@@ -54,7 +54,6 @@ export default async function EditStudyPage({
           initialConsentText={study.consentText ?? ''}
           initialContactEmail={study.contactEmail ?? ''}
           initialParticipantEntryAccess={study.participantEntryAccess}
-          initialDemographicFields={study.demographicFields}
           initialReminderNote={study.reminderNote ?? ''}
           initialRemindersEnabled={study.remindersEnabled}
           initialReminderTime={study.reminderTime ?? '18:00'}
