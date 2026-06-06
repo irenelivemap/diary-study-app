@@ -1,10 +1,12 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/app/lib/db'
 import { createSession, deleteSession, getSession } from '@/app/lib/session'
 import { isValidEmail, normalizeEmail } from '@/app/lib/validation'
+import { demographicsFromFormData } from '@/app/lib/demographics'
 
 function splitName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -133,6 +135,7 @@ export async function updateProfile(prevState: { error?: string; success?: boole
   const firstName = String(formData.get('firstName') ?? '').trim().slice(0, 80)
   const lastName = String(formData.get('lastName') ?? '').trim().slice(0, 120)
   const displayName = profileName(firstName, lastName, String(formData.get('name') ?? session.name))
+  const demographics = demographicsFromFormData(formData)
 
   if (!displayName) return { error: 'Add at least a first name or display name.' }
 
@@ -142,6 +145,7 @@ export async function updateProfile(prevState: { error?: string; success?: boole
       firstName: firstName || null,
       lastName: lastName || null,
       name: displayName.slice(0, 160),
+      demographics: demographics ?? Prisma.JsonNull,
     },
     select: { id: true, role: true, name: true, email: true },
   })

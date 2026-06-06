@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
-import { demographicFieldLabel } from '@/app/lib/demographics'
+import { DEMOGRAPHIC_FIELDS, demographicFieldLabel } from '@/app/lib/demographics'
 
 function csvCell(value: string) {
   return `"${value.replace(/"/g, '""')}"`
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 select: {
                   name: true,
                   email: true,
+                  demographics: true,
                   participations: {
                     where: { studyId: id },
                     select: { externalParticipantId: true, demographics: true },
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!study) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const allQuestions = study.parts.flatMap((p) => p.questions).filter((q) => q.type !== 'CONTENT')
-  const demographicFields = study.demographicFields
+  const demographicFields = DEMOGRAPHIC_FIELDS.map((field) => field.key)
   const showJourney = study.mode === 'JOURNEY' || study.parts.some((part) => part.entries.some((entry) => entry.journeyId))
   const anonymize = req.nextUrl.searchParams.get('anonymize') === 'true'
   const participantIds = new Map<string, string>()
@@ -80,9 +81,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ]))
       const participantKey = entry.user.email
       const participation = entry.user.participations[0]
-      const demographics = participation?.demographics && typeof participation.demographics === 'object'
+      const profileDemographics = entry.user.demographics && typeof entry.user.demographics === 'object'
+        ? entry.user.demographics as Record<string, unknown>
+        : {}
+      const legacyStudyDemographics = participation?.demographics && typeof participation.demographics === 'object'
         ? participation.demographics as Record<string, unknown>
         : {}
+      const demographics = { ...legacyStudyDemographics, ...profileDemographics }
       if (!participantIds.has(participantKey)) {
         participantCounter += 1
         participantIds.set(participantKey, `P${String(participantCounter).padStart(3, '0')}`)
