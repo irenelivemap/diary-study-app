@@ -64,7 +64,7 @@ export default async function PreviewPage({
       <header className="bg-white border-b border-slate-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center">
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[partIndex % PART_COLORS.length]}`}>
+            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[partIndex % PART_COLORS.length]}`}>
               PT {partIndex + 1}
             </span>
             <div>

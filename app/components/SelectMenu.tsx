@@ -30,6 +30,7 @@ export default function SelectMenu({
   const ref = useRef<HTMLDivElement>(null)
   const currentValue = value ?? internalValue
   const selected = options.find((option) => option.value === currentValue) ?? options[0]
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === selected?.value))
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
@@ -45,6 +46,11 @@ export default function SelectMenu({
     setOpen(false)
   }
 
+  function chooseByIndex(nextIndex: number) {
+    const next = options[Math.min(options.length - 1, Math.max(0, nextIndex))]
+    if (next) choose(next.value)
+  }
+
   return (
     <div ref={ref} className={`relative ${label ? 'space-y-1' : ''} ${className}`}>
       {name && <input type="hidden" name={name} value={currentValue} />}
@@ -52,6 +58,31 @@ export default function SelectMenu({
       <button
         type="button"
         onClick={() => !disabled && setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (disabled) return
+          if (event.key === 'Escape') {
+            setOpen(false)
+            return
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            if (!open) setOpen(true)
+            else chooseByIndex(selectedIndex + 1)
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            if (!open) setOpen(true)
+            else chooseByIndex(selectedIndex - 1)
+          }
+          if (event.key === 'Home') {
+            event.preventDefault()
+            chooseByIndex(0)
+          }
+          if (event.key === 'End') {
+            event.preventDefault()
+            chooseByIndex(options.length - 1)
+          }
+        }}
         className={`flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-slate-50 px-3 text-left text-sm text-slate-900 transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 ${
           open ? 'border-indigo-500 bg-white' : 'border-slate-300'
         } ${buttonClassName}`}

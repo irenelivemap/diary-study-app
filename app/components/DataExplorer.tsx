@@ -416,7 +416,7 @@ export default function DataExplorer({ studyName, studyVersion, parts, participa
                     >
                       <div className={`${selectedQuestionCols.has(q.id) ? '' : 'opacity-45'}`}>
                         <div className="text-xs font-semibold text-slate-500 line-clamp-2 leading-snug">{q.text}</div>
-                        <div className="text-[10px] text-slate-300 mt-0.5 font-normal">{q.type.toLowerCase().replace('_', ' ')}</div>
+                        <div className="text-xs text-slate-400 mt-0.5 font-normal">{q.type.toLowerCase().replace('_', ' ')}</div>
                       </div>
                     </th>
                   ))}

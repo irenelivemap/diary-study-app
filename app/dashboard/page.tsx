@@ -153,7 +153,7 @@ export default async function DashboardPage() {
                       return (
                         <div key={part.id} className="px-6 py-4 opacity-60">
                           <div className="flex items-center gap-3">
-                            <span className={`text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
                               PT {pi + 1}
                             </span>
                             <span className="text-sm font-medium text-slate-500">{part.name}</span>
@@ -174,7 +174,7 @@ export default async function DashboardPage() {
                         {/* Part label row */}
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
                               PT {pi + 1}
                             </span>
                             <span className="text-sm font-medium text-slate-800">{part.name}</span>
@@ -254,7 +254,7 @@ export default async function DashboardPage() {
                             {dur?.ended ? (
                               <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                                 <div className="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center shrink-0">
-                                  <span className="text-slate-500 text-[10px]">⏱</span>
+                                  <span className="text-slate-500 text-xs">⏱</span>
                                 </div>
                                 <div>
                                   <p className="text-sm font-semibold text-slate-600">Duration complete</p>
@@ -267,7 +267,7 @@ export default async function DashboardPage() {
                               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
                                 <div className="flex items-center gap-2">
                                   <div className="w-5 h-5 bg-emerald-400 rounded-full flex items-center justify-center shrink-0">
-                                    <span className="text-white text-[10px] font-bold">✓</span>
+                                    <span className="text-white text-xs font-bold">✓</span>
                                   </div>
                                   <div>
                                     <p className="text-sm font-semibold text-emerald-700">Goal reached</p>

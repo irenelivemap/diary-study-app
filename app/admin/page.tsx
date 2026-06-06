@@ -30,7 +30,7 @@ export default async function AdminPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-end justify-between gap-4 mb-5">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Your studies</h2>
+            <h1 className="text-2xl font-bold text-slate-950">Your studies</h1>
             <p className="text-sm text-slate-500 mt-1">{studies.length} stud{studies.length === 1 ? 'y' : 'ies'}</p>
           </div>
         </div>
