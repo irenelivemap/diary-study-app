@@ -1,9 +1,8 @@
 'use client'
 
-import { useTransition } from 'react'
 import Link from 'next/link'
-import { restoreStudy } from '@/app/actions/studies'
-import { Button, ButtonLink } from '@/app/components/ui'
+import StudyActionsMenu from '@/app/components/StudyActionsMenu'
+import { ButtonLink } from '@/app/components/ui'
 
 type Props = {
   study: {
@@ -24,15 +23,8 @@ function formatArchivedDate(date: Date) {
 }
 
 export default function ArchivedStudyRow({ study }: Props) {
-  const [isPending, startTransition] = useTransition()
-
-  function handleRestore() {
-    if (!confirm(`Move "${study.name}" back to current studies?`)) return
-    startTransition(() => restoreStudy(study.id))
-  }
-
   return (
-    <div className={`flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm transition-opacity sm:flex-row sm:items-center sm:justify-between ${isPending ? 'opacity-60' : ''}`}>
+    <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`/admin/studies/${study.id}`} className="text-lg font-semibold text-slate-900 transition-colors hover:text-indigo-700">
@@ -52,9 +44,7 @@ export default function ArchivedStudyRow({ study }: Props) {
         <ButtonLink href={`/admin/studies/${study.id}`} tone="secondary" size="md">
           Open
         </ButtonLink>
-        <Button type="button" tone="secondary" size="md" onClick={handleRestore} disabled={isPending}>
-          Restore
-        </Button>
+        <StudyActionsMenu studyId={study.id} studyName={study.name} archived />
       </div>
     </div>
   )
