@@ -29,6 +29,10 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { joinedAt: 'asc' },
       },
+      invitations: {
+        select: { email: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      },
       reminderLogs: {
         orderBy: { sentAt: 'desc' },
         take: 5,
@@ -53,7 +57,8 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     date.setDate(date.getDate() - (6 - i))
     return date.toISOString().split('T')[0]
   })
-  const [entriesByDayRaw, participantsWithEntriesRaw, participantLatestRaw, entriesToday] = await Promise.all([
+  const invitedEmails = [...new Set(study.invitations.map((invitation) => invitation.email.toLowerCase()))]
+  const [entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, participantLatestRaw, entriesToday, invitedUsers] = await Promise.all([
     prisma.entry.groupBy({
       by: ['date'],
       where: { studyId: id, date: { in: dayKeys } },
@@ -65,11 +70,22 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
       _count: { id: true },
     }),
     prisma.entry.groupBy({
+      by: ['userId', 'partId'],
+      where: { studyId: id },
+      _count: { id: true },
+    }),
+    prisma.entry.groupBy({
       by: ['userId'],
       where: { studyId: id },
       _max: { date: true },
     }),
     prisma.entry.count({ where: { studyId: id, date: today } }),
+    invitedEmails.length
+      ? prisma.user.findMany({
+          where: { email: { in: invitedEmails } },
+          select: { id: true, email: true, lastLoginAt: true },
+        })
+      : Promise.resolve([]),
   ])
   const dayCountMap = new Map(entriesByDayRaw.map((row) => [row.date, row._count.id]))
   const entriesByDay = dayKeys.map((date) => ({
@@ -78,7 +94,28 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   }))
   const maxDayCount = Math.max(...entriesByDay.map((day) => day.count), 1)
   const participantsWithEntries = new Set(participantsWithEntriesRaw.map((entry) => entry.userId))
+  const entryCountByParticipantPart = new Map(
+    entriesByParticipantPartRaw.map((entry) => [`${entry.userId}:${entry.partId}`, entry._count.id])
+  )
   const participantLatestDate = new Map(participantLatestRaw.flatMap((row) => row._max.date ? [[row.userId, row._max.date] as const] : []))
+  const invitedUsersByEmail = new Map(invitedUsers.map((user) => [user.email.toLowerCase(), user]))
+  const invitedUserIds = invitedEmails
+    .map((email) => invitedUsersByEmail.get(email)?.id)
+    .filter((userId): userId is string => !!userId)
+  const activeParts = study.parts.filter((part) => part.isActive)
+  const participantCompletedStudy = (userId: string) => {
+    if (activeParts.length === 0) return false
+    return activeParts.every((part) => {
+      const count = entryCountByParticipantPart.get(`${userId}:${part.id}`) ?? 0
+      return part.targetEntries && part.targetEntries > 0 ? count >= part.targetEntries : count > 0
+    })
+  }
+  const funnel = {
+    invited: invitedEmails.length,
+    loggedIn: invitedEmails.filter((email) => !!invitedUsersByEmail.get(email)?.lastLoginAt).length,
+    started: invitedUserIds.filter((userId) => participantsWithEntries.has(userId)).length,
+    completed: invitedUserIds.filter(participantCompletedStudy).length,
+  }
   const notStarted = study.participants.length - participantsWithEntries.size
   const quietParticipants = study.participants.filter(({ user }) => {
     const latest = participantLatestDate.get(user.id)
@@ -114,10 +151,10 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Participants', value: study.participants.length, detail: `${participantsWithEntries.size} with entries` },
-            { label: 'Responses', value: totalEntries, detail: entriesLabel },
-            { label: 'Today', value: entriesToday, detail: entriesToday === 1 ? 'entry' : 'entries' },
-            { label: 'Need attention', value: notStarted + quietParticipants, detail: `${notStarted} not started · ${quietParticipants} quiet` },
+            { label: 'Invited', value: funnel.invited, detail: 'emails sent from this app' },
+            { label: 'Logged in', value: funnel.loggedIn, detail: 'invited people with an account login' },
+            { label: 'Started', value: funnel.started, detail: 'invited people with at least one entry' },
+            { label: 'Completed', value: funnel.completed, detail: 'invited people who reached part targets' },
           ].map(({ label, value, detail }) => (
             <div key={label} className="rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
               <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -163,14 +200,16 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
             </section>
 
             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold text-slate-900">Participant activity</h2>
+              <h2 className="text-base font-semibold text-slate-900">Recruitment funnel</h2>
+              <p className="mt-0.5 text-sm text-slate-500">From invitation to completion.</p>
               <div className="mt-4 space-y-3">
                 {[
-                  { label: 'Submitted at least once', value: participantsWithEntries.size, tone: 'bg-emerald-500' },
-                  { label: 'Not started', value: notStarted, tone: 'bg-slate-400' },
-                  { label: 'Quiet for 7+ days', value: quietParticipants, tone: 'bg-amber-500' },
+                  { label: 'Invited', value: funnel.invited, denominator: Math.max(funnel.invited, 1), tone: 'bg-indigo-500' },
+                  { label: 'Logged in', value: funnel.loggedIn, denominator: Math.max(funnel.invited, 1), tone: 'bg-blue-500' },
+                  { label: 'Started', value: funnel.started, denominator: Math.max(funnel.invited, 1), tone: 'bg-teal-500' },
+                  { label: 'Completed', value: funnel.completed, denominator: Math.max(funnel.invited, 1), tone: 'bg-emerald-500' },
                 ].map((item) => {
-                  const pct = study.participants.length ? (item.value / study.participants.length) * 100 : 0
+                  const pct = item.denominator ? (item.value / item.denominator) * 100 : 0
                   return (
                     <div key={item.label}>
                       <div className="mb-1 flex items-center justify-between gap-3">
