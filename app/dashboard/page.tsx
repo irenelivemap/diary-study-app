@@ -11,6 +11,21 @@ import { normalizeTimezone } from '@/app/lib/validation'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
+function journeyArticle(name: string) {
+  return /^[aeiou]/i.test(name.trim()) ? 'an' : 'a'
+}
+
+function pluralizeJourneyName(name: string) {
+  const words = name.trim().split(/\s+/)
+  const last = words.pop() ?? 'journey'
+  const pluralLast = /[^aeiou]y$/i.test(last)
+    ? `${last.slice(0, -1)}ies`
+    : /(s|x|z|ch|sh)$/i.test(last)
+    ? `${last}es`
+    : `${last}s`
+  return [...words, pluralLast].join(' ')
+}
+
 export default async function DashboardPage() {
   const session = await getSession()
   if (!session) redirect('/login')
@@ -170,7 +185,9 @@ export default async function DashboardPage() {
                 ) : (
                 <div className="space-y-3 p-4 sm:p-5">
                   {study.mode === 'JOURNEY' ? (() => {
-                    const journeyName = study.journeyName || study.name
+                    const configuredJourneyName = study.journeyName?.trim()
+                    const journeyName = configuredJourneyName && configuredJourneyName !== 'Journey' ? configuredJourneyName : 'journey'
+                    const journeyNamePlural = pluralizeJourneyName(journeyName)
                     const activeParts = study.parts.filter((stage) => stage.isActive && stage.flow === 'JOURNEY_STAGE')
                     const independentParts = study.parts.filter((candidate) => candidate.flow !== 'JOURNEY_STAGE')
                     const openJourney = study.journeys.find((journey) => !journey.completedAt)
@@ -303,7 +320,7 @@ export default async function DashboardPage() {
                         <>
                         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">
                           <p className="text-sm font-semibold text-indigo-700">Next action</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-950">Start a {journeyName}</h3>
+                          <h3 className="mt-1 text-xl font-bold text-slate-950">Start {journeyArticle(journeyName)} {journeyName}</h3>
                           <p className="mt-2 text-sm leading-relaxed text-slate-600">
                             Start one when the real experience begins. diARI will guide you through each stage.
                           </p>
@@ -311,13 +328,13 @@ export default async function DashboardPage() {
                             <input type="hidden" name="studyId" value={study.id} />
                             <input type="hidden" name="forceNewJourney" value="true" />
                             <StartJourneyButton className="w-full sm:w-auto">
-                              Start a {journeyName}
+                              Start {journeyArticle(journeyName)} {journeyName}
                             </StartJourneyButton>
                           </form>
                           {completedJourneys.length > 0 && (
                             <details className="mt-4 rounded-xl border border-slate-100 bg-white">
                               <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                                Previous journeys
+                                Previous {journeyNamePlural}
                                 <span className="ml-2 text-sm font-normal text-slate-400">{completedJourneys.length}</span>
                               </summary>
                               <div className="border-t border-slate-100 px-4 py-2">
@@ -357,7 +374,7 @@ export default async function DashboardPage() {
                               <input type="hidden" name="studyId" value={study.id} />
                               <input type="hidden" name="forceNewJourney" value="true" />
                               <StartJourneyButton className="w-full sm:w-auto">
-                                Start another {journeyName}
+                                Start another
                               </StartJourneyButton>
                             </form>
                           )}
@@ -437,16 +454,16 @@ export default async function DashboardPage() {
                         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900">Starting a separate visit?</p>
+                              <p className="text-sm font-semibold text-slate-900">Different {journeyName}?</p>
                               <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                                Use this only if this is a new real-world experience.
+                                Use this when the current one is not the experience you want to answer about.
                               </p>
                             </div>
                             <form action={startJourney} className="shrink-0">
                               <input type="hidden" name="studyId" value={study.id} />
                               <input type="hidden" name="forceNewJourney" value="true" />
                               <StartJourneyButton tone="secondary" size="md" className="w-full border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100 sm:w-auto">
-                                + Start new visit
+                                Start another
                               </StartJourneyButton>
                             </form>
                           </div>
@@ -456,7 +473,7 @@ export default async function DashboardPage() {
                       {previousJourneyCount > 0 && (
                         <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                           <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800">
-                            Previous visits
+                            Previous {journeyNamePlural}
                             <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneyCount}</span>
                           </summary>
                           <div className="space-y-2 border-t border-slate-100 px-5 py-4">

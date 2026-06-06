@@ -504,7 +504,7 @@ export default function StudyForm({
               <div className="mt-3">
                 <label className={fieldLabelCls}>Journey name</label>
                 <TextInput name="journeyName" defaultValue={initialJourneyName} placeholder="e.g. Badi visit" />
-                <p className="mt-2 text-sm text-slate-500">Participants will see actions like “Start a Badi visit”. Only parts marked as journey stages are included in that journey.</p>
+                <p className="mt-2 text-sm text-slate-500">Participants will see actions using this name, for example “Start a mobility moment” or “Different Badi visit?”. Only parts marked as journey stages are included.</p>
               </div>
             )}
           </fieldset>
