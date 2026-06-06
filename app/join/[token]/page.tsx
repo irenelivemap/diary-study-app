@@ -1,0 +1,50 @@
+import { notFound } from 'next/navigation'
+import { getSession } from '@/app/lib/session'
+import { prisma } from '@/app/lib/db'
+import { joinStudyWithInvite } from '@/app/actions/studies'
+import { Button, ButtonLink } from '@/app/components/ui'
+
+export default async function JoinStudyPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  const session = await getSession()
+  const study = await prisma.study.findUnique({
+    where: { inviteToken: token },
+    select: { id: true, name: true, description: true, isArchived: true },
+  })
+  if (!study || study.isArchived) notFound()
+
+  async function join(formData: FormData) {
+    'use server'
+    await joinStudyWithInvite(null, formData)
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F7F8FC] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Study invite</p>
+        <h1 className="text-xl font-bold text-slate-900 mt-1">{study.name}</h1>
+        {study.description && <p className="text-sm text-slate-500 mt-3 leading-relaxed">{study.description}</p>}
+
+        {session ? (
+          <form action={join} className="mt-6">
+            <input type="hidden" name="token" value={token} />
+            <Button className="w-full" size="lg">
+              Join study
+            </Button>
+            <p className="text-xs text-slate-400 text-center mt-3">You are signed in as {session.email}.</p>
+          </form>
+        ) : (
+          <div className="mt-6 space-y-3">
+            <ButtonLink href="/login" className="w-full" size="lg">
+              Sign in to join
+            </ButtonLink>
+            <ButtonLink href="/signup" className="w-full" tone="secondary" size="lg">
+              Create participant account
+            </ButtonLink>
+            <p className="text-xs text-slate-400 text-center">After signing in, open this invite link again to join.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

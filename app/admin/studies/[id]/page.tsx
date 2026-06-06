@@ -1,0 +1,288 @@
+import { redirect, notFound } from 'next/navigation'
+import { getSession } from '@/app/lib/session'
+import { prisma } from '@/app/lib/db'
+import { archiveStudy } from '@/app/actions/studies'
+import NavBar from '@/app/components/NavBar'
+import StudyTabs from '@/app/components/StudyTabs'
+import ReminderSendCard from '@/app/components/ReminderSendCard'
+import OverviewSection from '@/app/components/OverviewSection'
+import { Button, ButtonLink } from '@/app/components/ui'
+
+const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
+
+export default async function StudyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession()
+  if (!session || session.role !== 'ADMIN') redirect('/login')
+
+  const { id } = await params
+  const study = await prisma.study.findUnique({
+    where: { id },
+    include: {
+      parts: {
+        orderBy: { order: 'asc' },
+        include: {
+          questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
+          _count: { select: { entries: true } },
+        },
+      },
+      participants: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { joinedAt: 'asc' },
+      },
+      reminderLogs: {
+        orderBy: { sentAt: 'desc' },
+        take: 5,
+      },
+      entries: {
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          part: { select: { id: true, name: true, order: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+      },
+    },
+  })
+  if (!study) notFound()
+
+  const totalEntries = study.parts.reduce((a, p) => a + p._count.entries, 0)
+  const today = new Date().toISOString().split('T')[0]
+  const dayKeys = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (6 - i))
+    return date.toISOString().split('T')[0]
+  })
+  const entriesByDay = dayKeys.map((date) => ({
+    date,
+    count: study.entries.filter((entry) => entry.date === date).length,
+  }))
+  const maxDayCount = Math.max(...entriesByDay.map((day) => day.count), 1)
+  const participantsWithEntries = new Set(study.entries.map((entry) => entry.userId))
+  const participantLatestDate = new Map<string, string>()
+  for (const entry of study.entries) {
+    const current = participantLatestDate.get(entry.userId)
+    if (!current || entry.date > current) participantLatestDate.set(entry.userId, entry.date)
+  }
+  const notStarted = study.participants.length - participantsWithEntries.size
+  const quietParticipants = study.participants.filter(({ user }) => {
+    const latest = participantLatestDate.get(user.id)
+    if (!latest) return false
+    const daysSince = Math.floor((Date.now() - new Date(`${latest}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
+    return daysSince >= 7
+  }).length
+  const entriesToday = study.entries.filter((entry) => entry.date === today).length
+  const recentEntries = study.entries.slice(0, 6)
+  const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
+  const readiness = [
+    { label: 'Study is active', ok: study.isActive, fix: 'Turn on Study status in Setup.' },
+    { label: 'At least one participant is enrolled', ok: study.participants.length > 0, fix: 'Add participants in the Participants tab.' },
+    { label: 'At least one active part exists', ok: study.parts.some((p) => p.isActive), fix: 'Activate a part in Setup.' },
+    { label: 'All questions have text', ok: allQuestions.every((q) => q.text.replace(/<[^>]*>/g, '').trim().length > 0), fix: 'Add text to every question in Setup.' },
+    { label: 'Participant consent text is present', ok: !!study.consentText, fix: 'Add consent / intro text in Setup.' },
+    { label: 'Researcher contact email is present', ok: !!study.contactEmail, fix: 'Add a contact email in Setup.' },
+    { label: 'Reminder email settings are ready', ok: !study.remindersEnabled || !!study.reminderTime, fix: 'Review email reminder settings in Setup.' },
+    { label: 'Entry target or duration is set for each part', ok: study.parts.every((p) => p.targetEntries || p.durationDays || p.dueDate), fix: 'Set target entries, duration, or due date for each part.' },
+    {
+      label: 'Conditional questions point to existing questions',
+      ok: allQuestions.every((q) => !q.showIfQuestionId || allQuestions.some((source) => source.id === q.showIfQuestionId)),
+      fix: 'Review conditional display rules in Setup.',
+    },
+  ]
+  const readinessIssues = readiness.filter((item) => !item.ok)
+  const entriesLabel = totalEntries === 1 ? 'entry' : 'entries'
+
+  return (
+    <div className="min-h-screen bg-[#F7F8FC]">
+      <NavBar name={session.name} role="ADMIN" />
+      <StudyTabs studyId={id} active="overview" studyName={study.name} isActive={study.isActive} />
+
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: 'Participants', value: study.participants.length, detail: `${participantsWithEntries.size} with entries` },
+            { label: 'Responses', value: totalEntries, detail: entriesLabel },
+            { label: 'Today', value: entriesToday, detail: entriesToday === 1 ? 'entry' : 'entries' },
+            { label: 'Need attention', value: notStarted + quietParticipants, detail: `${notStarted} not started · ${quietParticipants} quiet` },
+          ].map(({ label, value, detail }) => (
+            <div key={label} className="rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">{label}</p>
+              <div className="mt-2 flex items-end gap-2">
+                <span className="text-3xl font-bold leading-none text-slate-900">{value}</span>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">{detail}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Response trend</h2>
+                  <p className="mt-0.5 text-sm text-slate-500">Entries submitted over the last 7 days.</p>
+                </div>
+              </div>
+              <div className="flex h-48 items-end gap-2">
+                {entriesByDay.map((day) => {
+                  const height = Math.max((day.count / maxDayCount) * 100, day.count > 0 ? 12 : 4)
+                  return (
+                    <div key={day.date} className="flex flex-1 flex-col items-center gap-2">
+                      <div className="flex h-36 w-full items-end rounded-xl bg-slate-50 px-1.5">
+                        <div
+                          className="w-full rounded-lg bg-indigo-500 transition-all"
+                          style={{ height: `${height}%` }}
+                          title={`${day.count} entries on ${day.date}`}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-slate-900">{day.count}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-900">Participant activity</h2>
+              <div className="mt-4 space-y-3">
+                {[
+                  { label: 'Submitted at least once', value: participantsWithEntries.size, tone: 'bg-emerald-500' },
+                  { label: 'Not started', value: notStarted, tone: 'bg-slate-400' },
+                  { label: 'Quiet for 7+ days', value: quietParticipants, tone: 'bg-amber-500' },
+                ].map((item) => {
+                  const pct = study.participants.length ? (item.value / study.participants.length) * 100 : 0
+                  return (
+                    <div key={item.label}>
+                      <div className="mb-1 flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                        <span className="text-sm font-semibold text-slate-900">{item.value}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${item.tone}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <ButtonLink href={`/admin/studies/${id}/participants`} tone="secondary" size="sm" className="mt-5">
+                Open participants
+              </ButtonLink>
+            </section>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-900">Parts</h2>
+              <div className="mt-4 divide-y divide-slate-100">
+                {study.parts.map((part, index) => (
+                  <div key={part.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">
+                        <span className={`mr-2 rounded-md px-2 py-1 text-xs font-bold text-white ${PART_COLORS[index % PART_COLORS.length]}`}>PT {index + 1}</span>
+                        {part.name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">{part.questions.length} questions</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-slate-950">{part._count.entries}</p>
+                      <p className="text-xs text-slate-500">entries</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-slate-900">Recent entries</h2>
+                <ButtonLink href={`/admin/studies/${id}/data`} tone="secondary" size="sm">
+                  Open data
+                </ButtonLink>
+              </div>
+              {recentEntries.length === 0 ? (
+                <p className="text-sm text-slate-500">No entries yet.</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {recentEntries.map((entry) => (
+                    <div key={entry.id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{entry.user.name}</p>
+                          <p className="truncate text-sm text-slate-500">{entry.part.name} · {entry.date}</p>
+                        </div>
+                        <span className="shrink-0 text-xs text-slate-500">
+                          {entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <div className={`rounded-2xl border shadow-sm overflow-hidden ${readinessIssues.length ? 'bg-amber-50/70 border-amber-100' : 'bg-emerald-50/70 border-emerald-100'}`}>
+            <div className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className={`text-sm font-semibold ${readinessIssues.length ? 'text-amber-900' : 'text-emerald-900'}`}>
+                  {readinessIssues.length
+                    ? `Launch readiness: ${readinessIssues.length} item${readinessIssues.length === 1 ? '' : 's'} need attention`
+                    : 'This study has the essentials needed for participant fieldwork.'}
+                </p>
+                {readinessIssues.length > 0 && (
+                  <p className="text-sm text-amber-700 mt-1">
+                    {readinessIssues.map((issue) => issue.fix).join(' ')}
+                  </p>
+                )}
+              </div>
+              <ButtonLink href={`/admin/studies/${id}/edit`} tone="secondary" size="sm">
+                Review setup
+              </ButtonLink>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <OverviewSection
+              title="Email reminders"
+              description={study.remindersEnabled ? `Enabled after ${study.reminderTime ?? '18:00'}.` : 'Optional reminder workflow.'}
+              count={study.reminderLogs.length ? `${study.reminderLogs.length} recent` : undefined}
+              tone="info"
+            >
+              <ReminderSendCard
+                studyId={id}
+                enabled={study.remindersEnabled}
+                reminderTime={study.reminderTime ?? '18:00'}
+                embedded
+                recentLogs={study.reminderLogs.map((log) => ({
+                  id: log.id,
+                  status: log.status,
+                  date: log.date,
+                  sentAt: log.sentAt.toISOString(),
+                  error: log.error,
+                }))}
+              />
+            </OverviewSection>
+
+            <OverviewSection
+              title="Danger zone"
+              tone="danger"
+            >
+              <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-sm text-slate-500">Archived studies disappear from active study lists but keep their data.</p>
+                <form action={async () => { 'use server'; await archiveStudy(id) }}>
+                  <Button tone="danger" size="sm">
+                    Archive study
+                  </Button>
+                </form>
+              </div>
+            </OverviewSection>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}

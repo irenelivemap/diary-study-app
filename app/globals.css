@@ -1,26 +1,128 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F7F8FC;
+  --foreground: #0F172A;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keep dense operational screens readable without making tables explode. */
+.text-xs {
+  font-size: 0.8125rem;
+  line-height: 1.2rem;
+}
+
+.text-sm {
+  font-size: 0.9375rem;
+  line-height: 1.4rem;
+}
+
+/* Contrast pass: Tailwind's light slate utilities were too faint for dense UXR screens. */
+.text-slate-400 {
+  color: #64748B;
+}
+
+.text-slate-300 {
+  color: #7C8CA3;
+}
+
+.text-slate-200 {
+  color: #94A3B8;
+}
+
+.placeholder-slate-400::placeholder,
+.empty\:before\:text-slate-400:empty::before {
+  color: #64748B;
+}
+
+.border-slate-100 {
+  border-color: #DDE5F0;
+}
+
+.divide-slate-50 > :not(:last-child) {
+  border-color: #E7EDF5;
+}
+
+.bg-slate-50 {
+  background-color: #F2F5F9;
+}
+
+.bg-slate-100 {
+  background-color: #E6ECF5;
+}
+
+.disabled\:bg-slate-200:disabled {
+  background-color: #CBD5E1;
+}
+
+.disabled\:text-slate-400:disabled {
+  color: #475569;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #4338CA;
+  outline-offset: 2px;
+}
+
+/* Prevent iOS zoom on input focus */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4F46E5;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #E2E8F0;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #E2E8F0;
+  outline: none;
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }

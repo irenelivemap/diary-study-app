@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Diary Study App
 
-## Getting Started
+A reusable web platform for running diary studies. Researchers create studies with custom questions; participants log in daily to submit entries.
 
-First, run the development server:
+## Features
+
+- **Multi-study** — create as many studies as you need, reuse the platform across projects
+- **Question types** — free text, rating scales, multiple choice, yes/no, event date/time, screenshot upload, content blocks
+- **Roles** — admin (researcher) and participant, each with their own view
+- **Daily entries** — one entry per participant per study per day, enforced server-side
+- **Admin dashboard** — manage studies, add/remove participants, browse all entries
+- **CSV export** — download all responses for any study as a CSV
+
+## Setup
+
+### 1. Prerequisites
+
+- Node.js 20+ (installed via nvm in this project)
+- A PostgreSQL database (see options below)
+
+### 2. Configure environment
+
+Edit `.env`:
+
+```bash
+DATABASE_URL="postgresql://user:password@host:5432/diary_study"
+
+# Generate a secret: openssl rand -base64 32
+SESSION_SECRET="your-secret-here"
+
+# Only needed if you want screenshot uploads (Vercel Blob)
+BLOB_READ_WRITE_TOKEN="your-blob-token"
+
+# Only needed if you want email reminders
+RESEND_API_KEY="your-resend-api-key"
+EMAIL_FROM="diARI <research@yourdomain.com>"
+NEXT_PUBLIC_APP_URL="https://your-deployed-app.com"
+```
+
+**Free PostgreSQL options:**
+- [Neon](https://neon.tech) — generous free tier, works great on Vercel
+- [Supabase](https://supabase.com) — free tier with extras
+- Local: `brew install postgresql` or Docker
+
+### 3. Run database migrations
+
+```bash
+npm run db:push   # apply schema (fast, no migration history)
+# or
+npm run db:migrate  # generate migration files (recommended for production)
+```
+
+### 4. Create your admin account
+
+```bash
+npm run create-admin your@email.com yourpassword "Your Name"
+```
+
+### 5. Start the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to the admin dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push this repo to GitHub
+2. Import it in [vercel.com](https://vercel.com)
+3. Add environment variables in the Vercel dashboard:
+   - `DATABASE_URL` — your Neon/Supabase connection string
+   - `SESSION_SECRET` — `openssl rand -base64 32`
+   - `BLOB_READ_WRITE_TOKEN` — from Vercel Blob (Storage tab)
+4. Deploy — migrations run automatically if you add `npm run db:push` as a build step
 
-## Learn More
+## Running a study
 
-To learn more about Next.js, take a look at the following resources:
+1. Log in as admin → **New study**
+2. Add questions (all types supported)
+3. Ask participants to **Sign up** at your app URL
+4. In the study page, add each participant by their email
+5. Participants see "Submit today's entry" on their dashboard each day
+6. View or export results from the study admin page
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Before launching with real participants
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Use HTTPS in production.
+- Generate a strong `SESSION_SECRET` and never reuse the development placeholder.
+- Verify your email sending domain before relying on reminders.
+- Set `NEXT_PUBLIC_APP_URL` to the deployed app URL so reminder links point to the right place.
+- Confirm consent text, contact email, active parts, and preview flow before inviting participants.
+- Export a test CSV and confirm it contains the columns you need.
+- Keep database backups enabled in your hosting provider.
 
-## Deploy on Vercel
+## Screenshot uploads
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Screenshot uploads require `BLOB_READ_WRITE_TOKEN` from [Vercel Blob](https://vercel.com/docs/storage/vercel-blob). Without it, the upload API will fail. If you don't need screenshot questions, simply don't add screenshot-type questions to your studies.
