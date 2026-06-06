@@ -13,6 +13,8 @@ type Row = {
   participantId: string
   participantName: string
   participantEmail: string
+  journeyId?: string | null
+  journeyLabel?: string | null
   date: string
   submittedAt: string
   timezone: string | null
@@ -33,6 +35,7 @@ type Props = {
 const BASE_COLUMNS = [
   { id: 'participant', label: 'Participant' },
   { id: 'email', label: 'Email' },
+  { id: 'journey', label: 'Journey' },
   { id: 'part', label: 'Part' },
   { id: 'date', label: 'Date' },
   { id: 'submittedAt', label: 'Submitted time' },
@@ -95,6 +98,10 @@ function formatAnswerValue(value: string, type: string) {
   return value
 }
 
+function csvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
 export default function DataExplorer({ studyId, studyName, studyVersion, parts, participants, questions, rows }: Props) {
   const answerQuestions = questions.filter((q) => q.type !== 'CONTENT')
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set(parts.map((p) => p.id)))
@@ -105,6 +112,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const [selectedQuestionCols, setSelectedQuestionCols] = useState<Set<string>>(new Set(answerQuestions.map((q) => q.id)))
   const [anonymize, setAnonymize] = useState(false)
   const [entryToDelete, setEntryToDelete] = useState<Row | null>(null)
+  const showJourney = rows.some((row) => row.journeyId || row.journeyLabel)
 
   function toggle<T>(set: Set<T>, val: T): Set<T> {
     const next = new Set(set)
@@ -130,10 +138,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const participantFilterBadge = selectedParticipants.size < participants.length ? participants.length - selectedParticipants.size : 0
   const dateFilterBadge = (dateFrom || dateTo) ? 1 : 0
   const selectedColumnCount = selectedBaseCols.size + selectedQuestionCols.size
-  const totalColumnCount = BASE_COLUMNS.length + answerQuestions.length
+    - (!showJourney && selectedBaseCols.has('journey') ? 1 : 0)
+  const totalColumnCount = BASE_COLUMNS.length - (showJourney ? 0 : 1) + answerQuestions.length
 
   function allBaseCols() {
-    return new Set(BASE_COLUMNS.map((col) => col.id))
+    return new Set(BASE_COLUMNS.filter((col) => showJourney || col.id !== 'journey').map((col) => col.id))
   }
 
   function allQuestionCols() {
@@ -151,6 +160,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   function downloadCSV() {
     const questionHeader = (q: Question) => parts.length > 1 ? `${q.partName}: ${q.text}` : q.text
     const baseHeaders = BASE_COLUMNS.flatMap((col) => {
+      if (!showJourney && col.id === 'journey') return []
       if (!selectedBaseCols.has(col.id)) return []
       if (col.id === 'participant') return [anonymize ? 'Participant ID' : 'Participant']
       if (col.id === 'email' && anonymize) return []
@@ -158,18 +168,20 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
       return [col.label]
     })
     const questionHeaders = selectedQuestions.flatMap((q) => {
-      const label = questionHeader(q).replace(/"/g, '""')
+      const label = questionHeader(q)
       return q.type === 'FREE_TEXT'
-        ? [`"${label}"`, `"${label} tags"`]
-        : [`"${label}"`]
+        ? [label, `${label} tags`]
+        : [label]
     })
     const headers = [...baseHeaders, ...questionHeaders]
     const csvRows = filteredRows.map((r) => {
       const participantIndex = participants.findIndex((p) => p.id === r.participantId) + 1
       const baseValues = BASE_COLUMNS.flatMap((col) => {
+        if (!showJourney && col.id === 'journey') return []
         if (!selectedBaseCols.has(col.id)) return []
         if (col.id === 'participant') return [anonymize ? `P${String(participantIndex).padStart(3, '0')}` : r.participantName]
         if (col.id === 'email') return anonymize ? [] : [r.participantEmail]
+        if (col.id === 'journey') return [r.journeyLabel || r.journeyId || '']
         if (col.id === 'part') return [r.partName]
         if (col.id === 'date') return [r.date]
         if (col.id === 'submittedAt') return [r.submittedAt]
@@ -179,14 +191,14 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
       return [
       ...baseValues,
       ...selectedQuestions.flatMap((q) => {
-        const answer = `"${formatAnswerValue(r.answers[q.id] ?? '', q.type).replace(/"/g, '""')}"`
+        const answer = formatAnswerValue(r.answers[q.id] ?? '', q.type)
         if (q.type !== 'FREE_TEXT') return [answer]
         const tags = (r.answerTags?.[q.id] ?? []).join('; ')
-        return [answer, `"${tags.replace(/"/g, '""')}"`]
+        return [answer, tags]
       })
-    ].join(',')
+    ].map((value) => csvCell(String(value))).join(',')
     })
-    const blob = new Blob([[headers.join(','), ...csvRows].join('\n')], { type: 'text/csv' })
+    const blob = new Blob([[headers.map((header) => csvCell(header)).join(','), ...csvRows].join('\n')], { type: 'text/csv' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `${studyName.replace(/[^a-z0-9]/gi, '_')}_export.csv`
@@ -334,6 +346,17 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                       className="h-4 w-4 rounded border-slate-300 text-indigo-600"
                     />
                   </th>
+                  {showJourney && (
+                    <th className="px-4 py-2 bg-slate-50 min-w-[140px]">
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('journey')}
+                        onChange={() => toggleBaseColumn('journey')}
+                        aria-label="Include journey in download"
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                      />
+                    </th>
+                  )}
                   {parts.length > 1 && (
                     <th className="px-4 py-2 bg-slate-50 min-w-[120px]">
                       <input
@@ -401,6 +424,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap hidden md:table-cell min-w-[160px]">
                     <span className={`${baseColumnSelected('email') ? '' : 'opacity-45'}`}>Email</span>
                   </th>
+                  {showJourney && (
+                    <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[140px]">
+                      <span className={`${baseColumnSelected('journey') ? '' : 'opacity-45'}`}>Journey</span>
+                    </th>
+                  )}
                   {parts.length > 1 && (
                     <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[120px]">
                       <span className={`${baseColumnSelected('part') ? '' : 'opacity-45'}`}>Part</span>
@@ -442,6 +470,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                     <td className={`px-4 py-3 text-slate-400 whitespace-nowrap text-xs hidden md:table-cell ${baseColumnSelected('email') ? '' : 'bg-slate-50/50 opacity-60'}`}>
                       {row.participantEmail}
                     </td>
+                    {showJourney && (
+                      <td className={`px-4 py-3 text-slate-500 whitespace-nowrap text-xs font-medium ${baseColumnSelected('journey') ? '' : 'bg-slate-50/50 opacity-60'}`}>
+                        {row.journeyLabel || row.journeyId || '—'}
+                      </td>
+                    )}
                     {parts.length > 1 && (
                       <td className={`px-4 py-3 text-slate-500 whitespace-nowrap text-xs ${baseColumnSelected('part') ? '' : 'bg-slate-50/50 opacity-60'}`}>
                         {row.partName}

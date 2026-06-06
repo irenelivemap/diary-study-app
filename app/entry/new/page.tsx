@@ -8,12 +8,12 @@ import { normalizeTimezone } from '@/app/lib/validation'
 export default async function NewEntryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ studyId?: string; partId?: string }>
+  searchParams: Promise<{ studyId?: string; partId?: string; journeyId?: string }>
 }) {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const { studyId, partId } = await searchParams
+  const { studyId, partId, journeyId } = await searchParams
   if (!studyId || !partId) redirect('/dashboard')
 
   const participation = await prisma.studyParticipant.findUnique({
@@ -37,6 +37,8 @@ export default async function NewEntryPage({
       study: {
         select: {
           name: true,
+          mode: true,
+          journeyName: true,
           isActive: true,
           isArchived: true,
           sequential: true,
@@ -44,13 +46,30 @@ export default async function NewEntryPage({
             orderBy: { order: 'asc' },
             include: { entries: { where: { userId: session.userId }, select: { date: true } } },
           },
+          journeys: {
+            where: { id: journeyId ?? '__no_journey__', userId: session.userId },
+            include: { entries: { select: { id: true, partId: true } } },
+          },
         },
       },
     },
   })
   if (!part || !part.isActive || !part.study.isActive || part.study.isArchived) redirect('/dashboard')
 
-  if (part.entryPolicy === 'ONCE_PER_DAY') {
+  const journey = journeyId ? part.study.journeys[0] : null
+  if (part.study.mode === 'JOURNEY') {
+    if (!journey) redirect('/dashboard')
+    const activePartIds = part.study.parts.filter((candidate) => candidate.isActive).map((candidate) => candidate.id)
+    const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
+    const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
+    if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
+    const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
+    if (nextPartId !== partId) redirect('/dashboard')
+  } else if (journeyId) {
+    redirect('/dashboard')
+  }
+
+  if (part.study.mode !== 'JOURNEY' && part.entryPolicy === 'ONCE_PER_DAY') {
     const existing = await prisma.entry.findFirst({
       where: { partId, userId: session.userId, date: today },
       orderBy: { submittedAt: 'desc' },
@@ -87,7 +106,9 @@ export default async function NewEntryPage({
           <div className="flex items-center gap-2">
             <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
             <div>
-              <p className="text-xs text-slate-400">{part.study.name} · {today}</p>
+              <p className="text-xs text-slate-400">
+                {part.study.mode === 'JOURNEY' ? `${journey?.label ?? part.study.journeyName ?? 'Journey'} · ${today}` : `${part.study.name} · ${today}`}
+              </p>
               <p className="text-sm font-semibold text-slate-900">{part.name}</p>
             </div>
           </div>
@@ -100,7 +121,7 @@ export default async function NewEntryPage({
             <p className="text-sm text-indigo-800 leading-relaxed">{part.instructions}</p>
           </div>
         )}
-        <EntryForm study={{ id: studyId, partId, name: part.name, questions: part.questions }} today={today} />
+        <EntryForm study={{ id: studyId, partId, journeyId: journey?.id, name: part.name, questions: part.questions }} today={today} />
       </main>
     </div>
   )

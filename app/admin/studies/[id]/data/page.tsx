@@ -21,6 +21,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
           entries: {
             include: {
               user: { select: { id: true, name: true, email: true } },
+              journey: { select: { id: true, label: true, createdAt: true, completedAt: true } },
               answers: {
                 include: {
                   tags: { include: { tag: true }, orderBy: { tag: { label: 'asc' } } },
@@ -54,6 +55,8 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
       participantId: e.user.id,
       participantName: e.user.name,
       participantEmail: e.user.email,
+      journeyId: e.journey?.id ?? null,
+      journeyLabel: e.journey?.label ?? null,
       date: e.date,
       submittedAt: e.submittedAt.toISOString(),
       timezone: e.timezone,

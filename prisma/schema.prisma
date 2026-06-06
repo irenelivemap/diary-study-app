@@ -20,6 +20,7 @@ model User {
 
   participations StudyParticipant[]
   entries        Entry[]
+  journeys       Journey[]
   invitations    StudyInvitation[]
 }
 
@@ -30,6 +31,8 @@ model Study {
   consentText String?
   contactEmail String?
   inviteToken String?  @unique
+  mode        StudyMode @default(STANDARD)
+  journeyName String?
   isActive    Boolean  @default(true)
   isArchived  Boolean  @default(false)
   sequential  Boolean  @default(false)
@@ -48,6 +51,7 @@ model Study {
   parts        Part[]
   participants StudyParticipant[]
   entries      Entry[]
+  journeys     Journey[]
   reminderLogs EmailReminderLog[]
   invitations  StudyInvitation[]
 }
@@ -69,6 +73,21 @@ model Part {
   study     Study      @relation(fields: [studyId], references: [id], onDelete: Cascade)
   questions Question[]
   entries   Entry[]
+}
+
+model Journey {
+  id          String    @id @default(cuid())
+  studyId     String
+  userId      String
+  label       String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  study   Study   @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries Entry[]
+
+  @@index([studyId, userId, createdAt])
 }
 
 model Question {
@@ -132,6 +151,7 @@ model Entry {
   studyId     String
   partId      String
   userId      String
+  journeyId   String?
   submittedAt DateTime @default(now())
   date        String   // YYYY-MM-DD
   timezone    String?
@@ -139,9 +159,12 @@ model Entry {
   study   Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
   part    Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey Journey? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
   answers Answer[]
 
   @@index([partId, userId, date])
+  @@index([journeyId])
+  @@unique([journeyId, partId])
 }
 
 model Answer {
@@ -227,6 +250,11 @@ enum IncentiveStatus {
 enum ParticipantEntryAccess {
   HIDE_PAST_ENTRIES
   SHOW_READ_ONLY
+}
+
+enum StudyMode {
+  STANDARD
+  JOURNEY
 }
 
 enum EntryPolicy {

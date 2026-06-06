@@ -4,7 +4,8 @@ import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import NavBar from '@/app/components/NavBar'
 import ConsentCard from '@/app/components/ConsentCard'
-import { ButtonLink } from '@/app/components/ui'
+import { startJourney } from '@/app/actions/entries'
+import { Button, ButtonLink } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
@@ -42,6 +43,17 @@ export default async function DashboardPage() {
                   questions: true,
                   entries: { where: { userId: session.userId } },
                 },
+              },
+            },
+          },
+          journeys: {
+            where: { userId: session.userId },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: {
+              entries: {
+                orderBy: { submittedAt: 'asc' },
+                select: { id: true, partId: true, submittedAt: true, date: true },
               },
             },
           },
@@ -93,6 +105,9 @@ export default async function DashboardPage() {
 
   const pendingToday = participations.reduce((count, { study, joinedAt, consentedAt }) => {
     if (!consentedAt) return count
+    if (study.mode === 'JOURNEY') {
+      return count + study.journeys.filter((journey) => !journey.completedAt).length
+    }
     const pending = study.parts.filter((p, pi) => {
       if (!p.isActive) return false
       if (isPartComplete(p)) return false
@@ -154,7 +169,123 @@ export default async function DashboardPage() {
                   />
                 ) : (
                 <div className="space-y-3 p-4 sm:p-5">
-                  {study.parts.map((part, pi) => {
+                  {study.mode === 'JOURNEY' ? (() => {
+                    const journeyName = study.journeyName || study.name
+                    const activeParts = study.parts.filter((stage) => stage.isActive)
+                    const openJourney = study.journeys.find((journey) => !journey.completedAt)
+                    const completedJourneys = study.journeys.filter((journey) => journey.completedAt)
+                    const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
+
+                    if (!openJourney) {
+                      return (
+                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">
+                          <p className="text-sm font-semibold text-indigo-700">Next action</p>
+                          <h3 className="mt-1 text-xl font-bold text-slate-950">Start a {journeyName}</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                            Start one when the real experience begins. diARI will guide you through each stage.
+                          </p>
+                          <form action={startJourney} className="mt-4">
+                            <input type="hidden" name="studyId" value={study.id} />
+                            <Button className="w-full sm:w-auto" size="lg">
+                              Start a {journeyName}
+                            </Button>
+                          </form>
+                          {completedJourneys.length > 0 && (
+                            <details className="mt-4 rounded-xl border border-slate-100 bg-white">
+                              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
+                                Previous journeys
+                                <span className="ml-2 text-sm font-normal text-slate-400">{completedJourneys.length}</span>
+                              </summary>
+                              <div className="border-t border-slate-100 px-4 py-2">
+                                {completedJourneys.slice(0, 3).map((journey) => (
+                                  <div key={journey.id} className="py-2 text-sm text-slate-600">
+                                    {journey.label ?? journeyName}
+                                    {journey.completedAt && (
+                                      <span className="ml-2 text-slate-400">{journey.completedAt.toLocaleDateString()}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    const entriesByPart = new Map(openJourney.entries.map((entry) => [entry.partId, entry]))
+                    const nextStage = activeParts.find((stage) => !entriesByPart.has(stage.id))
+                    const completedCount = activeParts.filter((stage) => entriesByPart.has(stage.id)).length
+
+                    return (
+                      <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
+                        <div className="rounded-2xl bg-indigo-50 px-4 py-4">
+                          <p className="text-sm font-semibold text-indigo-700">Next action</p>
+                          {nextStage ? (
+                            <>
+                              <h3 className="mt-1 text-xl font-bold text-slate-950">{nextStage.name}</h3>
+                              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                                {nextStage.instructions || `Complete this stage of your ${journeyName}.`}
+                              </p>
+                              <ButtonLink
+                                href={`/entry/new?studyId=${study.id}&partId=${nextStage.id}&journeyId=${openJourney.id}`}
+                                size="lg"
+                                className="mt-4 w-full sm:w-auto"
+                              >
+                                Answer now
+                              </ButtonLink>
+                            </>
+                          ) : (
+                            <>
+                              <h3 className="mt-1 text-xl font-bold text-slate-950">{journeyName} completed</h3>
+                              <p className="mt-2 text-sm leading-relaxed text-slate-600">All stages for this journey are submitted.</p>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-900">{openJourney.label ?? journeyName}</p>
+                            <p className="text-sm text-slate-500">{completedCount}/{activeParts.length} stages</p>
+                          </div>
+                          {activeParts.map((stage, index) => {
+                            const entry = entriesByPart.get(stage.id)
+                            const isNext = nextStage?.id === stage.id
+                            const isLocked = !entry && !isNext
+                            return (
+                              <div key={stage.id} className={`rounded-xl border px-4 py-3 ${
+                                entry
+                                  ? 'border-emerald-100 bg-emerald-50'
+                                  : isNext
+                                  ? 'border-indigo-200 bg-white'
+                                  : 'border-slate-100 bg-slate-50'
+                              }`}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className={`text-sm font-semibold ${isLocked ? 'text-slate-500' : 'text-slate-900'}`}>
+                                      {entry ? '✓ ' : isLocked ? '○ ' : ''}
+                                      {stage.name}
+                                    </p>
+                                    <p className="mt-0.5 text-sm text-slate-500">
+                                      {entry
+                                        ? `Submitted ${entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                        : isNext
+                                        ? 'Ready now'
+                                        : `Available after ${activeParts[index - 1]?.name ?? 'the previous stage'}`}
+                                    </p>
+                                  </div>
+                                  {entry && canViewPastEntries && (
+                                    <ButtonLink href={`/entry/${entry.id}`} tone="secondary" size="sm">
+                                      View
+                                    </ButtonLink>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })() : study.parts.map((part, pi) => {
                     const todayEntries = part.entries.filter((e) => e.date === today)
                     const todayEntry = todayEntries[0]
                     const pastEntries = part.entries.filter((e) => e.date !== today)

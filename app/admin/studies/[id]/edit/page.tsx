@@ -42,6 +42,8 @@ export default async function EditStudyPage({ params }: { params: Promise<{ id: 
           action={action}
           initialName={study.name}
           initialDescription={study.description ?? ''}
+          initialMode={study.mode}
+          initialJourneyName={study.journeyName ?? ''}
           initialConsentText={study.consentText ?? ''}
           initialContactEmail={study.contactEmail ?? ''}
           initialParticipantEntryAccess={study.participantEntryAccess}

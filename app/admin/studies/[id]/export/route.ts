@@ -21,6 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
           entries: {
             include: {
+              journey: { select: { id: true, label: true } },
               user: {
                 select: {
                   name: true,
@@ -32,7 +33,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                   },
                 },
               },
-              answers: { include: { question: true } },
+              answers: {
+                include: {
+                  question: true,
+                  tags: { include: { tag: true }, orderBy: { tag: { label: 'asc' } } },
+                },
+              },
             },
             orderBy: [{ userId: 'asc' }, { date: 'asc' }],
           },
@@ -44,11 +50,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const allQuestions = study.parts.flatMap((p) => p.questions).filter((q) => q.type !== 'CONTENT')
   const demographicFields = study.demographicFields
+  const showJourney = study.mode === 'JOURNEY' || study.parts.some((part) => part.entries.some((entry) => entry.journeyId))
   const anonymize = req.nextUrl.searchParams.get('anonymize') === 'true'
   const participantIds = new Map<string, string>()
   let participantCounter = 0
 
   const headers = [
+    ...(showJourney ? ['journey_label', 'journey_id'] : []),
     'part_name',
     anonymize ? 'participant_id' : 'participant_name',
     ...(anonymize ? [] : ['participant_email', 'external_participant_id']),
@@ -57,12 +65,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     'submitted_at',
     'timezone',
     'study_version',
-    ...allQuestions.map((q) => q.text.replace(/<[^>]*>/g, ''))
+    ...allQuestions.flatMap((q) => {
+      const text = q.text.replace(/<[^>]*>/g, '')
+      return q.type === 'FREE_TEXT' ? [text, `${text} tags`] : [text]
+    })
   ]
 
   const rows = study.parts.flatMap((part) =>
     part.entries.map((entry) => {
       const answerMap = Object.fromEntries(entry.answers.map((a) => [a.questionId, a.value]))
+      const tagMap = Object.fromEntries(entry.answers.map((a) => [
+        a.questionId,
+        a.tags.map((answerTag) => answerTag.tag.label).join('; '),
+      ]))
       const participantKey = entry.user.email
       const participation = entry.user.participations[0]
       const demographics = participation?.demographics && typeof participation.demographics === 'object'
@@ -73,6 +88,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         participantIds.set(participantKey, `P${String(participantCounter).padStart(3, '0')}`)
       }
       return [
+        ...(showJourney ? [entry.journey?.label ?? '', entry.journey?.id ?? ''] : []),
         part.name,
         anonymize ? participantIds.get(participantKey)! : entry.user.name,
         ...(anonymize ? [] : [entry.user.email, participation?.externalParticipantId ?? '']),
@@ -81,7 +97,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         entry.submittedAt.toISOString(),
         entry.timezone ?? '',
         String(study.version),
-        ...allQuestions.map((q) => answerMap[q.id] ?? ''),
+        ...allQuestions.flatMap((q) => {
+          const answer = answerMap[q.id] ?? ''
+          return q.type === 'FREE_TEXT' ? [answer, tagMap[q.id] ?? ''] : [answer]
+        }),
       ].map((value) => csvCell(String(value))).join(',')
     })
   )

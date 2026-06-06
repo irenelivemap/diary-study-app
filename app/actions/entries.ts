@@ -70,10 +70,16 @@ export async function deleteEntryFromForm(formData: FormData) {
 
   const entry = await prisma.entry.findFirst({
     where: { id: entryId, studyId },
-    select: { id: true },
+    select: { id: true, journeyId: true },
   })
   if (entry) {
     await prisma.entry.delete({ where: { id: entry.id } })
+    if (entry.journeyId) {
+      await prisma.journey.update({
+        where: { id: entry.journeyId },
+        data: { completedAt: null },
+      })
+    }
   }
 
   revalidatePath(`/admin/studies/${studyId}`)
@@ -83,12 +89,63 @@ export async function deleteEntryFromForm(formData: FormData) {
   redirect(`/admin/studies/${studyId}/data`)
 }
 
+export async function startJourney(formData: FormData) {
+  const session = await getSession()
+  if (!session) redirect('/login')
+
+  const studyId = String(formData.get('studyId') ?? '')
+  if (!studyId) redirect('/dashboard')
+
+  const study = await prisma.study.findUnique({
+    where: { id: studyId },
+    include: {
+      participants: { where: { userId: session.userId }, select: { consentedAt: true } },
+      parts: { where: { isActive: true }, orderBy: { order: 'asc' }, select: { id: true } },
+      journeys: {
+        where: { userId: session.userId, completedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        include: { entries: { select: { partId: true } } },
+      },
+    },
+  })
+  if (!study || study.mode !== 'JOURNEY' || study.isArchived || !study.isActive) redirect('/dashboard')
+  if (!study.participants[0]?.consentedAt || study.parts.length === 0) redirect('/dashboard')
+
+  const existingJourney = study.journeys[0]
+  if (existingJourney) {
+    const completedPartIds = new Set(existingJourney.entries.map((entry) => entry.partId))
+    const nextPart = study.parts.find((part) => !completedPartIds.has(part.id))
+    if (!nextPart) {
+      await prisma.journey.update({
+        where: { id: existingJourney.id },
+        data: { completedAt: new Date() },
+      })
+    } else {
+      redirect(`/entry/new?studyId=${study.id}&partId=${nextPart.id}&journeyId=${existingJourney.id}`)
+    }
+  }
+
+  const journeyCount = await prisma.journey.count({ where: { studyId, userId: session.userId } })
+  const journey = await prisma.journey.create({
+    data: {
+      studyId,
+      userId: session.userId,
+      label: `${study.journeyName || 'Journey'} #${journeyCount + 1}`,
+    },
+  })
+
+  revalidatePath('/dashboard')
+  redirect(`/entry/new?studyId=${study.id}&partId=${study.parts[0].id}&journeyId=${journey.id}`)
+}
+
 export async function submitEntry(prevState: unknown, formData: FormData) {
   const session = await getSession()
   if (!session) redirect('/login')
 
   const studyId = String(formData.get('studyId') ?? '')
   const partId = String(formData.get('partId') ?? '')
+  const journeyId = String(formData.get('journeyId') ?? '').trim() || null
   const date = String(formData.get('date') ?? '')
   const timezone = normalizeTimezone(formData.get('timezone'))
 
@@ -103,6 +160,10 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
             orderBy: { order: 'asc' },
             include: { entries: { where: { userId: session.userId }, select: { id: true, date: true } } },
           },
+          journeys: {
+            where: { id: journeyId ?? '__no_journey__', userId: session.userId },
+            include: { entries: { select: { id: true, partId: true } } },
+          },
         },
       },
     },
@@ -115,6 +176,17 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   const participation = part.study.participants[0]
   if (!participation || !participation.consentedAt) {
     return { error: 'You need to join the study and accept consent before submitting entries.' }
+  }
+
+  const journey = journeyId ? part.study.journeys[0] : null
+  if (part.study.mode === 'JOURNEY') {
+    if (!journey) return { error: 'Please start this journey from your dashboard.' }
+    const activePartIds = part.study.parts.filter((candidate) => candidate.isActive).map((candidate) => candidate.id)
+    const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
+    const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
+    if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
+    const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
+    if (nextPartId !== partId) return { error: 'Please complete the journey stages in order from your dashboard.' }
   }
 
   const effectiveTimezone = timezone || 'Europe/Berlin'
@@ -138,7 +210,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
     if (!unlocked) return { error: 'This part is not unlocked yet.' }
   }
 
-  if (part.entryPolicy === 'ONCE_PER_DAY') {
+  if (part.study.mode !== 'JOURNEY' && part.entryPolicy === 'ONCE_PER_DAY') {
     const existing = await prisma.entry.findFirst({
       where: { partId, userId: session.userId, date },
       select: { id: true },
@@ -218,6 +290,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
       studyId,
       partId,
       userId: session.userId,
+      journeyId,
       date,
       timezone,
       answers: {
@@ -232,6 +305,14 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
       },
     },
   })
+
+  if (journeyId) {
+    const activeParts = part.study.parts.filter((candidate) => candidate.isActive)
+    const journeyEntryCount = await prisma.entry.count({ where: { journeyId } })
+    if (journeyEntryCount >= activeParts.length) {
+      await prisma.journey.update({ where: { id: journeyId }, data: { completedAt: new Date() } })
+    }
+  }
 
   revalidatePath('/dashboard')
   redirect(`/entry/${entry.id}`)
