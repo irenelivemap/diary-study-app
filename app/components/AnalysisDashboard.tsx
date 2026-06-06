@@ -186,6 +186,27 @@ function multipleChoiceStats(question: Question, points: DataPoint[]) {
   }
 }
 
+function singleChoiceStats(points: DataPoint[]) {
+  const total = points.reduce((sum, point) => sum + point.value, 0)
+  const sorted = [...points]
+    .filter((point) => point.value > 0)
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
+  const top = sorted[0] ?? null
+  const runnerUp = sorted[1] ?? null
+  const topPct = total && top ? Math.round((top.value / total) * 100) : 0
+  const runnerUpPct = total && runnerUp ? Math.round((runnerUp.value / total) * 100) : 0
+  const tiedTopCount = top?.value ? sorted.filter((point) => point.value === top.value).length : 0
+
+  return {
+    topLabel: top?.label ?? '-',
+    topPct,
+    hasTie: tiedTopCount > 1,
+    tiedTopCount,
+    gapPct: Math.max(0, topPct - runnerUpPct),
+    hasRunnerUp: !!runnerUp,
+  }
+}
+
 function average(values: number[]) {
   if (!values.length) return null
   return values.reduce((sum, value) => sum + value, 0) / values.length
@@ -1125,6 +1146,10 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
     () => question.type === 'MULTIPLE_CHOICE' ? multipleChoiceStats(question, analysis.points) : null,
     [question, analysis.points]
   )
+  const singleStats = useMemo(
+    () => question.type === 'SINGLE_CHOICE' ? singleChoiceStats(analysis.points) : null,
+    [question, analysis.points]
+  )
   const filename = `${String(index + 1).padStart(2, '0')}_${slugify(question.text)}`
   const defaultPlotTitle = ''
   const defaultPlotSubtitle = question.type === 'RATING' || question.type === 'YES_NO'
@@ -1350,6 +1375,37 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
           </div>
         ) : question.type === 'YES_NO' ? (
           <YesNoPieSvg analysis={analysis} svgRef={svgRef} title={plotTitle || defaultPlotTitle} subtitle={plotSubtitle || defaultPlotSubtitle} />
+        ) : question.type === 'SINGLE_CHOICE' ? (
+          <div className="space-y-4">
+            {singleStats && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="truncate text-xl font-bold text-slate-950" title={singleStats.topLabel}>
+                    {singleStats.topLabel}
+                  </p>
+                  <p className="text-sm text-slate-600">Most selected · {singleStats.topPct}%</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-2xl font-bold text-slate-950">
+                    {singleStats.hasTie ? 'Tie' : singleStats.hasRunnerUp ? `${singleStats.gapPct} pts` : '-'}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {singleStats.hasTie
+                      ? `${singleStats.tiedTopCount} options share the lead`
+                      : singleStats.hasRunnerUp
+                        ? 'Gap to next option'
+                        : 'No second option selected'}
+                  </p>
+                </div>
+              </div>
+            )}
+            <PlotSvg
+              svgRef={svgRef}
+              title={plotTitle || defaultPlotTitle}
+              subtitle={plotSubtitle || defaultPlotSubtitle}
+              points={analysis.points}
+            />
+          </div>
         ) : question.type === 'MULTIPLE_CHOICE' ? (
           <div className="space-y-4">
             {choiceStats && (
