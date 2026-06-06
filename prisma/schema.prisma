@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(PARTICIPANT)
+  timezone  String?
+  createdAt DateTime @default(now())
+
+  participations StudyParticipant[]
+  entries        Entry[]
+}
+
+model Study {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  consentText String?
+  contactEmail String?
+  inviteToken String?  @unique
+  isActive    Boolean  @default(true)
+  isArchived  Boolean  @default(false)
+  sequential  Boolean  @default(false)
+  reminderNote String?
+  remindersEnabled Boolean @default(false)
+  reminderTime     String? @default("18:00")
+  reminderSubject  String?
+  reminderBody     String?
+  version      Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  parts        Part[]
+  participants StudyParticipant[]
+  entries      Entry[]
+  reminderLogs EmailReminderLog[]
+}
+
+model Part {
+  id            String    @id @default(cuid())
+  studyId       String
+  name          String
+  order         Int
+  instructions  String?
+  targetEntries Int?
+  durationDays  Int?
+  dueDate       DateTime?
+  unlockRule    String    @default("AFTER_PREVIOUS_TARGET")
+  unlockAt      DateTime?
+  isActive      Boolean   @default(true)
+
+  study     Study      @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  questions Question[]
+  entries   Entry[]
+}
+
+model Question {
+  id        String       @id @default(cuid())
+  partId    String
+  studyId   String
+  page      Int          @default(1)
+  order     Int
+  text      String
+  scaleType        String       @default("numbers")
+  type             QuestionType
+  options          String[]
+  required         Boolean      @default(true)
+  min              Int?
+  max              Int?
+  showIfQuestionId String?
+  showIfValue      String?
+
+  part    Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  answers Answer[]
+  tagDefinitions QuestionTag[]
+}
+
+model StudyParticipant {
+  id              String          @id @default(cuid())
+  studyId         String
+  userId          String
+  joinedAt        DateTime        @default(now())
+  consentedAt     DateTime?
+  researcherNotes String?
+  incentiveStatus IncentiveStatus @default(NOT_TRACKED)
+
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([studyId, userId])
+}
+
+model Entry {
+  id          String   @id @default(cuid())
+  studyId     String
+  partId      String
+  userId      String
+  submittedAt DateTime @default(now())
+  date        String   // YYYY-MM-DD
+  timezone    String?
+
+  study   Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  part    Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@unique([partId, userId, date])
+}
+
+model Answer {
+  id         String @id @default(cuid())
+  entryId    String
+  questionId String
+  value      String
+  wasShown   Boolean @default(true)
+
+  entry    Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tags     AnswerTag[]
+}
+
+model AnswerTag {
+  id        String   @id @default(cuid())
+  answerId  String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  answer Answer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  tag    QuestionTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([answerId, tagId])
+  @@index([tagId])
+}
+
+model QuestionTag {
+  id         String   @id @default(cuid())
+  questionId String
+  label      String
+  color      String   @default("#4f46e5")
+  createdAt  DateTime @default(now())
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerTags AnswerTag[]
+
+  @@unique([questionId, label])
+  @@index([questionId])
+}
+
+model EmailReminderLog {
+  id           String   @id @default(cuid())
+  studyId      String
+  partId       String
+  userId       String
+  date         String
+  reminderType String  @default("DAILY_ENTRY")
+  status       String
+  providerId   String?
+  error        String?
+  sentAt       DateTime @default(now())
+
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+
+  @@unique([studyId, partId, userId, date, reminderType])
+  @@index([studyId, sentAt])
+}
+
+enum Role {
+  ADMIN
+  PARTICIPANT
+}
+
+enum QuestionType {
+  FREE_TEXT
+  RATING
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  YES_NO
+  SCREENSHOT
+  DATE_TIME
+  CONTENT
+}
+
+enum IncentiveStatus {
+  NOT_TRACKED
+  PENDING
+  PAID
+  EXCLUDED
+}

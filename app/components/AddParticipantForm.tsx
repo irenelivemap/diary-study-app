@@ -1,0 +1,29 @@
+'use client'
+import { useActionState } from 'react'
+import { addParticipant } from '@/app/actions/studies'
+import { Button, TextInput } from '@/app/components/ui'
+
+export default function AddParticipantForm({ studyId }: { studyId: string }) {
+  const [state, action, pending] = useActionState(addParticipant, null)
+
+  return (
+    <form action={action} className="space-y-2">
+      <input type="hidden" name="studyId" value={studyId} />
+      <TextInput
+        name="email"
+        type="email"
+        placeholder="Participant email address"
+        required
+      />
+      {state?.error && <p className="text-xs text-red-500">{state.error}</p>}
+      {state?.success && <p className="text-xs text-emerald-600">Participant added.</p>}
+      <Button
+        type="submit"
+        disabled={pending}
+        className="w-full"
+      >
+        {pending ? 'Adding…' : 'Add participant'}
+      </Button>
+    </form>
+  )
+}
