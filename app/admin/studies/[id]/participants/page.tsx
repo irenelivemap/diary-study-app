@@ -35,17 +35,23 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { joinedAt: 'asc' },
       },
-      entries: { select: { userId: true, partId: true, date: true } },
     },
   })
   if (!study) notFound()
-  const studyEntries = study.entries
 
-  const entriesByPartAndUser = await prisma.entry.groupBy({
-    by: ['partId', 'userId'],
-    where: { studyId: id },
-    _count: { id: true },
-  })
+  const [entriesByPartAndUser, latestEntryByUser] = await Promise.all([
+    prisma.entry.groupBy({
+      by: ['partId', 'userId'],
+      where: { studyId: id },
+      _count: { id: true },
+    }),
+    prisma.entry.groupBy({
+      by: ['userId'],
+      where: { studyId: id },
+      _max: { date: true },
+    }),
+  ])
+  const latestEntryMap = new Map(latestEntryByUser.flatMap((row) => row._max.date ? [[row.userId, row._max.date] as const] : []))
 
   const entryCountMap: Record<string, Record<string, number>> = {}
   for (const row of entriesByPartAndUser) {
@@ -60,8 +66,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
   function participantStatus(userId: string): ParticipantStatus {
     const userCounts = entryCountMap[userId] ?? {}
     const total = Object.values(userCounts).reduce((a, b) => a + b, 0)
-    const userEntries = studyEntries.filter((entry) => entry.userId === userId)
-    const latestDate = userEntries.map((entry) => entry.date).sort().at(-1)
+    const latestDate = latestEntryMap.get(userId)
 
     if (total === 0) {
       return {

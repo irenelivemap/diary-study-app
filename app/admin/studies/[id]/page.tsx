@@ -33,7 +33,9 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
         orderBy: { sentAt: 'desc' },
         take: 5,
       },
+      _count: { select: { entries: true } },
       entries: {
+        take: 6,
         include: {
           user: { select: { id: true, name: true, email: true } },
           part: { select: { id: true, name: true, order: true } },
@@ -44,24 +46,39 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   })
   if (!study) notFound()
 
-  const totalEntries = study.parts.reduce((a, p) => a + p._count.entries, 0)
+  const totalEntries = study._count.entries
   const today = new Date().toISOString().split('T')[0]
   const dayKeys = Array.from({ length: 7 }, (_, i) => {
     const date = new Date()
     date.setDate(date.getDate() - (6 - i))
     return date.toISOString().split('T')[0]
   })
+  const [entriesByDayRaw, participantsWithEntriesRaw, participantLatestRaw, entriesToday] = await Promise.all([
+    prisma.entry.groupBy({
+      by: ['date'],
+      where: { studyId: id, date: { in: dayKeys } },
+      _count: { id: true },
+    }),
+    prisma.entry.groupBy({
+      by: ['userId'],
+      where: { studyId: id },
+      _count: { id: true },
+    }),
+    prisma.entry.groupBy({
+      by: ['userId'],
+      where: { studyId: id },
+      _max: { date: true },
+    }),
+    prisma.entry.count({ where: { studyId: id, date: today } }),
+  ])
+  const dayCountMap = new Map(entriesByDayRaw.map((row) => [row.date, row._count.id]))
   const entriesByDay = dayKeys.map((date) => ({
     date,
-    count: study.entries.filter((entry) => entry.date === date).length,
+    count: dayCountMap.get(date) ?? 0,
   }))
   const maxDayCount = Math.max(...entriesByDay.map((day) => day.count), 1)
-  const participantsWithEntries = new Set(study.entries.map((entry) => entry.userId))
-  const participantLatestDate = new Map<string, string>()
-  for (const entry of study.entries) {
-    const current = participantLatestDate.get(entry.userId)
-    if (!current || entry.date > current) participantLatestDate.set(entry.userId, entry.date)
-  }
+  const participantsWithEntries = new Set(participantsWithEntriesRaw.map((entry) => entry.userId))
+  const participantLatestDate = new Map(participantLatestRaw.flatMap((row) => row._max.date ? [[row.userId, row._max.date] as const] : []))
   const notStarted = study.participants.length - participantsWithEntries.size
   const quietParticipants = study.participants.filter(({ user }) => {
     const latest = participantLatestDate.get(user.id)
@@ -69,7 +86,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     const daysSince = Math.floor((Date.now() - new Date(`${latest}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
     return daysSince >= 7
   }).length
-  const entriesToday = study.entries.filter((entry) => entry.date === today).length
   const recentEntries = study.entries.slice(0, 6)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
   const readiness = [
