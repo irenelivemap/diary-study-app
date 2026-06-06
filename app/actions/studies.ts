@@ -1,6 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { ParticipantEntryAccess } from '@prisma/client'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
@@ -74,6 +75,10 @@ function normalizedStudyFields(formData: FormData) {
   const description = optionalString(formData, 'description')
   const consentText = optionalString(formData, 'consentText')
   const contactEmail = optionalString(formData, 'contactEmail')
+  const rawParticipantEntryAccess = String(formData.get('participantEntryAccess') ?? ParticipantEntryAccess.SHOW_READ_ONLY)
+  const participantEntryAccess = rawParticipantEntryAccess === ParticipantEntryAccess.HIDE_PAST_ENTRIES
+    ? ParticipantEntryAccess.HIDE_PAST_ENTRIES
+    : ParticipantEntryAccess.SHOW_READ_ONLY
   const reminderNote = optionalString(formData, 'reminderNote')
   const remindersEnabled = checkboxValue(formData, 'remindersEnabled')
   const rawReminderTime = optionalString(formData, 'reminderTime') ?? '18:00'
@@ -88,6 +93,7 @@ function normalizedStudyFields(formData: FormData) {
     description,
     consentText,
     contactEmail,
+    participantEntryAccess,
     reminderNote,
     remindersEnabled,
     reminderTime,
@@ -257,6 +263,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
           description: studyFields.description,
           consentText: studyFields.consentText,
           contactEmail: studyFields.contactEmail,
+          participantEntryAccess: studyFields.participantEntryAccess,
           reminderNote: studyFields.reminderNote,
           remindersEnabled: studyFields.remindersEnabled,
           reminderTime: studyFields.reminderTime,
@@ -337,6 +344,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
 
   revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
+  revalidatePath('/dashboard')
   redirect(`/admin/studies/${studyId}/edit`)
 }
 

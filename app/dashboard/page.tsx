@@ -137,6 +137,7 @@ export default async function DashboardPage() {
                   {study.parts.map((part, pi) => {
                     const todayEntry = part.entries.find((e) => e.date === today)
                     const pastEntries = part.entries.filter((e) => e.date !== today)
+                    const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
                     const isOverdue = part.dueDate && new Date(part.dueDate) < new Date()
                     const dur = getDurationState(joinedAt, part.durationDays)
 
@@ -306,7 +307,7 @@ export default async function DashboardPage() {
                           </div>
                         )}
 
-                        {pastEntries.length > 0 && (
+                        {canViewPastEntries && pastEntries.length > 0 && (
                           <div className="mt-2 space-y-0.5">
                             {pastEntries.slice(0, 3).map((entry) => (
                               <Link key={entry.id} href={`/entry/${entry.id}`}

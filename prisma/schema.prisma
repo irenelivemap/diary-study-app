@@ -37,6 +37,7 @@ model Study {
   reminderDays     String[] @default([])
   reminderSubject  String?
   reminderBody     String?
+  participantEntryAccess ParticipantEntryAccess @default(SHOW_READ_ONLY)
   version      Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
@@ -213,4 +214,9 @@ enum IncentiveStatus {
   PENDING
   PAID
   EXCLUDED
+}
+
+enum ParticipantEntryAccess {
+  HIDE_PAST_ENTRIES
+  SHOW_READ_ONLY
 }
