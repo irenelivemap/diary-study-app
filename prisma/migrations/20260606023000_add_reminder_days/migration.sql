@@ -1,0 +1,1 @@
+ALTER TABLE "Study" ADD COLUMN "reminderDays" TEXT[] DEFAULT ARRAY[]::TEXT[];

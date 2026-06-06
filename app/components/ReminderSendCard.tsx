@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { sendStudyRemindersNow } from '@/app/actions/reminders'
+import { sendReminderTestEmail, sendStudyRemindersNow } from '@/app/actions/reminders'
 import { Button } from '@/app/components/ui'
 
 type ReminderSummary = {
@@ -11,6 +11,13 @@ type ReminderSummary = {
   skipped: number
   failed: number
   errors: string[]
+  skippedByReason: Record<string, number>
+}
+
+type TestSummary = {
+  configured: boolean
+  sent: boolean
+  error: string | null
 }
 
 type Props = {
@@ -29,7 +36,9 @@ type Props = {
 
 export default function ReminderSendCard({ studyId, enabled, reminderTime, embedded = false, recentLogs }: Props) {
   const [pending, startTransition] = useTransition()
+  const [testPending, startTestTransition] = useTransition()
   const [summary, setSummary] = useState<ReminderSummary | null>(null)
+  const [testSummary, setTestSummary] = useState<TestSummary | null>(null)
   const failedLogs = recentLogs.filter((log) => log.status !== 'SENT').length
 
   return (
@@ -52,20 +61,36 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, embed
               : 'Enable reminders in Setup before sending.'}
           </p>
         )}
-        <Button
-          type="button"
-          disabled={pending || !enabled}
-          onClick={() => {
-            startTransition(async () => {
-              const result = await sendStudyRemindersNow(studyId)
-              setSummary(result)
-            })
-          }}
-          tone="secondary"
-          size="sm"
-        >
-          {pending ? 'Sending...' : 'Send due reminders now'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            disabled={testPending}
+            onClick={() => {
+              startTestTransition(async () => {
+                const result = await sendReminderTestEmail()
+                setTestSummary(result)
+              })
+            }}
+            tone="secondary"
+            size="sm"
+          >
+            {testPending ? 'Testing...' : 'Send test to me'}
+          </Button>
+          <Button
+            type="button"
+            disabled={pending || !enabled}
+            onClick={() => {
+              startTransition(async () => {
+                const result = await sendStudyRemindersNow(studyId)
+                setSummary(result)
+              })
+            }}
+            tone="secondary"
+            size="sm"
+          >
+            {pending ? 'Sending...' : 'Send due reminders now'}
+          </Button>
+        </div>
       </div>
 
       <div className="p-5 space-y-4">
@@ -84,6 +109,24 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, embed
             {summary.errors.length > 0 && (
               <p className="text-xs mt-1">{summary.errors.slice(0, 2).join(' ')}</p>
             )}
+            {Object.keys(summary.skippedByReason).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {Object.entries(summary.skippedByReason).map(([reason, count]) => (
+                  <span key={reason} className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">
+                    {reason}: {count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {testSummary && (
+          <div className={`rounded-xl px-4 py-3 ${testSummary.sent ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+            <p className="text-sm font-medium">
+              {testSummary.sent ? 'Test email sent to your admin email.' : 'Test email failed.'}
+            </p>
+            {testSummary.error && <p className="mt-1 text-xs">{testSummary.error}</p>}
           </div>
         )}
 

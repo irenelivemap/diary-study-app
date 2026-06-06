@@ -32,6 +32,7 @@ model Study {
   reminderNote String?
   remindersEnabled Boolean @default(false)
   reminderTime     String? @default("18:00")
+  reminderDays     String[] @default([])
   reminderSubject  String?
   reminderBody     String?
   version      Int      @default(1)

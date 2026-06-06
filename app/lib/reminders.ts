@@ -8,6 +8,7 @@ type ReminderResult = {
   skipped: number
   failed: number
   errors: string[]
+  skippedByReason: Record<string, number>
 }
 
 type SendDueRemindersOptions = {
@@ -66,6 +67,16 @@ function localHourMinute(timeZone: string) {
 
 function timeReached(reminderTime: string | null, timeZone: string) {
   return localHourMinute(timeZone) >= (reminderTime ?? '18:00')
+}
+
+function localDayOfWeek(timeZone: string) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(new Date())
+  return { Sun: '0', Mon: '1', Tue: '2', Wed: '3', Thu: '4', Fri: '5', Sat: '6' }[weekday] ?? '1'
+}
+
+function addSkip(result: ReminderResult, reason: string, count = 1) {
+  result.skipped += count
+  result.skippedByReason[reason] = (result.skippedByReason[reason] ?? 0) + count
 }
 
 function htmlEscape(value: string) {
@@ -172,7 +183,7 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
   const from = process.env.EMAIL_FROM || 'diARI <onboarding@resend.dev>'
   const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || (vercelUrl ? `https://${vercelUrl}` : 'http://localhost:3000')
-  const result: ReminderResult = { configured: !!apiKey, checked: 0, sent: 0, skipped: 0, failed: 0, errors: [] }
+  const result: ReminderResult = { configured: !!apiKey, checked: 0, sent: 0, skipped: 0, failed: 0, errors: [], skippedByReason: {} }
 
   const studies = await getReminderStudies(options.studyId)
   if (!apiKey) return result
@@ -196,27 +207,32 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
     for (const participant of study.participants) {
       const timeZone = participant.user.timezone || 'Europe/Berlin'
       const today = localDate(timeZone)
+      const reminderDays = study.reminderDays.length > 0 ? study.reminderDays : ['0', '1', '2', '3', '4', '5', '6']
+      if (!reminderDays.includes(localDayOfWeek(timeZone))) {
+        addSkip(result, 'not scheduled today', study.parts.length)
+        continue
+      }
       if (!options.force && !timeReached(study.reminderTime, timeZone)) {
-        result.skipped += study.parts.length
+        addSkip(result, 'before reminder time', study.parts.length)
         continue
       }
 
       for (const [partIndex, part] of study.parts.entries()) {
         result.checked += 1
         if (!isPartUnlocked(study, part, partIndex, participant, countByPartUser)) {
-          result.skipped += 1
+          addSkip(result, 'part locked')
           continue
         }
         if (!isWithinPartWindow(part, participant)) {
-          result.skipped += 1
+          addSkip(result, 'outside part window')
           continue
         }
         if (isPartComplete(part, participant.user.id, countByPartUser)) {
-          result.skipped += 1
+          addSkip(result, 'target complete')
           continue
         }
         if (entriesByPartUserDate.has(entryDateKey(part.id, participant.user.id, today))) {
-          result.skipped += 1
+          addSkip(result, 'already submitted today')
           continue
         }
 
@@ -232,7 +248,7 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
           },
         })
         if (existing?.status === 'SENT') {
-          result.skipped += 1
+          addSkip(result, 'already reminded today')
           continue
         }
 

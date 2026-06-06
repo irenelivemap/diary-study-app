@@ -48,6 +48,10 @@ function checkboxValue(formData: FormData, key: string) {
   return formData.getAll(key).includes('true')
 }
 
+function reminderDaysValue(formData: FormData) {
+  return formData.getAll('reminderDays').map(String).filter((day) => /^[0-6]$/.test(day))
+}
+
 function sanitizedOptions(options: string[] | undefined) {
   return (options || []).map((option) => option === '__OTHER__' ? option : sanitizeHtml(option))
 }
@@ -117,6 +121,7 @@ export async function createStudy(prevState: unknown, formData: FormData) {
   const reminderNote = optionalString(formData, 'reminderNote')
   const remindersEnabled = checkboxValue(formData, 'remindersEnabled')
   const reminderTime = optionalString(formData, 'reminderTime') ?? '18:00'
+  const reminderDays = reminderDaysValue(formData)
   const reminderSubject = optionalString(formData, 'reminderSubject')
   const reminderBody = optionalString(formData, 'reminderBody')
   const sequential = checkboxValue(formData, 'sequential')
@@ -135,7 +140,7 @@ export async function createStudy(prevState: unknown, formData: FormData) {
   if (validationError) return { error: validationError }
 
   const final = await prisma.study.create({
-    data: { name, description, consentText, contactEmail, reminderNote, remindersEnabled, reminderTime, reminderSubject, reminderBody, sequential },
+    data: { name, description, consentText, contactEmail, reminderNote, remindersEnabled, reminderTime, reminderDays, reminderSubject, reminderBody, sequential },
   })
 
   for (const part of parts) {
@@ -156,6 +161,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
   const reminderNote = optionalString(formData, 'reminderNote')
   const remindersEnabled = checkboxValue(formData, 'remindersEnabled')
   const reminderTime = optionalString(formData, 'reminderTime') ?? '18:00'
+  const reminderDays = reminderDaysValue(formData)
   const reminderSubject = optionalString(formData, 'reminderSubject')
   const reminderBody = optionalString(formData, 'reminderBody')
   const isActive = formData.has('isActive') ? checkboxValue(formData, 'isActive') : undefined
@@ -204,6 +210,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
           reminderNote,
           remindersEnabled,
           reminderTime,
+          reminderDays,
           reminderSubject,
           reminderBody,
           ...(isActive === undefined ? {} : { isActive }),
@@ -280,7 +287,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
 
   revalidatePath('/admin')
   revalidatePath(`/admin/studies/${studyId}`)
-  redirect(`/admin/studies/${studyId}`)
+  redirect(`/admin/studies/${studyId}/edit`)
 }
 
 export async function deleteStudy(studyId: string) {
