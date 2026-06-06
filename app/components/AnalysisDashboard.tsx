@@ -437,13 +437,13 @@ function RatingScaleSvg({
     : points.map((point) => ({ key: String(point.score), label: String(point.score), sublabel: point.label === String(point.score) ? '' : point.label, count: point.count }))
   const width = 760
   const height = 260
-  const left = 96
-  const right = 44
+  const left = 72
+  const right = 34
   const chartTop = 66
   const baseline = 188
   const chartWidth = width - left - right
-  const plotLeft = left + 48
-  const plotWidth = chartWidth - 72
+  const plotLeft = left + 34
+  const plotWidth = chartWidth - 48
   const min = analysis.minScale ?? question.min ?? 1
   const max = analysis.maxScale ?? question.max ?? 7
   const step = displayPoints.length > 1 ? plotWidth / (displayPoints.length - 1) : plotWidth
@@ -551,7 +551,7 @@ function YesNoPieSvg({
   const noPct = total ? 100 - yesPct : 0
   const width = 760
   const height = 240
-  const cx = 165
+  const cx = 116
   const cy = 132
   const radius = 78
   const labelRadius = 58
@@ -634,11 +634,11 @@ function YesNoPieSvg({
         </>
       )}
 
-      <g transform="translate(330 104)">
+      <g transform="translate(270 104)">
         <circle cx="0" cy="0" r="7" fill="#4f46e5" />
         <text x="20" y="5" fill="#0f172a" fontSize="15" fontWeight="700">Yes</text>
       </g>
-      <g transform="translate(330 154)">
+      <g transform="translate(270 154)">
         <circle cx="0" cy="0" r="7" fill="#94a3b8" />
         <text x="20" y="5" fill="#0f172a" fontSize="15" fontWeight="700">No</text>
       </g>
@@ -664,8 +664,8 @@ function PlotSvg({
   const hasTitle = Boolean(title)
   const hasSubtitle = Boolean(subtitle)
   const top = hasSubtitle ? 62 : hasTitle ? 50 : 24
-  const left = 148
-  const right = 48
+  const left = 82
+  const right = 44
   const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + points.length * rowHeight + 28)
   const total = points.reduce((sum, point) => sum + point.value, 0)
   const percentages = points.map((point) => total ? Math.round((point.value / total) * 100) : 0)
@@ -688,8 +688,8 @@ function PlotSvg({
         return (
           <g key={`${point.label}-${index}`}>
             <title>{`${point.value}`}</title>
-            <text x={left - 12} y={y + 18} textAnchor="end" fill={isTop ? '#0f766e' : '#334155'} fontSize="13" fontWeight={isTop ? '800' : '600'}>
-              {point.label.length > 18 ? `${point.label.slice(0, 18)}...` : point.label}
+            <text x={left - 10} y={y + 18} textAnchor="end" fill={isTop ? '#0f766e' : '#334155'} fontSize="13" fontWeight={isTop ? '800' : '600'}>
+              {point.label.length > 10 ? `${point.label.slice(0, 10)}...` : point.label}
             </text>
             <rect x={left} y={y} width={chartWidth} height="20" rx="10" fill={isTop ? '#ccfbf1' : '#eef2ff'} />
             <rect
