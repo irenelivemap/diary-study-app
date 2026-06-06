@@ -551,7 +551,11 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
   }
 }
 
-export async function removeParticipant(studyId: string, userId: string, options: { notifyParticipant?: boolean } = {}) {
+export async function removeParticipant(
+  studyId: string,
+  userId: string,
+  options: { notifyParticipant?: boolean; deleteParticipantData?: boolean } = {}
+) {
   await requireAdmin()
   const participant = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId, userId } },
@@ -562,6 +566,9 @@ export async function removeParticipant(studyId: string, userId: string, options
   })
   const normalizedEmail = participant?.user.email.toLowerCase()
   await prisma.$transaction([
+    ...(options.deleteParticipantData
+      ? [prisma.entry.deleteMany({ where: { studyId, userId } })]
+      : []),
     prisma.studyParticipant.deleteMany({ where: { studyId, userId } }),
     ...(normalizedEmail
       ? [prisma.studyInvitation.upsert({
@@ -592,6 +599,7 @@ export async function removeParticipant(studyId: string, userId: string, options
   revalidatePath(`/admin/studies/${studyId}`)
   revalidatePath(`/admin/studies/${studyId}/participants`)
   revalidatePath(`/admin/studies/${studyId}/data`)
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
   redirect(`/admin/studies/${studyId}/participants`)
 }
 
@@ -599,8 +607,9 @@ export async function removeParticipantFromForm(formData: FormData) {
   const studyId = String(formData.get('studyId') ?? '')
   const userId = String(formData.get('userId') ?? '')
   const notifyParticipant = checkboxValue(formData, 'notifyParticipant')
+  const deleteParticipantData = checkboxValue(formData, 'deleteParticipantData')
   if (!studyId || !userId) redirect('/admin')
-  await removeParticipant(studyId, userId, { notifyParticipant })
+  await removeParticipant(studyId, userId, { notifyParticipant, deleteParticipantData })
 }
 
 export async function updateParticipantOps(prevState: unknown, formData: FormData) {

@@ -80,6 +80,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
 
       <div className="max-w-full px-4 sm:px-6 py-6">
         <DataExplorer
+          studyId={id}
           studyName={study.name}
           studyVersion={study.version}
           parts={parts}

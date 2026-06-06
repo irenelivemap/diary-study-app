@@ -13,6 +13,7 @@ type Props = {
 export default function RemoveParticipantForm({ studyId, userId, participantName }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [notifyParticipant, setNotifyParticipant] = useState(false)
+  const [deleteParticipantData, setDeleteParticipantData] = useState(false)
 
   return (
     <>
@@ -27,7 +28,7 @@ export default function RemoveParticipantForm({ studyId, userId, participantName
               <div>
                 <h3 className="text-lg font-bold text-slate-950">Remove participant?</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  {participantName} will no longer be able to join this study or submit new entries. Existing responses will stay in the data.
+                  {participantName} will no longer be able to join this study or submit new entries. Choose whether to keep or delete their existing responses.
                 </p>
               </div>
               <button
@@ -41,6 +42,21 @@ export default function RemoveParticipantForm({ studyId, userId, participantName
             </div>
 
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <input
+                type="checkbox"
+                checked={deleteParticipantData}
+                onChange={(event) => setDeleteParticipantData(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-red-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">Delete this participant&apos;s data</span>
+                <span className="mt-0.5 block text-sm leading-snug text-slate-500">
+                  Permanently remove all entries and answers from this study. Leave unchecked to keep responses in analysis and exports.
+                </span>
+              </span>
+            </label>
+
+            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <input
                 type="checkbox"
                 checked={notifyParticipant}
@@ -59,6 +75,7 @@ export default function RemoveParticipantForm({ studyId, userId, participantName
               <input type="hidden" name="studyId" value={studyId} />
               <input type="hidden" name="userId" value={userId} />
               {notifyParticipant && <input type="hidden" name="notifyParticipant" value="true" />}
+              {deleteParticipantData && <input type="hidden" name="deleteParticipantData" value="true" />}
               <Button type="button" tone="secondary" onClick={() => setIsOpen(false)}>
                 Cancel
               </Button>
