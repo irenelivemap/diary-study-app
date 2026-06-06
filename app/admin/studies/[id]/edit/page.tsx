@@ -27,7 +27,7 @@ export default async function EditStudyPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
-      <NavBar name={session.name} role="ADMIN" />
+      <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="setup" studyName={study.name} isActive={study.isActive} />
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
         {study._count.entries > 0 && (

@@ -11,7 +11,7 @@ export default async function NewStudyPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
-      <NavBar name={session.name} role="ADMIN" />
+      <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
         <div className="mb-6">
           <Link href="/admin" className="text-sm text-slate-400 hover:text-indigo-600 transition-colors mb-2 inline-flex items-center gap-1">

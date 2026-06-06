@@ -5,13 +5,12 @@ import { updateProfile } from '@/app/actions/auth'
 import { Button, TextInput } from '@/app/components/ui'
 
 type Props = {
-  name: string
   firstName?: string | null
   lastName?: string | null
   email: string
 }
 
-export default function ProfileForm({ name, firstName, lastName, email }: Props) {
+export default function ProfileForm({ firstName, lastName, email }: Props) {
   const [state, action, pending] = useActionState(updateProfile, null)
 
   return (
@@ -30,14 +29,6 @@ export default function ProfileForm({ name, firstName, lastName, email }: Props)
           <label className="mb-2 block text-sm font-medium text-slate-700">Last name</label>
           <TextInput name="lastName" defaultValue={lastName ?? ''} placeholder="Smith" />
         </div>
-      </div>
-
-      <div className="mt-4">
-        <label className="mb-2 block text-sm font-medium text-slate-700">Display name</label>
-        <TextInput name="name" defaultValue={name} placeholder="Name shown in the app" />
-        <p className="mt-2 text-sm text-slate-500">
-          If first and last name are filled, diARI will use them as your display name.
-        </p>
       </div>
 
       <div className="mt-4">
