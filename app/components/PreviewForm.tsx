@@ -4,6 +4,7 @@ import type { Question } from '@prisma/client'
 import RatingInput from './RatingInput'
 import { Button, TextInput } from '@/app/components/ui'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
+import DateTimeNowInput from './DateTimeNowInput'
 
 const OTHER_SENTINEL = '__OTHER__'
 
@@ -268,12 +269,10 @@ export default function PreviewForm({ study }: { study: Study }) {
             )}
 
             {q.type === 'DATE_TIME' && (
-              <input
-                type="datetime-local"
+              <DateTimeNowInput
                 required={q.required}
-                data-page={q.page ?? 1}
-                onChange={(e) => setAnswer(q.id, e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                dataPage={q.page ?? 1}
+                onValueChange={(value) => setAnswer(q.id, value)}
               />
             )}
 
