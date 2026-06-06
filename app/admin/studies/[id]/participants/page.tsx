@@ -2,14 +2,14 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
-import { removeParticipantFromForm } from '@/app/actions/studies'
 import AddParticipantForm from '@/app/components/AddParticipantForm'
 import InviteLinkCard from '@/app/components/InviteLinkCard'
 import NavBar from '@/app/components/NavBar'
 import OverviewSection from '@/app/components/OverviewSection'
 import ParticipantOpsForm from '@/app/components/ParticipantOpsForm'
+import RemoveParticipantForm from '@/app/components/RemoveParticipantForm'
 import StudyTabs from '@/app/components/StudyTabs'
-import { Badge, ButtonLink, IconButton, TrashIcon } from '@/app/components/ui'
+import { Badge, ButtonLink } from '@/app/components/ui'
 
 const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
 
@@ -243,13 +243,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                               </Link>
                             </td>
                             <td className="px-3 py-3 text-right">
-                              <form action={removeParticipantFromForm}>
-                                <input type="hidden" name="studyId" value={id} />
-                                <input type="hidden" name="userId" value={user.id} />
-                                <IconButton type="submit" label={`Remove ${user.name}`} tone="trash" className="h-9 w-9">
-                                  <TrashIcon />
-                                </IconButton>
-                              </form>
+                              <RemoveParticipantForm studyId={id} userId={user.id} participantName={user.name} />
                             </td>
                           </tr>
                         )
