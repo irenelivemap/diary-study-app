@@ -340,6 +340,8 @@ export default function StudyForm({
   // ── Render ───────────────────────────────────────────
   const pageCount = part ? Math.max(...part.questions.map((q) => q.page), 1) : 1
   const pages = Array.from({ length: pageCount }, (_, i) => i + 1)
+  const hasSaveIssue = Boolean(state?.error || localError)
+  const saveBarShouldStick = isDirty || pending || hasSaveIssue
 
   const inputCls = "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
   const smallInputCls = "w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
@@ -396,7 +398,7 @@ export default function StudyForm({
   return (
     <form
       action={formAction}
-      className="space-y-5 pb-24"
+      className={`space-y-5 ${saveBarShouldStick ? 'pb-24' : ''}`}
       onInputCapture={() => setIsDirty(true)}
       onChangeCapture={() => setIsDirty(true)}
     >
@@ -1231,7 +1233,10 @@ export default function StudyForm({
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{(state?.error as string) || localError}</p>
       )}
 
-      <div className="sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-8 sm:px-8">
+      <div className={saveBarShouldStick
+        ? 'sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-8 sm:px-8'
+        : 'rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm'
+      }>
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-900">
