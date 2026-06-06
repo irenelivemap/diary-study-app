@@ -33,16 +33,16 @@ export default function StudyTabs({ studyId, active, studyName, isActive }: Prop
 
   return (
     <div className="bg-white border-b border-slate-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8">
-        <div className="pt-5 pb-3 flex flex-col gap-3">
-          <div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="pt-5 pb-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <Link href="/admin" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900">
               <span aria-hidden="true">←</span>
               All studies
             </Link>
-            <h1 className="text-xl font-bold text-slate-900 mt-2">{studyName}</h1>
+            <h1 className="text-2xl font-bold leading-tight text-slate-950 mt-2 truncate">{studyName}</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <StudyStatusToggle studyId={studyId} initialActive={isActive} />
             <ButtonLink
               href={`/admin/studies/${studyId}/preview`}
@@ -59,13 +59,14 @@ export default function StudyTabs({ studyId, active, studyName, isActive }: Prop
           </div>
         </div>
 
-        <div className="scrollbar-hidden flex gap-1 overflow-x-auto">
+        <nav aria-label="Study sections" className="scrollbar-hidden flex gap-1 overflow-x-auto">
           {TABS.map((tab) => (
             <Link
               key={tab.id}
               href={tab.href(studyId)}
               prefetch
               onClick={() => setPendingHref(tab.href(studyId))}
+              aria-current={active === tab.id ? 'page' : undefined}
               className={`relative px-4 py-3 text-base font-medium border-b-2 transition-colors -mb-px ${
                 active === tab.id || pendingHref === tab.href(studyId)
                   ? 'border-indigo-600 text-indigo-600'
@@ -78,7 +79,7 @@ export default function StudyTabs({ studyId, active, studyName, isActive }: Prop
               )}
             </Link>
           ))}
-        </div>
+        </nav>
       </div>
     </div>
   )

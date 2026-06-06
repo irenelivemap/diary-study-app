@@ -340,7 +340,7 @@ export default function StudyForm({
                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
             }`}
             onClick={() => setActivePart(i)}>
-            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${
               activePart === i ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
             }`}>
               PT {i + 1}
@@ -563,7 +563,7 @@ export default function StudyForm({
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               {/* Part header */}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
+                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
                   PT {activePart + 1}
                 </span>
                 <input value={part.name} onChange={(e) => updatePart(part.id, { name: e.target.value })}

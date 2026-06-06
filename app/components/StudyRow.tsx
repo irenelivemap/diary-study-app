@@ -70,11 +70,16 @@ export default function StudyRow({ study }: Props) {
                 {name}
               </Link>
               <button
+                type="button"
                 onClick={startRename}
-                title="Rename"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                title="Rename study"
+                aria-label={`Rename ${name}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950"
               >
-                ✎
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
               </button>
             </div>
           )}

@@ -9,7 +9,7 @@ const BUTTON_TONES: Record<ButtonTone, string> = {
   secondary: 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400',
   ghost: 'bg-transparent text-slate-600 border-transparent hover:bg-slate-100 hover:text-slate-900',
   danger: 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100 hover:border-red-200',
-  trash: 'bg-transparent text-slate-500 border-transparent hover:bg-red-50 hover:text-red-700 hover:border-red-100',
+  trash: 'bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200',
 }
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
@@ -214,7 +214,7 @@ export function Chip({ children, tone = 'default', className = '' }: {
   className?: string
 }) {
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full ${TONE_MAP[tone] ?? TONE_MAP.default} ${className}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full ${TONE_MAP[tone] ?? TONE_MAP.default} ${className}`}>
       {children}
     </span>
   )

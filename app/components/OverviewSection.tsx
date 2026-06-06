@@ -44,7 +44,7 @@ export default function OverviewSection({ title, description, count, action, def
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5 marker:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5 marker:hidden transition-colors hover:bg-slate-50/70">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`text-base font-semibold ${styles.title}`}>{title}</span>
@@ -58,7 +58,9 @@ export default function OverviewSection({ title, description, count, action, def
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {action}
-          <span className="text-sm text-slate-300 transition-transform group-open:rotate-90">›</span>
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-transform group-open:rotate-90" aria-hidden="true">
+            ›
+          </span>
         </div>
       </summary>
       {open && (
