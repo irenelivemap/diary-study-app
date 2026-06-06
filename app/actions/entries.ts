@@ -103,31 +103,35 @@ export async function startJourney(formData: FormData) {
 
   const study = await prisma.study.findUnique({
     where: { id: studyId },
-    include: {
+    select: {
+      id: true,
+      isActive: true,
+      isArchived: true,
+      journeyName: true,
       participants: { where: { userId: session.userId }, select: { consentedAt: true } },
       parts: { where: { isActive: true, flow: 'JOURNEY_STAGE' }, orderBy: { order: 'asc' }, select: { id: true } },
-      journeys: {
-        where: { userId: session.userId, completedAt: null },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-        include: { entries: { select: { partId: true } } },
-      },
     },
   })
   if (!study || study.isArchived || !study.isActive) redirect('/dashboard')
   if (!study.participants[0]?.consentedAt || study.parts.length === 0) redirect('/dashboard')
 
-  const existingJourney = study.journeys[0]
-  if (existingJourney && !forceNewJourney) {
-    const completedPartIds = new Set(existingJourney.entries.map((entry) => entry.partId))
-    const nextPart = study.parts.find((part) => !completedPartIds.has(part.id))
-    if (!nextPart) {
-      await prisma.journey.update({
-        where: { id: existingJourney.id },
-        data: { completedAt: new Date() },
-      })
-    } else {
-      redirect(`/entry/new?studyId=${study.id}&partId=${nextPart.id}&journeyId=${existingJourney.id}`)
+  if (!forceNewJourney) {
+    const existingJourney = await prisma.journey.findFirst({
+      where: { studyId, userId: session.userId, completedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: { entries: { select: { partId: true } } },
+    })
+    if (existingJourney) {
+      const completedPartIds = new Set(existingJourney.entries.map((entry) => entry.partId))
+      const nextPart = study.parts.find((part) => !completedPartIds.has(part.id))
+      if (!nextPart) {
+        await prisma.journey.update({
+          where: { id: existingJourney.id },
+          data: { completedAt: new Date() },
+        })
+      } else {
+        redirect(`/entry/new?studyId=${study.id}&partId=${nextPart.id}&journeyId=${existingJourney.id}`)
+      }
     }
   }
 
@@ -140,7 +144,6 @@ export async function startJourney(formData: FormData) {
     },
   })
 
-  revalidatePath('/dashboard')
   redirect(`/entry/new?studyId=${study.id}&partId=${study.parts[0].id}&journeyId=${journey.id}`)
 }
 
