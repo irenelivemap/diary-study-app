@@ -160,7 +160,12 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {participations.map(({ study, joinedAt, consentedAt }) => (
+            {participations.map(({ study, joinedAt, consentedAt }) => {
+              const journeyStageCount = study.parts.filter((part) => part.isActive && part.flow === 'JOURNEY_STAGE').length
+              const partCountLabel = study.mode === 'JOURNEY'
+                ? `${journeyStageCount || study.parts.length} stages`
+                : `${study.parts.length} parts`
+              return (
               <div key={study.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="px-6 pt-5 pb-3 border-b border-slate-50">
                   <div className="flex items-start justify-between">
@@ -170,7 +175,7 @@ export default async function DashboardPage() {
                     )}
                   </div>
                   {study.parts.length > 1 && (
-                    <p className="text-xs text-slate-400 mt-1">{study.parts.length} parts</p>
+                    <p className="text-xs text-slate-400 mt-1">{partCountLabel}</p>
                   )}
                 </div>
 
@@ -194,6 +199,7 @@ export default async function DashboardPage() {
                     const otherOpenJourneys = study.journeys.filter((journey) => !journey.completedAt && journey.id !== openJourney?.id)
                     const startedOtherOpenJourneys = otherOpenJourneys.filter((journey) => journey.entries.length > 0)
                     const completedJourneys = study.journeys.filter((journey) => journey.completedAt)
+                    const previousJourneys = [...startedOtherOpenJourneys, ...completedJourneys]
                     const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
                     const journeyNextStage = (journey: typeof study.journeys[number]) => {
                       const entriesByPart = new Map(journey.entries.map((entry) => [entry.partId, entry]))
@@ -208,6 +214,73 @@ export default async function DashboardPage() {
                         isMissingEarlierStage: stageIndex < latestSubmittedIndex,
                       }
                     }
+                    const previousJourneyList = previousJourneys.length > 0 ? (
+                      <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-slate-800">
+                          <span>
+                            Previous {journeyNamePlural}
+                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneys.length}</span>
+                          </span>
+                          <span className="text-xs font-semibold text-slate-500 transition-colors group-open:text-indigo-600">Open</span>
+                        </summary>
+                        <div className="space-y-2 border-t border-slate-100 px-5 py-4">
+                          {startedOtherOpenJourneys.slice(0, 4).map((journey) => {
+                            const otherStageState = journeyNextStage(journey)
+                            const nextOtherStage = otherStageState?.stage
+                            return (
+                              <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
+                                    {nextOtherStage && (
+                                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Needs action</span>
+                                    )}
+                                  </div>
+                                  <p className="text-slate-600">
+                                    {nextOtherStage
+                                      ? `${otherStageState.isMissingEarlierStage ? 'Missing' : 'Next'}: ${nextOtherStage.name}`
+                                      : 'All stages submitted'}
+                                  </p>
+                                </div>
+                                {nextOtherStage && (
+                                  <ButtonLink
+                                    href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
+                                    tone="secondary"
+                                    size="sm"
+                                  >
+                                    {otherStageState.isMissingEarlierStage ? 'Answer' : 'Continue'}
+                                  </ButtonLink>
+                                )}
+                              </div>
+                            )
+                          })}
+                          {completedJourneys.slice(0, 4).map((journey) => (
+                            <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
+                                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Completed</span>
+                                </div>
+                                <p className="text-slate-600">
+                                  {journey.completedAt ? journey.completedAt.toLocaleDateString() : 'All stages submitted'}
+                                </p>
+                              </div>
+                              {canViewPastEntries && (
+                                <Link
+                                  href={`/journey/${journey.id}`}
+                                  aria-label={`View ${journey.label ?? journeyName}`}
+                                  title={`View ${journey.label ?? journeyName}`}
+                                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 transition-colors hover:bg-emerald-50"
+                                >
+                                  <EyeIcon />
+                                </Link>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ) : null
+
                     const independentPartCards = independentParts.map((part) => {
                       const pi = study.parts.findIndex((candidate) => candidate.id === part.id)
                       const todayEntries = part.entries.filter((e) => e.date === today)
@@ -341,25 +414,8 @@ export default async function DashboardPage() {
                               Start {journeyArticle(journeyName)} {journeyName}
                             </StartJourneyButton>
                           </form>
-                          {completedJourneys.length > 0 && (
-                            <details className="mt-4 rounded-xl border border-slate-100 bg-white">
-                              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                                Previous {journeyNamePlural}
-                                <span className="ml-2 text-sm font-normal text-slate-400">{completedJourneys.length}</span>
-                              </summary>
-                              <div className="border-t border-slate-100 px-4 py-2">
-                                {completedJourneys.slice(0, 3).map((journey) => (
-                                  <div key={journey.id} className="py-2 text-sm text-slate-600">
-                                    {journey.label ?? journeyName}
-                                    {journey.completedAt && (
-                                      <span className="ml-2 text-slate-400">{journey.completedAt.toLocaleDateString()}</span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
-                          )}
                         </div>
+                        {previousJourneyList}
                         {independentPartCards}
                         </>
                       )
@@ -369,7 +425,6 @@ export default async function DashboardPage() {
                     const nextStage = activeParts.find((stage) => !entriesByPart.has(stage.id))
                     const completedCount = activeParts.filter((stage) => entriesByPart.has(stage.id)).length
                     const strictJourneyOrder = study.sequential
-                    const previousJourneyCount = startedOtherOpenJourneys.length + completedJourneys.length
 
                     return (
                       <>
@@ -487,69 +542,7 @@ export default async function DashboardPage() {
                         </div>
                       )}
 
-                      {previousJourneyCount > 0 && (
-                        <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-800">
-                            Previous {journeyNamePlural}
-                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">{previousJourneyCount}</span>
-                          </summary>
-                          <div className="space-y-2 border-t border-slate-100 px-5 py-4">
-                            {startedOtherOpenJourneys.slice(0, 4).map((journey) => {
-                              const otherStageState = journeyNextStage(journey)
-                              const nextOtherStage = otherStageState?.stage
-                              return (
-                                <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm">
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
-                                      {nextOtherStage && (
-                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Needs action</span>
-                                      )}
-                                    </div>
-                                    <p className="text-slate-600">
-                                      {nextOtherStage
-                                        ? `${otherStageState.isMissingEarlierStage ? 'Missing' : 'Next'}: ${nextOtherStage.name}`
-                                        : 'All stages submitted'}
-                                    </p>
-                                  </div>
-                                  {nextOtherStage && (
-                                    <ButtonLink
-                                      href={`/entry/new?studyId=${study.id}&partId=${nextOtherStage.id}&journeyId=${journey.id}`}
-                                      tone="secondary"
-                                      size="sm"
-                                    >
-                                      {otherStageState.isMissingEarlierStage ? 'Answer' : 'Continue'}
-                                    </ButtonLink>
-                                  )}
-                                </div>
-                              )
-                            })}
-                            {completedJourneys.slice(0, 4).map((journey) => (
-                              <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="truncate font-medium text-slate-800">{journey.label ?? journeyName}</p>
-                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Completed</span>
-                                  </div>
-                                  <p className="text-slate-600">
-                                    {journey.completedAt ? journey.completedAt.toLocaleDateString() : 'All stages submitted'}
-                                  </p>
-                                </div>
-                                {canViewPastEntries && (
-                                  <Link
-                                    href={`/journey/${journey.id}`}
-                                    aria-label={`View ${journey.label ?? journeyName}`}
-                                    title={`View ${journey.label ?? journeyName}`}
-                                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 transition-colors hover:bg-emerald-50"
-                                  >
-                                    <EyeIcon />
-                                  </Link>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
+                      {previousJourneyList}
 
                       {independentPartCards}
                       </>
@@ -699,7 +692,7 @@ export default async function DashboardPage() {
                 </div>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         )}
       </main>
