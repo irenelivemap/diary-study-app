@@ -332,7 +332,7 @@ export default async function DashboardPage() {
                           <p className="text-sm font-semibold text-indigo-700">Next action</p>
                           <h3 className="mt-1 text-xl font-bold text-slate-950">Start {journeyArticle(journeyName)} {journeyName}</h3>
                           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                            Start one when the real experience begins. diARI will guide you through each stage.
+                            diARI will keep the stages together and guide you through what to answer.
                           </p>
                           <form action={startJourney} className="mt-4">
                             <input type="hidden" name="studyId" value={study.id} />
@@ -471,9 +471,9 @@ export default async function DashboardPage() {
                         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900">Different {journeyName}?</p>
+                              <p className="text-sm font-semibold text-slate-900">Need another {journeyName}?</p>
                               <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                                Use this when the current one is not the experience you want to answer about.
+                                This keeps answers for each {journeyName} separate.
                               </p>
                             </div>
                             <form action={startJourney} className="shrink-0">
