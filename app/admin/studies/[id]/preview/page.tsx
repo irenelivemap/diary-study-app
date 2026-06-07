@@ -5,8 +5,7 @@ import { prisma } from '@/app/lib/db'
 import PreviewForm from '@/app/components/PreviewForm'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
-
-const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
+import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 export default async function PreviewPage({
   params,
@@ -53,7 +52,7 @@ export default async function PreviewPage({
             {study.parts.map((p, pi) => (
               <Link key={p.id} href={`/admin/studies/${id}/preview?partId=${p.id}`}
                 className={`flex shrink-0 items-center gap-1.5 rounded-lg py-1.5 pr-3 text-xs font-medium transition-colors ${p.id === part.id ? 'bg-slate-100 pl-0 text-slate-800' : 'pl-0 text-slate-500 hover:bg-slate-50'}`}>
-                <span className={`text-[9px] font-bold text-white px-1 py-0.5 rounded ${PART_COLORS[pi % PART_COLORS.length]}`}>PT {pi + 1}</span>
+                <span className={`text-[9px] font-bold text-white px-1 py-0.5 rounded ${phaseBadgeClass(pi)}`}>PT {pi + 1}</span>
                 {p.name}
               </Link>
             ))}
@@ -64,7 +63,7 @@ export default async function PreviewPage({
       <header className="bg-white border-b border-slate-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center">
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[partIndex % PART_COLORS.length]}`}>
+            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${phaseBadgeClass(partIndex)}`}>
               PT {partIndex + 1}
             </span>
             <div>

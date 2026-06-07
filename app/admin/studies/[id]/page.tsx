@@ -6,8 +6,7 @@ import StudyTabs from '@/app/components/StudyTabs'
 import ReminderSendCard from '@/app/components/ReminderSendCard'
 import OverviewSection from '@/app/components/OverviewSection'
 import { ButtonLink } from '@/app/components/ui'
-
-const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
+import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 export default async function StudyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -197,7 +196,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
                   <div key={part.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-900">
-                        <span className={`mr-2 rounded-md px-2 py-1 text-xs font-bold text-white ${PART_COLORS[index % PART_COLORS.length]}`}>PT {index + 1}</span>
+                        <span className={`mr-2 rounded-md px-2 py-1 text-xs font-bold text-white ${phaseBadgeClass(index)}`}>PT {index + 1}</span>
                         {part.name}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">{part.questions.length} questions</p>

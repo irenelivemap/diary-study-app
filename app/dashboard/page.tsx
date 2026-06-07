@@ -8,8 +8,7 @@ import StartJourneyButton from '@/app/components/StartJourneyButton'
 import { startJourney } from '@/app/actions/entries'
 import { ButtonLink, ChevronDownIcon, EyeIcon } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
-
-const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
+import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 function journeyArticle(name: string) {
   return /^[aeiou]/i.test(name.trim()) ? 'an' : 'a'
@@ -335,7 +334,7 @@ export default async function DashboardPage() {
                           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                                <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${phaseBadgeClass(pi)}`}>
                                   PT {pi + 1}
                                 </span>
                                 <h3 className="text-base font-semibold text-slate-950">{part.name}</h3>
@@ -606,7 +605,7 @@ export default async function DashboardPage() {
                         <div key={part.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 opacity-75">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-3">
-                              <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                              <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${phaseBadgeClass(pi)}`}>
                               PT {pi + 1}
                               </span>
                               <span className="text-sm font-semibold text-slate-700">{part.name}</span>
@@ -630,7 +629,7 @@ export default async function DashboardPage() {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                            <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${phaseBadgeClass(pi)}`}>
                               PT {pi + 1}
                             </span>
                               <h3 className="text-base font-semibold text-slate-950">{part.name}</h3>

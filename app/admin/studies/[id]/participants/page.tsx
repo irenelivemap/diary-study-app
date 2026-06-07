@@ -12,8 +12,7 @@ import RemoveParticipantForm from '@/app/components/RemoveParticipantForm'
 import StudyTabs from '@/app/components/StudyTabs'
 import { Badge, ButtonLink } from '@/app/components/ui'
 import { demographicFieldLabel } from '@/app/lib/demographics'
-
-const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
+import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 type ParticipantStatus = {
   label: 'Not started' | 'Active' | 'Quiet'
@@ -147,7 +146,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                         <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">Status</th>
                         {study.parts.map((part, pi) => (
                           <th key={part.id} className="px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">
-                            <span className={`text-xs font-bold text-white px-2 py-1 rounded-md ${PART_COLORS[pi % PART_COLORS.length]}`}>
+                            <span className={`text-xs font-bold text-white px-2 py-1 rounded-md ${phaseBadgeClass(pi)}`}>
                               PT {pi + 1}
                             </span>
                           </th>
