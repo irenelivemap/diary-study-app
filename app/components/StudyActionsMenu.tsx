@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { archiveStudy, deleteStudy, restoreStudy } from '@/app/actions/studies'
+import { archiveStudy, deleteStudy, duplicateStudy, restoreStudy } from '@/app/actions/studies'
 
 type Props = {
   studyId: string
@@ -34,6 +34,11 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
     startTransition(() => restoreStudy(studyId))
   }
 
+  function handleDuplicate() {
+    setOpen(false)
+    startTransition(() => duplicateStudy(studyId))
+  }
+
   function handleDelete() {
     setOpen(false)
     if (!confirm(`Permanently delete "${studyName}" and all participant responses? This cannot be undone.`)) return
@@ -59,6 +64,14 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
           role="menu"
           className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl"
         >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleDuplicate}
+            className="flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Copy study
+          </button>
           {archived ? (
             <button
               type="button"
