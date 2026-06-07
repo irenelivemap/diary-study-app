@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Badge, Card, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionTag } from '@/app/actions/analysis'
+import { phaseSoftBadgeClass } from '@/app/lib/phase-colors'
 
 type Question = {
   id: string
@@ -1292,7 +1293,19 @@ function FreeTextAnswerList({
   )
 }
 
-function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: string; question: Question; rows: Row[]; index: number }) {
+function QuestionAnalysisCard({
+  studyId,
+  question,
+  rows,
+  index,
+  partIndex,
+}: {
+  studyId: string
+  question: Question
+  rows: Row[]
+  index: number
+  partIndex: number
+}) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
   const textAnswers = useMemo(() => question.type === 'FREE_TEXT' ? freeTextAnswers(question, rows) : [], [question, rows])
@@ -1428,7 +1441,9 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
           </span>
           <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge tone="info">{question.partName}</Badge>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium ${phaseSoftBadgeClass(partIndex)}`}>
+              {question.partName}
+            </span>
             <Badge tone="neutral">{questionTypeLabel(question.type, question.scaleType)}</Badge>
           </div>
           <h3 className="text-lg font-bold leading-snug text-slate-950">{question.text}</h3>
@@ -1761,7 +1776,14 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
 
       <div className="space-y-4">
         {filteredQuestions.map((question, index) => (
-          <QuestionAnalysisCard key={question.id} studyId={studyId} question={question} rows={filteredRows} index={index} />
+          <QuestionAnalysisCard
+            key={question.id}
+            studyId={studyId}
+            question={question}
+            rows={filteredRows}
+            index={index}
+            partIndex={Math.max(0, parts.findIndex((part) => part.id === question.partId))}
+          />
         ))}
         {filteredQuestions.length === 0 && (
           <Card>
