@@ -403,6 +403,124 @@ export async function restoreStudy(studyId: string) {
   revalidatePath('/admin')
 }
 
+export async function duplicateStudy(studyId: string) {
+  await requireAdmin()
+
+  const source = await prisma.study.findUnique({
+    where: { id: studyId },
+    include: {
+      parts: {
+        orderBy: { order: 'asc' },
+        include: {
+          questions: {
+            orderBy: { order: 'asc' },
+            include: { tagDefinitions: true },
+          },
+        },
+      },
+    },
+  })
+  if (!source) redirect('/admin')
+
+  const copiedStudy = await prisma.$transaction(async (tx) => {
+    const copy = await tx.study.create({
+      data: {
+        name: `Copy of ${source.name}`.slice(0, 160),
+        description: source.description,
+        consentText: source.consentText,
+        contactEmail: source.contactEmail,
+        mode: source.mode,
+        journeyName: source.journeyName,
+        isActive: false,
+        isArchived: false,
+        sequential: source.sequential,
+        reminderNote: source.reminderNote,
+        remindersEnabled: source.remindersEnabled,
+        reminderTime: source.reminderTime,
+        reminderDays: source.reminderDays,
+        reminderSubject: source.reminderSubject,
+        reminderBody: source.reminderBody,
+        participantEntryAccess: source.participantEntryAccess,
+        demographicFields: source.demographicFields,
+        version: 1,
+      },
+    })
+
+    const questionIdMap = new Map<string, string>()
+    const conditionalQuestions: Array<{ newQuestionId: string; oldSourceQuestionId: string; showIfValue: string }> = []
+
+    for (const part of source.parts) {
+      const copiedPart = await tx.part.create({
+        data: {
+          studyId: copy.id,
+          name: part.name,
+          order: part.order,
+          instructions: part.instructions,
+          flow: part.flow,
+          entryPolicy: part.entryPolicy,
+          targetEntries: part.targetEntries,
+          durationDays: part.durationDays,
+          dueDate: part.dueDate,
+          unlockRule: part.unlockRule,
+          unlockAt: part.unlockAt,
+          isActive: part.isActive,
+        },
+      })
+
+      for (const question of part.questions) {
+        const copiedQuestion = await tx.question.create({
+          data: {
+            partId: copiedPart.id,
+            studyId: copy.id,
+            page: question.page,
+            order: question.order,
+            text: question.text,
+            scaleType: question.scaleType,
+            type: question.type,
+            options: question.options,
+            required: question.required,
+            min: question.min,
+            max: question.max,
+            showIfQuestionId: null,
+            showIfValue: null,
+            tagDefinitions: {
+              create: question.tagDefinitions.map((tag) => ({
+                label: tag.label,
+                color: tag.color,
+              })),
+            },
+          },
+        })
+        questionIdMap.set(question.id, copiedQuestion.id)
+        if (question.showIfQuestionId && question.showIfValue) {
+          conditionalQuestions.push({
+            newQuestionId: copiedQuestion.id,
+            oldSourceQuestionId: question.showIfQuestionId,
+            showIfValue: question.showIfValue,
+          })
+        }
+      }
+    }
+
+    for (const condition of conditionalQuestions) {
+      const copiedSourceQuestionId = questionIdMap.get(condition.oldSourceQuestionId)
+      if (!copiedSourceQuestionId) continue
+      await tx.question.update({
+        where: { id: condition.newQuestionId },
+        data: {
+          showIfQuestionId: copiedSourceQuestionId,
+          showIfValue: condition.showIfValue,
+        },
+      })
+    }
+
+    return copy
+  })
+
+  revalidatePath('/admin')
+  redirect(`/admin/studies/${copiedStudy.id}/edit`)
+}
+
 export async function ensureInviteLink(studyId: string) {
   await requireAdmin()
   const study = await prisma.study.findUnique({ where: { id: studyId }, select: { inviteToken: true } })
