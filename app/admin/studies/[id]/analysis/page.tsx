@@ -4,6 +4,7 @@ import { prisma } from '@/app/lib/db'
 import AnalysisDashboard from '@/app/components/AnalysisDashboard'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
+import { plainTextFromHtml } from '@/app/lib/sanitize-html'
 
 export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -13,6 +14,10 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   const study = await prisma.study.findUnique({
     where: { id },
     include: {
+      participants: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { joinedAt: 'asc' },
+      },
       parts: {
         orderBy: { order: 'asc' },
         include: {
@@ -23,6 +28,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           entries: {
             include: {
               user: { select: { id: true, name: true, email: true } },
+              journey: { select: { id: true, label: true, completedAt: true, createdAt: true } },
               answers: {
                 include: {
                   tags: { include: { tag: true }, orderBy: { tag: { label: 'asc' } } },
@@ -42,7 +48,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
       id: question.id,
       partId: part.id,
       partName: part.name,
-      text: question.text.replace(/<[^>]*>/g, ''),
+      text: plainTextFromHtml(question.text),
       type: question.type,
       scaleType: question.scaleType,
       options: question.options,
@@ -64,6 +70,10 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
       participantId: entry.user.id,
       participantName: entry.user.name,
       participantEmail: entry.user.email,
+      journeyId: entry.journey?.id ?? null,
+      journeyLabel: entry.journey?.label ?? null,
+      journeyCompletedAt: entry.journey?.completedAt?.toISOString() ?? null,
+      journeyCreatedAt: entry.journey?.createdAt.toISOString() ?? null,
       date: entry.date,
       submittedAt: entry.submittedAt.toISOString(),
       timezone: entry.timezone,
@@ -72,6 +82,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
         {
           id: answer.id,
           value: answer.value,
+          wasShown: answer.wasShown,
           tags: answer.tags.map((answerTag) => ({
             id: answerTag.tag.id,
             label: answerTag.tag.label,
@@ -83,14 +94,11 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   )
 
   const parts = study.parts.map((part) => ({ id: part.id, name: part.name }))
-  const participants = Array.from(
-    new Map(
-      rows.map((row) => [
-        row.participantId,
-        { id: row.participantId, name: row.participantName, email: row.participantEmail },
-      ])
-    ).values()
-  )
+  const participants = study.participants.map((participant) => ({
+    id: participant.user.id,
+    name: participant.user.name,
+    email: participant.user.email,
+  }))
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
