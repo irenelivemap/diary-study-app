@@ -3,6 +3,7 @@ import { useActionState, useState, useRef, useEffect } from 'react'
 import RichTextEditor from './RichTextEditor'
 import { Button, IconButton, SwitchVisual, TextInput, TrashIcon } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
+import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 type Question = {
   id: string
@@ -394,9 +395,7 @@ export default function StudyForm({
                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
             }`}
             onClick={() => setActivePart(i)}>
-            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${
-              activePart === i ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
-            }`}>
+            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${phaseBadgeClass(i)}`}>
               PT {i + 1}
             </span>
             {renamingPart === p.id ? (
@@ -717,7 +716,7 @@ export default function StudyForm({
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               {/* Part header */}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
+                <span className={`rounded-lg px-2 py-1 text-xs font-bold ${phaseBadgeClass(activePart)}`}>
                   PT {activePart + 1}
                 </span>
                 <input value={part.name} onChange={(e) => updatePart(part.id, { name: e.target.value })}

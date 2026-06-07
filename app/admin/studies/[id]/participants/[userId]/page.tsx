@@ -6,8 +6,7 @@ import CopyTextButton from '@/app/components/CopyTextButton'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { demographicFieldLabel } from '@/app/lib/demographics'
-
-const PART_COLORS = ['bg-teal-500','bg-emerald-500','bg-green-700','bg-blue-500','bg-purple-500','bg-indigo-600']
+import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 function stripHtml(value: string) {
   return value
@@ -246,13 +245,15 @@ export default async function ParticipantEntriesPage({
           ) : (
             entriesByPart
               .filter(({ entries: partEntries }) => partEntries.length > 0)
-              .map(({ part, entries: partEntries, count }, partIndex) => (
+              .map(({ part, entries: partEntries, count }) => {
+                const partIndex = Math.max(0, participation.study.parts.findIndex((studyPart) => studyPart.id === part.id))
+                return (
                 <div key={part.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <div className="border-b border-slate-100 bg-white px-5 py-4 sm:px-6">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h4 className="text-lg font-bold text-slate-950">
-                          <span className={`mr-2 rounded-md px-2 py-1 text-xs font-bold text-white ${PART_COLORS[partIndex % PART_COLORS.length]}`}>PT {partIndex + 1}</span>
+                          <span className={`mr-2 rounded-md px-2 py-1 text-xs font-bold text-white ${phaseBadgeClass(partIndex)}`}>PT {partIndex + 1}</span>
                           {part.name}
                         </h4>
                         <p className="mt-1 text-sm text-slate-600">
@@ -342,7 +343,7 @@ export default async function ParticipantEntriesPage({
                     })}
                   </div>
                 </div>
-              ))
+              )})
           )}
         </section>
       </main>
