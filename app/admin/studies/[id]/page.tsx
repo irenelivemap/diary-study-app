@@ -131,14 +131,11 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-4">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Recruitment funnel</h2>
               <p className="text-sm text-slate-500">Track invited participants from email invite to completed study.</p>
             </div>
-            <ButtonLink href={`/admin/studies/${id}/participants`} tone="secondary" size="sm">
-              Open participants
-            </ButtonLink>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-fr">
             {[
@@ -215,11 +212,8 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
             </section>
 
             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="mb-4">
                 <h2 className="text-base font-semibold text-slate-900">Recent entries</h2>
-                <ButtonLink href={`/admin/studies/${id}/data`} tone="secondary" size="sm">
-                  Open data
-                </ButtonLink>
               </div>
               {recentEntries.length === 0 ? (
                 <p className="text-sm text-slate-500">No entries yet.</p>
