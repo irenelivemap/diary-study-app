@@ -1,12 +1,30 @@
 'use client'
-import { useActionState } from 'react'
+import { Suspense, useActionState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { login } from '@/app/actions/auth'
 import { Button, TextInput } from '@/app/components/ui'
 
 
-export default function LoginPage() {
+function LoginContent() {
   const [state, action, pending] = useActionState(login, null)
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? ''
+  const inviteToken = next.match(/^\/join\/([^/?#]+)/)?.[1] ?? ''
+  const externalParticipantId = (() => {
+    try {
+      const url = new URL(next, 'https://diari.local')
+      return url.searchParams.get('external_id') ?? ''
+    } catch {
+      return ''
+    }
+  })()
+  const signupHref = inviteToken
+    ? `/signup?${new URLSearchParams({
+        inviteToken,
+        ...(externalParticipantId ? { externalParticipantId } : {}),
+      }).toString()}`
+    : '/signup'
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -43,6 +61,7 @@ export default function LoginPage() {
           <p className="text-slate-500 text-sm mb-8">Sign in to your account</p>
 
           <form action={action} className="space-y-4">
+            {next && <input type="hidden" name="next" value={next} />}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
               <TextInput name="email" type="email" required autoComplete="email"
@@ -67,10 +86,18 @@ export default function LoginPage() {
 
           <p className="mt-6 text-sm text-slate-500 text-center">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-indigo-600 font-medium hover:underline">Sign up</Link>
+            <Link href={signupHref} className="text-indigo-600 font-medium hover:underline">Sign up</Link>
           </p>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   )
 }

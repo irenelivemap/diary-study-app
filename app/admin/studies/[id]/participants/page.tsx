@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
+import { appBaseUrl } from '@/app/lib/email'
 import AddParticipantForm from '@/app/components/AddParticipantForm'
 import InviteLinkCard from '@/app/components/InviteLinkCard'
 import NavBar from '@/app/components/NavBar'
@@ -294,7 +295,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 <h2 className="text-base font-semibold text-slate-800">Invite link</h2>
                 <p className="text-sm text-slate-400 mt-0.5">Share this so participants can join after signing in.</p>
               </div>
-              <InviteLinkCard studyId={id} initialToken={study.inviteToken} embedded />
+              <InviteLinkCard studyId={id} initialToken={study.inviteToken} baseUrl={appBaseUrl()} embedded />
             </section>
           </aside>
         </div>
