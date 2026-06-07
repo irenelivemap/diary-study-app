@@ -27,12 +27,6 @@ export const DEMOGRAPHIC_FIELDS = [
     type: 'text',
   },
   {
-    key: 'device',
-    label: 'Main device used for the study',
-    type: 'select',
-    options: ['iPhone', 'Android phone', 'Tablet', 'Computer', 'Other'],
-  },
-  {
     key: 'accessibilityNeeds',
     label: 'Accessibility needs',
     type: 'textarea',
