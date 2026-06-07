@@ -14,6 +14,7 @@ export default async function JoinStudyPage({
   const { token } = await params
   const query = await searchParams
   const externalParticipantId = String(query.external_id ?? query.participant_id ?? query.tt_id ?? '').trim().slice(0, 120)
+  const joinPath = `/join/${token}${externalParticipantId ? `?${new URLSearchParams({ external_id: externalParticipantId }).toString()}` : ''}`
   const session = await getSession()
   const invitation = await prisma.studyInvitation.findUnique({
     where: { token },
@@ -48,7 +49,11 @@ export default async function JoinStudyPage({
           </form>
         ) : (
           <div className="mt-6 space-y-3">
-            <ButtonLink href="/login" className="w-full" size="lg">
+            <ButtonLink
+              href={`/login?${new URLSearchParams({ next: joinPath }).toString()}`}
+              className="w-full"
+              size="lg"
+            >
               Sign in to join
             </ButtonLink>
             <ButtonLink

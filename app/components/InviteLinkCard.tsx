@@ -3,11 +3,22 @@ import { useState, useTransition } from 'react'
 import { ensureInviteLink } from '@/app/actions/studies'
 import { Button } from '@/app/components/ui'
 
-export default function InviteLinkCard({ studyId, initialToken, embedded = false }: { studyId: string; initialToken?: string | null; embedded?: boolean }) {
+export default function InviteLinkCard({
+  studyId,
+  initialToken,
+  embedded = false,
+  baseUrl = '',
+}: {
+  studyId: string
+  initialToken?: string | null
+  embedded?: boolean
+  baseUrl?: string
+}) {
   const [token, setToken] = useState(initialToken ?? '')
   const [copied, setCopied] = useState(false)
   const [pending, startTransition] = useTransition()
-  const link = token ? `/join/${token}` : ''
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+  const link = token ? `${normalizedBaseUrl || ''}/join/${token}` : ''
 
   function createLink() {
     startTransition(async () => {

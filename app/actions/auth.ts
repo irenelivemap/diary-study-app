@@ -20,9 +20,16 @@ function profileName(firstName: string, lastName: string, fallback: string) {
   return fullName || fallback.trim()
 }
 
+function safeRedirectPath(value: FormDataEntryValue | null) {
+  const path = String(value ?? '').trim()
+  if (!path || !path.startsWith('/') || path.startsWith('//')) return null
+  return path.slice(0, 500)
+}
+
 export async function login(prevState: { error?: string } | null, formData: FormData) {
   const email = normalizeEmail(formData.get('email'))
   const password = String(formData.get('password') ?? '')
+  const nextPath = safeRedirectPath(formData.get('next'))
 
   if (!email || !password) {
     return { error: 'Email and password are required.' }
@@ -44,7 +51,7 @@ export async function login(prevState: { error?: string } | null, formData: Form
 
   await createSession({ userId: user.id, role: user.role, name: user.name, email: user.email })
 
-  redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard')
+  redirect(nextPath ?? (user.role === 'ADMIN' ? '/admin' : '/dashboard'))
 }
 
 export async function signup(prevState: { error?: string } | null, formData: FormData) {
