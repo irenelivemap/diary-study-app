@@ -532,7 +532,7 @@ export default async function DashboardPage() {
                                         tone={isRecommended ? 'primary' : 'secondary'}
                                         size="sm"
                                       >
-                                        Answer now
+                                        Answer
                                       </ButtonLink>
                                     )}
                                   </div>
