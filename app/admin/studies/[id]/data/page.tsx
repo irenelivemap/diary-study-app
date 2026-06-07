@@ -14,6 +14,10 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
   const study = await prisma.study.findUnique({
     where: { id },
     include: {
+      participants: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { joinedAt: 'asc' },
+      },
       parts: {
         orderBy: { order: 'asc' },
         include: {
@@ -61,6 +65,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
       submittedAt: e.submittedAt.toISOString(),
       timezone: e.timezone,
       answers: Object.fromEntries(e.answers.map((a) => [a.questionId, a.value])),
+      answerShown: Object.fromEntries(e.answers.map((a) => [a.questionId, a.wasShown])),
       answerTags: Object.fromEntries(e.answers.map((a) => [
         a.questionId,
         a.tags.map((answerTag) => answerTag.tag.label),
@@ -70,11 +75,11 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
 
   const parts = study.parts.map((p) => ({ id: p.id, name: p.name }))
 
-  const participants = Array.from(
-    new Map(
-      allRows.map((r) => [r.participantId, { id: r.participantId, name: r.participantName, email: r.participantEmail }])
-    ).values()
-  )
+  const participants = study.participants.map((participant) => ({
+    id: participant.user.id,
+    name: participant.user.name,
+    email: participant.user.email,
+  }))
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">

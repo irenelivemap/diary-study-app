@@ -21,7 +21,7 @@ type Question = {
 type Part = { id: string; name: string }
 type Participant = { id: string; name: string; email: string }
 type TagDefinition = { id: string; label: string; color: string }
-type AnswerCell = { id: string; value: string; tags: TagDefinition[] }
+type AnswerCell = { id: string; value: string; wasShown: boolean; tags: TagDefinition[] }
 type Row = {
   entryId: string
   partId: string
@@ -29,6 +29,10 @@ type Row = {
   participantId: string
   participantName: string
   participantEmail: string
+  journeyId?: string | null
+  journeyLabel?: string | null
+  journeyCompletedAt?: string | null
+  journeyCreatedAt?: string | null
   date: string
   submittedAt: string
   timezone: string | null
@@ -47,6 +51,7 @@ type Props = {
 type DataPoint = { label: string; value: number }
 type ScalePoint = { score: number; label: string; count: number }
 type ScaleBin = { label: string; start: number; end: number; count: number }
+type AnalysisResult = ReturnType<typeof buildAnalysis>
 
 function ExportMenu({
   onPng,
@@ -162,13 +167,12 @@ function parseMultiChoiceValue(value: string) {
   return value ? [value] : []
 }
 
-function multipleChoiceStats(question: Question, points: DataPoint[]) {
-  const total = points.reduce((sum, point) => sum + point.value, 0)
+function multipleChoiceStats(question: Question, points: DataPoint[], respondentDenominator: number) {
   const sorted = [...points].sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
   const top = sorted[0] ?? null
   const runnerUp = sorted[1] ?? null
-  const topPct = total && top ? Math.round((top.value / total) * 100) : 0
-  const runnerUpPct = total && runnerUp ? Math.round((runnerUp.value / total) * 100) : 0
+  const topPct = respondentDenominator && top ? Math.round((top.value / respondentDenominator) * 100) : 0
+  const runnerUpPct = respondentDenominator && runnerUp ? Math.round((runnerUp.value / respondentDenominator) * 100) : 0
   const tiedTopCount = top?.value ? sorted.filter((point) => point.value === top.value).length : 0
   const optionCount = Math.max(
     points.length,
@@ -315,10 +319,21 @@ function exportPng(svg: SVGSVGElement | null, filename: string) {
   image.src = url
 }
 
+function eligibleRowsForQuestion(question: Question, rows: Row[]) {
+  return rows.filter((row) => {
+    if (row.partId !== question.partId) return false
+    const answer = row.answers[question.id]
+    return answer?.wasShown !== false
+  })
+}
+
 function buildAnalysis(question: Question, rows: Row[]) {
-  const values = rows.map((row) => answerValue(row.answers[question.id])).filter(Boolean)
+  const eligibleRows = eligibleRowsForQuestion(question, rows)
+  const notShown = rows.filter((row) => row.partId === question.partId && row.answers[question.id]?.wasShown === false).length
+  const values = eligibleRows.map((row) => answerValue(row.answers[question.id])).filter(Boolean)
   const answered = values.length
-  const missing = Math.max(0, rows.length - answered)
+  const eligible = eligibleRows.length
+  const missing = Math.max(0, eligible - answered)
   const numeric = values.map(Number).filter((value) => Number.isFinite(value))
   const min = question.min ?? (numeric.length ? Math.min(...numeric) : 1)
   const max = question.max ?? (numeric.length ? Math.max(...numeric) : 7)
@@ -339,8 +354,10 @@ function buildAnalysis(question: Question, rows: Row[]) {
     const high = numeric.filter((value) => scaleBand(value, min, max) === 'high').length
     return {
       values,
+      eligible,
       answered,
       missing,
+      notShown,
       numeric,
       points: scalePoints.map((point) => ({ label: String(point.score), value: point.count })),
       scalePoints,
@@ -360,14 +377,14 @@ function buildAnalysis(question: Question, rows: Row[]) {
 
   if (question.type === 'YES_NO') {
     const points = ['Yes', 'No'].map((label) => ({ label, value: values.filter((value) => value === label).length }))
-    return { values, answered, missing, numeric, points, mean: null, median: null, examples: [] as string[] }
+    return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
   }
 
   if (question.type === 'SCREENSHOT') {
     const points = [
       { label: 'Uploaded', value: answered },
     ]
-    return { values, answered, missing, numeric, points, mean: null, median: null, examples: [] as string[] }
+    return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
   }
 
   if (question.type === 'DATE_TIME') {
@@ -377,24 +394,24 @@ function buildAnalysis(question: Question, rows: Row[]) {
     })
     const points = topCounts(localHours)
       .sort((a, b) => a.label.localeCompare(b.label))
-    return { values, answered, missing, numeric, points, mean: null, median: null, examples: [] as string[] }
+    return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
   }
 
   if (question.type === 'FREE_TEXT') {
     const points = [
       { label: 'Answered', value: answered },
     ]
-    return { values, answered, missing, numeric, points, mean: null, median: null, examples: values.slice(0, 5) }
+    return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: values.slice(0, 5) }
   }
 
   const points = question.type === 'MULTIPLE_CHOICE'
     ? topCounts(values.flatMap(parseMultiChoiceValue))
     : topCounts(values)
-  return { values, answered, missing, numeric, points, mean: null, median: null, examples: [] as string[] }
+  return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
 }
 
 function freeTextAnswers(question: Question, rows: Row[]) {
-  return rows
+  return eligibleRowsForQuestion(question, rows)
     .map((row) => ({
       entryId: row.entryId,
       participantName: row.participantName,
@@ -444,7 +461,7 @@ function RatingScaleSvg({
   yAxisStep,
 }: {
   question: Question
-  analysis: ReturnType<typeof buildAnalysis>
+  analysis: AnalysisResult
   svgRef: React.RefObject<SVGSVGElement | null>
   title: string
   subtitle: string
@@ -592,7 +609,7 @@ function YesNoPieSvg({
   title,
   subtitle,
 }: {
-  analysis: ReturnType<typeof buildAnalysis>
+  analysis: AnalysisResult
   svgRef: React.RefObject<SVGSVGElement | null>
   title: string
   subtitle: string
@@ -734,12 +751,14 @@ function PlotSvg({
   points,
   mean,
   svgRef,
+  denominator,
 }: {
   title: string
   subtitle: string
   points: DataPoint[]
   mean?: number | null
   svgRef: React.RefObject<SVGSVGElement | null>
+  denominator?: number
 }) {
   const width = 760
   const safeLeft = 22
@@ -759,7 +778,7 @@ function PlotSvg({
   const chartRight = valueX - valueColumnWidth
   const chartBodyHeight = rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0)
   const height = Math.max(hasTitle || hasSubtitle ? 220 : 170, top + chartBodyHeight + (mean != null ? 38 : 20))
-  const total = points.reduce((sum, point) => sum + point.value, 0)
+  const total = denominator ?? points.reduce((sum, point) => sum + point.value, 0)
   const percentages = points.map((point) => total ? Math.round((point.value / total) * 100) : 0)
   const topCount = Math.max(...points.map((point) => point.value), 0)
   const chartWidth = Math.max(120, chartRight - left)
@@ -819,6 +838,98 @@ function PlotSvg({
   )
 }
 
+function ScreenshotSummaryCard({ questions, rows }: { questions: Question[]; rows: Row[] }) {
+  if (!questions.length) return null
+
+  return (
+    <Card>
+      <div className="mb-3">
+        <h3 className="text-lg font-bold text-slate-950">Screenshot uploads</h3>
+        <p className="text-sm text-slate-600">Upload questions are reviewed as files, so they are summarized here instead of plotted.</p>
+      </div>
+      <div className="space-y-2">
+        {questions.map((question) => {
+          const analysis = buildAnalysis(question, rows)
+          return (
+            <div key={question.id} className="grid gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_120px] sm:items-center">
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-slate-900" title={question.text}>{question.text}</p>
+                <p className="text-sm text-slate-600">{question.partName}</p>
+              </div>
+              <p className="text-sm font-semibold text-slate-700 sm:text-right">{analysis.answered}/{analysis.eligible} uploaded</p>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
+  )
+}
+
+function JourneySummaryCard({ rows }: { rows: Row[] }) {
+  const journeys = Array.from(
+    rows.reduce((map, row) => {
+      if (!row.journeyId) return map
+      const current = map.get(row.journeyId) ?? {
+        id: row.journeyId,
+        label: row.journeyLabel || 'Journey',
+        participantName: row.participantName,
+        completedAt: row.journeyCompletedAt,
+        submittedParts: new Set<string>(),
+        latestSubmittedAt: row.submittedAt,
+      }
+      current.submittedParts.add(row.partId)
+      if (row.submittedAt > current.latestSubmittedAt) current.latestSubmittedAt = row.submittedAt
+      if (row.journeyCompletedAt) current.completedAt = row.journeyCompletedAt
+      map.set(row.journeyId, current)
+      return map
+    }, new Map<string, { id: string; label: string; participantName: string; completedAt?: string | null; submittedParts: Set<string>; latestSubmittedAt: string }>())
+      .values()
+  ).map((journey) => ({
+    ...journey,
+    stageCount: journey.submittedParts.size,
+  }))
+
+  if (!journeys.length) return null
+
+  const completed = journeys.filter((journey) => journey.completedAt).length
+  const averageStages = journeys.reduce((sum, journey) => sum + journey.stageCount, 0) / journeys.length
+  const latest = journeys
+    .slice()
+    .sort((a, b) => b.latestSubmittedAt.localeCompare(a.latestSubmittedAt))
+    .slice(0, 5)
+
+  return (
+    <Card>
+      <div className="mb-4">
+        <h3 className="text-lg font-bold text-slate-950">Journey continuity</h3>
+        <p className="text-sm text-slate-600">Use this to see whether stages are being captured together within the same real-world journey.</p>
+      </div>
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-slate-50 p-3">
+          <p className="text-2xl font-bold text-slate-950">{journeys.length}</p>
+          <p className="text-sm text-slate-600">Journeys started</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3">
+          <p className="text-2xl font-bold text-slate-950">{completed}</p>
+          <p className="text-sm text-slate-600">Completed journeys</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3">
+          <p className="text-2xl font-bold text-slate-950">{formatNumber(averageStages)}</p>
+          <p className="text-sm text-slate-600">Avg. stages submitted</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {latest.map((journey) => (
+          <div key={journey.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2 text-sm">
+            <span className="font-semibold text-slate-800">{journey.label}</span>
+            <span className="text-slate-600">{journey.participantName} · {journey.stageCount} stages</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 function FreeTextAnswerList({
   studyId,
   questionId,
@@ -850,6 +961,7 @@ function FreeTextAnswerList({
     tag,
     count: answers.filter((answer) => (tagIdsByAnswer[answer.answerId] ?? []).includes(tag.id)).length,
   }))
+  const untaggedCount = answers.filter((answer) => (tagIdsByAnswer[answer.answerId] ?? []).length === 0).length
   const maxTagCount = Math.max(...tagCounts.map((tag) => tag.count), 1)
   const filteredAnswers = tagFilter === 'all'
     ? answers
@@ -1005,7 +1117,7 @@ function FreeTextAnswerList({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h4 className="font-bold text-slate-950">Tag summary</h4>
-              <p className="mt-1 text-sm text-slate-600">Percent of free-text answers tagged with each theme.</p>
+              <p className="mt-1 text-sm text-slate-600">Tags can overlap, so percentages may add to more than 100%.</p>
             </div>
             <div className="w-full sm:w-56">
               <SelectMenu
@@ -1020,6 +1132,16 @@ function FreeTextAnswerList({
             </div>
           </div>
           <div className="mt-4 space-y-3">
+            <div className="grid w-full grid-cols-[minmax(120px,180px)_minmax(0,1fr)_48px] items-center gap-3 rounded-xl px-2 py-1 text-left">
+              <span className="truncate text-sm font-semibold text-slate-700">Untagged</span>
+              <span className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <span
+                  className="block h-full rounded-full bg-slate-400"
+                  style={{ width: `${answers.length ? Math.max(6, (untaggedCount / answers.length) * 100) : 0}%` }}
+                />
+              </span>
+              <span className="text-right text-sm font-bold text-slate-900">{answers.length ? Math.round((untaggedCount / answers.length) * 100) : 0}%</span>
+            </div>
             {tagCounts.map(({ tag, count }) => {
               const pct = answers.length ? Math.round((count / answers.length) * 100) : 0
               return (
@@ -1181,8 +1303,8 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
     return `${question.id}:${tagSignature}:${answerSignature}`
   }, [question, textAnswers])
   const choiceStats = useMemo(
-    () => question.type === 'MULTIPLE_CHOICE' ? multipleChoiceStats(question, analysis.points) : null,
-    [question, analysis.points]
+    () => question.type === 'MULTIPLE_CHOICE' ? multipleChoiceStats(question, analysis.points, analysis.answered) : null,
+    [question, analysis.points, analysis.answered]
   )
   const singleStats = useMemo(
     () => question.type === 'SINGLE_CHOICE' ? singleChoiceStats(analysis.points) : null,
@@ -1190,9 +1312,12 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
   )
   const filename = `${String(index + 1).padStart(2, '0')}_${slugify(question.text)}`
   const defaultPlotTitle = ''
-  const defaultPlotSubtitle = question.type === 'RATING' || question.type === 'YES_NO'
-    ? 'Percent of answered responses'
-    : ''
+  const defaultPlotSubtitle =
+    question.type === 'MULTIPLE_CHOICE'
+      ? 'Percent of respondents selecting each option'
+      : question.type === 'SINGLE_CHOICE' || question.type === 'RATING' || question.type === 'YES_NO' || question.type === 'DATE_TIME'
+        ? 'Percent of answered responses'
+        : ''
   const [plotTitle, setPlotTitle] = useState(defaultPlotTitle)
   const [plotSubtitle, setPlotSubtitle] = useState(defaultPlotSubtitle)
   const [isEditingLabels, setIsEditingLabels] = useState(false)
@@ -1211,9 +1336,20 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
   const hasSidePanel = question.type !== 'FREE_TEXT' && question.type !== 'RATING' && question.type !== 'YES_NO' && analysis.examples.length > 0
 
   function exportCsv() {
+    const metadataHeader = ['study_exported_at', 'question_id', 'part', 'eligible_n', 'answered_n', 'missing_n', 'not_shown_n']
+    const metadataValues = [
+      new Date().toISOString(),
+      question.id,
+      question.partName,
+      String(analysis.eligible),
+      String(analysis.answered),
+      String(analysis.missing),
+      String(analysis.notShown),
+    ]
     if (question.type === 'FREE_TEXT') {
-      const header = ['question', 'participant_name', 'participant_email', 'entry_date', 'submitted_at', 'answer', 'tags']
+      const header = [...metadataHeader, 'question', 'participant_name', 'participant_email', 'entry_date', 'submitted_at', 'answer', 'tags']
       const rows = textAnswers.map((answer) => [
+        ...metadataValues.map(csvEscape),
         csvEscape(question.text),
         csvEscape(answer.participantName),
         csvEscape(answer.participantEmail),
@@ -1227,8 +1363,8 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
     }
 
     const header = question.type === 'RATING'
-      ? ['question', 'type', 'scale_value_or_bin', 'label', 'count', 'mean', 'median', 'q1', 'q3', 'peak', 'low_count', 'middle_count', 'high_count']
-      : ['question', 'type', 'label', 'count']
+      ? [...metadataHeader, 'question', 'type', 'scale_value_or_bin', 'label', 'count', 'percent', 'mean', 'median', 'q1', 'q3', 'peak', 'low_count', 'middle_count', 'high_count']
+      : [...metadataHeader, 'question', 'type', 'label', 'count', 'percent']
     const rows = question.type === 'RATING'
       ? (analysis.shouldBin
         ? (analysis.ratingBins ?? []).map((bin) => ({
@@ -1242,11 +1378,13 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
           count: point.count,
         }))
       ).map((point) => [
+        ...metadataValues.map(csvEscape),
         csvEscape(question.text),
         csvEscape(questionTypeLabel(question.type, question.scaleType)),
         csvEscape(point.value),
         csvEscape(point.label),
         String(point.count),
+        analysis.answered ? String(Math.round((point.count / analysis.answered) * 100)) : '0',
         formatNumber(analysis.mean),
         formatNumber(analysis.median),
         formatNumber(analysis.q1),
@@ -1257,10 +1395,12 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
         String(analysis.polarity?.high ?? 0),
       ].join(','))
       : analysis.points.map((point) => [
+        ...metadataValues.map(csvEscape),
         csvEscape(question.text),
         csvEscape(questionTypeLabel(question.type, question.scaleType)),
         csvEscape(point.label),
         String(point.value),
+        String(Math.round((point.value / Math.max(question.type === 'MULTIPLE_CHOICE' ? analysis.answered : analysis.points.reduce((sum, current) => sum + current.value, 0), 1)) * 100)),
       ].join(','))
     downloadBlob(new Blob([[header.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' }), `${filename}.csv`)
   }
@@ -1442,6 +1582,7 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
               title={plotTitle || defaultPlotTitle}
               subtitle={plotSubtitle || defaultPlotSubtitle}
               points={analysis.points}
+              denominator={analysis.answered}
             />
           </div>
         ) : question.type === 'MULTIPLE_CHOICE' ? (
@@ -1473,6 +1614,7 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
               title={plotTitle || defaultPlotTitle}
               subtitle={plotSubtitle || defaultPlotSubtitle}
               points={analysis.points}
+              denominator={analysis.answered}
             />
           </div>
         ) : (
@@ -1481,6 +1623,7 @@ function QuestionAnalysisCard({ studyId, question, rows, index }: { studyId: str
             title={plotTitle || defaultPlotTitle}
             subtitle={plotSubtitle || defaultPlotSubtitle}
             points={analysis.points}
+            denominator={analysis.answered}
           />
         )}
         {hasSidePanel && <div className="space-y-3">
@@ -1511,6 +1654,10 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
     () => questions.filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT'),
     [questions]
   )
+  const screenshotQuestions = useMemo(
+    () => questions.filter((question) => question.type === 'SCREENSHOT'),
+    [questions]
+  )
   const [partId, setPartId] = useState('all')
   const [participantId, setParticipantId] = useState('all')
   const [questionType, setQuestionType] = useState('all')
@@ -1532,10 +1679,15 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
     return true
   }), [answerQuestions, partId, questionType])
 
-  const answeredValues = filteredQuestions.reduce((sum, question) => {
-    return sum + filteredRows.filter((row) => answerValue(row.answers[question.id])).length
-  }, 0)
-  const possibleValues = filteredQuestions.length * filteredRows.length
+  const coverageTotals = filteredQuestions.reduce((totals, question) => {
+    const analysis = buildAnalysis(question, filteredRows)
+    return {
+      answered: totals.answered + analysis.answered,
+      eligible: totals.eligible + analysis.eligible,
+    }
+  }, { answered: 0, eligible: 0 })
+  const answeredValues = coverageTotals.answered
+  const possibleValues = coverageTotals.eligible
   const coverage = possibleValues ? Math.round((answeredValues / possibleValues) * 100) : 0
 
   return (
@@ -1601,6 +1753,11 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
           <p className="text-sm text-slate-600">Answer coverage</p>
         </Card>
       </div>
+
+      <JourneySummaryCard rows={filteredRows} />
+      {questionType === 'all' && (
+        <ScreenshotSummaryCard questions={screenshotQuestions.filter((question) => partId === 'all' || question.partId === partId)} rows={filteredRows} />
+      )}
 
       <div className="space-y-4">
         {filteredQuestions.map((question, index) => (

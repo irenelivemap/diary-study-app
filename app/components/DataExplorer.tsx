@@ -19,6 +19,7 @@ type Row = {
   submittedAt: string
   timezone: string | null
   answers: Record<string, string>
+  answerShown?: Record<string, boolean>
   answerTags?: Record<string, string[]>
 }
 
@@ -33,6 +34,7 @@ type Props = {
 }
 
 const BASE_COLUMNS = [
+  { id: 'entryId', label: 'Entry ID' },
   { id: 'participant', label: 'Participant' },
   { id: 'email', label: 'Email' },
   { id: 'journey', label: 'Journey' },
@@ -112,7 +114,13 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const [selectedQuestionCols, setSelectedQuestionCols] = useState<Set<string>>(new Set(answerQuestions.map((q) => q.id)))
   const [anonymize, setAnonymize] = useState(false)
   const [entryToDelete, setEntryToDelete] = useState<Row | null>(null)
+  const [search, setSearch] = useState('')
   const showJourney = rows.some((row) => row.journeyId || row.journeyLabel)
+  const participantAliasById = useMemo(() => new Map(
+    [...participants]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((participant, index) => [participant.id, `P${String(index + 1).padStart(3, '0')}`])
+  ), [participants])
 
   function toggle<T>(set: Set<T>, val: T): Set<T> {
     const next = new Set(set)
@@ -129,8 +137,22 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
     if (!selectedParticipants.has(r.participantId)) return false
     if (dateFrom && r.date < dateFrom) return false
     if (dateTo && r.date > dateTo) return false
+    if (search.trim()) {
+      const query = search.trim().toLowerCase()
+      const haystack = [
+        r.entryId,
+        r.participantName,
+        r.participantEmail,
+        r.journeyLabel ?? '',
+        r.partName,
+        r.date,
+        ...Object.values(r.answers),
+        ...Object.values(r.answerTags ?? {}).flat(),
+      ].join(' ').toLowerCase()
+      if (!haystack.includes(query)) return false
+    }
     return true
-  }), [rows, selectedParts, selectedParticipants, dateFrom, dateTo])
+  }), [rows, selectedParts, selectedParticipants, dateFrom, dateTo, search])
 
   const selectedQuestions = answerQuestions.filter((q) => selectedQuestionCols.has(q.id))
 
@@ -175,11 +197,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
     })
     const headers = [...baseHeaders, ...questionHeaders]
     const csvRows = filteredRows.map((r) => {
-      const participantIndex = participants.findIndex((p) => p.id === r.participantId) + 1
       const baseValues = BASE_COLUMNS.flatMap((col) => {
         if (!showJourney && col.id === 'journey') return []
         if (!selectedBaseCols.has(col.id)) return []
-        if (col.id === 'participant') return [anonymize ? `P${String(participantIndex).padStart(3, '0')}` : r.participantName]
+        if (col.id === 'entryId') return [r.entryId]
+        if (col.id === 'participant') return [anonymize ? participantAliasById.get(r.participantId) ?? 'P000' : r.participantName]
         if (col.id === 'email') return anonymize ? [] : [r.participantEmail]
         if (col.id === 'journey') return [r.journeyLabel || r.journeyId || '']
         if (col.id === 'part') return [r.partName]
@@ -191,7 +213,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
       return [
       ...baseValues,
       ...selectedQuestions.flatMap((q) => {
-        const answer = formatAnswerValue(r.answers[q.id] ?? '', q.type)
+        const answer = r.answerShown?.[q.id] === false ? 'Not shown' : formatAnswerValue(r.answers[q.id] ?? '', q.type)
         if (q.type !== 'FREE_TEXT') return [answer]
         const tags = (r.answerTags?.[q.id] ?? []).join('; ')
         return [answer, tags]
@@ -210,6 +232,12 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
       {/* ── Toolbar ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
+          <TextInput
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search data"
+            className="w-48 bg-white"
+          />
           {/* Parts filter */}
           <Dropdown label="Parts" badge={partFilterBadge}>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Parts</p>
@@ -294,9 +322,9 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Download columns</p>
+              <p className="text-sm font-semibold text-slate-800">Export columns</p>
               <p className="text-sm text-slate-500">
-                {selectedColumnCount} of {totalColumnCount} columns selected.
+                {selectedColumnCount} of {totalColumnCount} columns selected for CSV export.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -329,6 +357,15 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="px-4 py-2 bg-slate-50 sticky left-0 z-10 border-r border-slate-100 min-w-[130px]">
+                    <input
+                      type="checkbox"
+                      checked={baseColumnSelected('entryId')}
+                      onChange={() => toggleBaseColumn('entryId')}
+                      aria-label="Include entry ID in download"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                  </th>
+                  <th className="px-4 py-2 bg-slate-50 min-w-[130px]">
                     <input
                       type="checkbox"
                       checked={baseColumnSelected('participant')}
@@ -419,6 +456,9 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                 </tr>
                 <tr className="border-b-2 border-slate-100">
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap sticky left-0 z-10 border-r border-slate-100 min-w-[130px]">
+                    <span className={`${baseColumnSelected('entryId') ? '' : 'opacity-45'}`}>Entry ID</span>
+                  </th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[130px]">
                     <span className={`${baseColumnSelected('participant') ? '' : 'opacity-45'}`}>Participant</span>
                   </th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap hidden md:table-cell min-w-[160px]">
@@ -464,7 +504,10 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
               <tbody className="divide-y divide-slate-50">
                 {filteredRows.map((row, ri) => (
                   <tr key={row.entryId} className={`hover:bg-indigo-50/30 transition-colors ${ri % 2 === 0 ? '' : 'bg-slate-50/40'}`}>
-                    <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap sticky left-0 border-r border-slate-100 z-10 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${baseColumnSelected('participant') ? '' : 'opacity-60'}`}>
+                    <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap sticky left-0 border-r border-slate-100 z-10 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${baseColumnSelected('entryId') ? '' : 'opacity-60'}`}>
+                      <span className={`${baseColumnSelected('entryId') ? '' : 'opacity-60'}`}>{row.entryId.slice(0, 10)}</span>
+                    </td>
+                    <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap ${baseColumnSelected('participant') ? '' : 'opacity-60'}`}>
                       {row.participantName}
                     </td>
                     <td className={`px-4 py-3 text-slate-400 whitespace-nowrap text-xs hidden md:table-cell ${baseColumnSelected('email') ? '' : 'bg-slate-50/50 opacity-60'}`}>
@@ -493,10 +536,13 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                       {studyVersion}
                     </td>
                     {answerQuestions.map((q) => {
-                      const val = formatAnswerValue(row.answers[q.id] ?? '', q.type)
+                      const wasShown = row.answerShown?.[q.id] !== false
+                      const val = wasShown ? formatAnswerValue(row.answers[q.id] ?? '', q.type) : 'Not shown'
                       return (
                         <td key={q.id} className={`px-4 py-3 text-slate-700 max-w-[220px] align-top ${selectedQuestionCols.has(q.id) ? '' : 'bg-slate-50/50 opacity-60'}`}>
-                          {q.type === 'SCREENSHOT' ? (
+                          {!wasShown ? (
+                            <span className="text-xs font-medium text-slate-400">Not shown</span>
+                          ) : q.type === 'SCREENSHOT' ? (
                             val
                               ? <a href={val} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline text-xs">View</a>
                               : <span className="text-slate-200">—</span>
@@ -530,7 +576,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
             <p className="text-xs text-slate-400">
               {filteredRows.length} {filteredRows.length === 1 ? 'entry' : 'entries'} · {selectedColumnCount} columns selected for download
             </p>
-            <p className="text-xs text-slate-400 hidden sm:block">Use the checkboxes above each column to choose export columns</p>
+            <p className="text-xs text-slate-400 hidden sm:block">The table remains visible; checkboxes choose CSV export columns</p>
           </div>
         </div>
       )}
