@@ -29,7 +29,7 @@ export default function InviteLinkCard({
 
   async function copyLink() {
     if (!token) return
-    await navigator.clipboard.writeText(`${window.location.origin}/join/${token}`)
+    await navigator.clipboard.writeText(link || `${window.location.origin}/join/${token}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
