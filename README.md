@@ -111,14 +111,33 @@ npm run smoke
 
 The smoke check confirms public auth pages load, protected pages redirect to login, the reminder endpoint is protected, and the optional invite link renders.
 
-For a deeper participant-flow check, seed stable QA fixtures and run the authenticated flow:
+For the full QA pass, seed stable QA fixtures and run the public, participant, and admin checks:
+
+```bash
+QA_BASE_URL="https://diary-study-app.vercel.app" npm run qa
+```
+
+This creates two clearly named QA studies, a participant account, and checks the public auth pages, participant dashboard, profile return path, simple and journey entries, researcher pages, data table, analysis page, and CSV export. Use a database and app URL that point to the same environment.
+
+If you need to debug a specific layer, run the pieces separately:
 
 ```bash
 npm run qa:seed
+QA_BASE_URL="https://diary-study-app.vercel.app" npm run smoke
 QA_BASE_URL="https://diary-study-app.vercel.app" npm run qa:flow
 ```
 
-This creates two clearly named QA studies, a participant account, and checks that a participant can load their dashboard, cannot see researcher controls, cannot open admin, can return from profile, and can open simple and journey entry forms. Use a database and app URL that point to the same environment.
+To run the real browser check, which signs in as the QA participant and submits a simple entry through the UI:
+
+```bash
+QA_BASE_URL="https://diary-study-app.vercel.app" npm run qa:browser
+```
+
+If this is the first time running browser QA on a machine, install the Chromium browser once:
+
+```bash
+npx playwright install chromium
+```
 
 ## Screenshot uploads
 
