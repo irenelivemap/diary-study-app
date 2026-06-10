@@ -12,6 +12,8 @@
     "db:push": "prisma db push",
     "create-admin": "tsx scripts/create-admin.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "qa:seed": "tsx scripts/qa-seed.ts",
+    "qa:flow": "tsx scripts/qa-flow.ts",
     "send-reminders": "tsx scripts/send-reminders.ts",
     "seed-demo": "tsx scripts/seed-demo.ts",
     "seed-mock": "tsx scripts/seed-mock-data.ts",

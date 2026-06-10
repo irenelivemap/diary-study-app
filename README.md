@@ -111,6 +111,15 @@ npm run smoke
 
 The smoke check confirms public auth pages load, protected pages redirect to login, the reminder endpoint is protected, and the optional invite link renders.
 
+For a deeper participant-flow check, seed stable QA fixtures and run the authenticated flow:
+
+```bash
+npm run qa:seed
+QA_BASE_URL="https://diary-study-app.vercel.app" npm run qa:flow
+```
+
+This creates two clearly named QA studies, a participant account, and checks that a participant can load their dashboard, cannot see researcher controls, cannot open admin, can return from profile, and can open simple and journey entry forms. Use a database and app URL that point to the same environment.
+
 ## Screenshot uploads
 
 Screenshot uploads require `BLOB_READ_WRITE_TOKEN` from [Vercel Blob](https://vercel.com/docs/storage/vercel-blob). Without it, the upload API will fail. If you don't need screenshot questions, simply don't add screenshot-type questions to your studies.
