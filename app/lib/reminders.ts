@@ -117,6 +117,10 @@ function isPartUnlocked(
     .every((previous) => isPartComplete(previous, participant.user.id, countByPartUser))
 }
 
+function reminderDashboardUrl(appUrl: string) {
+  return `${appUrl.replace(/\/$/, '')}/dashboard`
+}
+
 function reminderEntryUrl(appUrl: string, studyId: string, partId: string, journeyId?: string | null) {
   const url = `${appUrl.replace(/\/$/, '')}/entry/new?studyId=${studyId}&partId=${partId}`
   return journeyId ? `${url}&journeyId=${journeyId}` : url
@@ -126,7 +130,7 @@ function emailSubject(study: StudyWithReminderData, part: ReminderPart) {
   return study.reminderSubject?.trim() || `Reminder: ${part.name} in ${study.name}`
 }
 
-function emailHtml(study: StudyWithReminderData, part: ReminderPart, participant: ReminderParticipant, entryUrl: string) {
+function emailHtml(study: StudyWithReminderData, part: ReminderPart, participant: ReminderParticipant, entryUrl: string, opensDashboard: boolean) {
   const body = study.reminderBody?.trim()
     || study.reminderNote?.trim()
     || `Please complete today's diary entry when you have a moment.`
@@ -144,7 +148,7 @@ function emailHtml(study: StudyWithReminderData, part: ReminderPart, participant
       <p><strong>Study:</strong> ${safeStudy}<br /><strong>Part:</strong> ${safePart}</p>
       <p style="margin: 28px 0;">
         <a href="${entryUrl}" style="background: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 10px; display: inline-block;">
-          Complete today's entry
+          ${opensDashboard ? 'Open diARI' : "Complete today's entry"}
         </a>
       </p>
       ${safeContact ? `<p style="font-size: 13px; color: #64748b;">Questions? Contact ${safeContact}.</p>` : ''}
@@ -152,7 +156,7 @@ function emailHtml(study: StudyWithReminderData, part: ReminderPart, participant
   `
 }
 
-function emailText(study: StudyWithReminderData, part: ReminderPart, participant: ReminderParticipant, entryUrl: string) {
+function emailText(study: StudyWithReminderData, part: ReminderPart, participant: ReminderParticipant, entryUrl: string, opensDashboard: boolean) {
   const body = study.reminderBody?.trim()
     || study.reminderNote?.trim()
     || `Please complete today's diary entry when you have a moment.`
@@ -165,7 +169,7 @@ function emailText(study: StudyWithReminderData, part: ReminderPart, participant
     `Study: ${study.name}`,
     `Part: ${part.name}`,
     '',
-    `Complete today's entry: ${entryUrl}`,
+    `${opensDashboard ? 'Open diARI' : "Complete today's entry"}: ${entryUrl}`,
     study.contactEmail ? `Questions? Contact ${study.contactEmail}.` : '',
   ].filter(Boolean).join('\n')
 }
@@ -212,7 +216,7 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
 
       const participantEntries = entries.filter((entry) => entry.userId === participant.user.id)
       const journeyStages = study.parts.filter((part) => part.isActive && isJourneyStage(part))
-      const candidateReminders: Array<{ part: ReminderPart; entryUrl: string }> = []
+      const candidateReminders: Array<{ part: ReminderPart; directEntryUrl: string; opensDashboard: boolean }> = []
 
       if (journeyStages.length > 0) {
         const openJourney = study.journeys.find((journey) => journey.userId === participant.user.id && !journey.completedAt)
@@ -235,7 +239,8 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
             }
             candidateReminders.push({
               part,
-              entryUrl: reminderEntryUrl(appUrl, study.id, part.id, openJourney.id),
+              directEntryUrl: reminderEntryUrl(appUrl, study.id, part.id, openJourney.id),
+              opensDashboard: true,
             })
             break
           }
@@ -243,6 +248,7 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
       }
 
       if (candidateReminders.length === 0) {
+        const standardCandidates: Array<{ part: ReminderPart; directEntryUrl: string }> = []
         for (const [partIndex, part] of study.parts.entries()) {
           if (isJourneyStage(part)) continue
           result.checked += 1
@@ -271,16 +277,23 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
             addSkip(result, 'already submitted today')
             continue
           }
-          candidateReminders.push({
+          standardCandidates.push({
             part,
-            entryUrl: reminderEntryUrl(appUrl, study.id, part.id),
+            directEntryUrl: reminderEntryUrl(appUrl, study.id, part.id),
           })
-          break
+        }
+        const firstStandardCandidate = standardCandidates[0]
+        if (firstStandardCandidate) {
+          candidateReminders.push({
+            ...firstStandardCandidate,
+            opensDashboard: journeyStages.length > 0 || standardCandidates.length > 1,
+          })
         }
       }
 
       if (candidateReminders.length === 0) continue
-      const { part, entryUrl } = candidateReminders[0]
+      const { part, directEntryUrl, opensDashboard } = candidateReminders[0]
+      const entryUrl = opensDashboard ? reminderDashboardUrl(appUrl) : directEntryUrl
 
         const existing = await prisma.emailReminderLog.findUnique({
           where: {
@@ -303,8 +316,8 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
             from,
             to: participant.user.email,
             subject: emailSubject(study, part),
-            html: emailHtml(study, part, participant, entryUrl),
-            text: emailText(study, part, participant, entryUrl),
+            html: emailHtml(study, part, participant, entryUrl, opensDashboard),
+            text: emailText(study, part, participant, entryUrl, opensDashboard),
           })
 
           await prisma.emailReminderLog.upsert({
