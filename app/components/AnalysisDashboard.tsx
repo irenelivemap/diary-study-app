@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Badge, Card, TextInput } from '@/app/components/ui'
+import { Badge, Card, SwitchVisual, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionTag } from '@/app/actions/analysis'
 import { phaseSoftBadgeClass } from '@/app/lib/phase-colors'
@@ -1680,15 +1680,18 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
   const [questionType, setQuestionType] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [includePilotData, setIncludePilotData] = useState(false)
 
   const questionTypes = Array.from(new Set(answerQuestions.map((question) => question.type)))
+  const pilotRowCount = useMemo(() => rows.filter((row) => row.isPilot).length, [rows])
   const filteredRows = useMemo(() => rows.filter((row) => {
+    if (!includePilotData && row.isPilot) return false
     if (partId !== 'all' && row.partId !== partId) return false
     if (participantId !== 'all' && row.participantId !== participantId) return false
     if (dateFrom && row.date < dateFrom) return false
     if (dateTo && row.date > dateTo) return false
     return true
-  }), [rows, partId, participantId, dateFrom, dateTo])
+  }), [rows, includePilotData, partId, participantId, dateFrom, dateTo])
 
   const filteredQuestions = useMemo(() => answerQuestions.filter((question) => {
     if (partId !== 'all' && question.partId !== partId) return false
@@ -1753,6 +1756,27 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             <span className="text-sm font-semibold text-slate-700">To</span>
             <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           </label>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            onClick={() => setIncludePilotData((current) => !current)}
+            disabled={pilotRowCount === 0}
+            className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[320px]"
+            aria-pressed={includePilotData}
+          >
+            <span>
+              <span className="block text-sm font-semibold text-slate-900">
+                {includePilotData ? 'Including pilot data' : 'Real data only'}
+              </span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                {pilotRowCount > 0
+                  ? `${pilotRowCount} pilot entr${pilotRowCount === 1 ? 'y is' : 'ies are'} kept for analysis when included.`
+                  : 'No pilot entries in this study yet.'}
+              </span>
+            </span>
+            <SwitchVisual checked={includePilotData} />
+          </button>
         </div>
       </Card>
 

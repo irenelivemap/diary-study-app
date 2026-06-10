@@ -26,7 +26,6 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
             include: { tagDefinitions: { orderBy: { label: 'asc' } } },
           },
           entries: {
-            where: { isPilot: false },
             include: {
               user: { select: { id: true, name: true, email: true } },
               journey: { select: { id: true, label: true, completedAt: true, createdAt: true } },
@@ -78,6 +77,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
       date: entry.date,
       submittedAt: entry.submittedAt.toISOString(),
       timezone: entry.timezone,
+      isPilot: entry.isPilot,
       qualityFlags: entry.qualityFlags,
       answers: Object.fromEntries(entry.answers.map((answer) => [
         answer.questionId,
