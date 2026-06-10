@@ -1764,15 +1764,20 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             disabled={pilotRowCount === 0}
             className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[320px]"
             aria-pressed={includePilotData}
+            title={pilotRowCount === 0 ? 'No pilot data to include yet.' : undefined}
           >
             <span>
               <span className="block text-sm font-semibold text-slate-900">
-                {includePilotData ? 'Including pilot data' : 'Real data only'}
+                {pilotRowCount === 0
+                  ? 'Fieldwork data only'
+                  : includePilotData
+                    ? 'Including pilot data'
+                    : 'Fieldwork data only'}
               </span>
               <span className="mt-0.5 block text-sm text-slate-500">
                 {pilotRowCount > 0
                   ? `${pilotRowCount} pilot entr${pilotRowCount === 1 ? 'y is' : 'ies are'} kept for analysis when included.`
-                  : 'No pilot entries in this study yet.'}
+                  : 'No pilot data to include yet.'}
               </span>
             </span>
             <SwitchVisual checked={includePilotData} />

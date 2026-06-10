@@ -149,7 +149,7 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
               <div>
                 <h3 className="text-lg font-bold text-slate-950">Launch this study?</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  This moves the study from preparation into real fieldwork.
+                  This moves the study from preparation into fieldwork.
                 </p>
               </div>
               <button
@@ -165,7 +165,7 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
             <div className="mt-5 space-y-3">
               {[
                 'Pilot entries stay excluded from analysis, data tables, exports, participant progress, and reminders.',
-                'New entries submitted after launch count as real fieldwork data.',
+                'New entries submitted after launch count as fieldwork data.',
                 'Automatic reminders can run only while the study is active.',
                 'Participants will not see any pilot or preparation language.',
               ].map((item) => (
