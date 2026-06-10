@@ -13,6 +13,7 @@ type Props = {
   active: Tab
   studyName: string
   isActive: boolean
+  status: 'PREPARATION' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'
 }
 
 const TABS: { id: Tab; label: string; href: (id: string) => string }[] = [
@@ -23,7 +24,7 @@ const TABS: { id: Tab; label: string; href: (id: string) => string }[] = [
   { id: 'setup',      label: 'Setup',      href: (id) => `/admin/studies/${id}/edit` },
 ]
 
-export default function StudyTabs({ studyId, active, studyName, isActive }: Props) {
+export default function StudyTabs({ studyId, active, studyName, status }: Props) {
   const pathname = usePathname()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
 
@@ -39,7 +40,9 @@ export default function StudyTabs({ studyId, active, studyName, isActive }: Prop
             <h1 className="text-2xl font-bold leading-tight text-slate-950 mt-2 truncate">{studyName}</h1>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <StudyStatusToggle studyId={studyId} initialActive={isActive} />
+            {status !== 'ARCHIVED' && (
+              <StudyStatusToggle studyId={studyId} initialStatus={status} />
+            )}
             <ButtonLink
               href={`/admin/studies/${studyId}/preview`}
               tone={active === 'preview' ? 'primary' : 'secondary'}

@@ -14,12 +14,12 @@ export default async function AdminPage() {
     prisma.study.findMany({
       where: { isArchived: false },
       orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { participants: true, entries: true } } },
+      include: { _count: { select: { participants: true, entries: { where: { isPilot: false } } } } },
     }),
     prisma.study.findMany({
       where: { isArchived: true },
       orderBy: { updatedAt: 'desc' },
-      include: { _count: { select: { participants: true, entries: true } } },
+      include: { _count: { select: { participants: true, entries: { where: { isPilot: false } } } } },
     }),
   ])
 

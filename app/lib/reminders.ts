@@ -1,7 +1,14 @@
 import { prisma } from '@/app/lib/db'
 import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
 import { normalizeTimezone } from '@/app/lib/validation'
-import { canOpenEntryForm, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
+import { isJourneyStage, resolveJourneyStageEntryState } from '@/app/lib/entry-state'
+import { StudyStatus } from '@prisma/client'
+import {
+  activeJourneyStages,
+  isPartTargetReached,
+  isSequentialPartUnlocked,
+  resolveStandardParticipantAction,
+} from '@/app/lib/participant-actions'
 
 type ReminderResult = {
   configured: boolean
@@ -33,6 +40,7 @@ function getReminderStudies(studyId?: string) {
   return prisma.study.findMany({
     where: {
       ...(studyId ? { id: studyId } : {}),
+      status: StudyStatus.ACTIVE,
       isActive: true,
       isArchived: false,
       remindersEnabled: true,
@@ -40,8 +48,9 @@ function getReminderStudies(studyId?: string) {
     include: {
       parts: { orderBy: { order: 'asc' } },
       journeys: {
+        where: { isPilot: false },
         orderBy: { createdAt: 'desc' },
-        include: { entries: { select: { id: true, partId: true, date: true, submittedAt: true } } },
+        include: { entries: { where: { isPilot: false }, select: { id: true, partId: true, date: true, submittedAt: true, isPilot: true } } },
       },
       participants: {
         where: { consentedAt: { not: null } },
@@ -98,30 +107,6 @@ function entryKey(partId: string, userId: string) {
 
 function entryDateKey(partId: string, userId: string, date: string) {
   return `${partId}:${userId}:${date}`
-}
-
-function isPartComplete(part: ReminderPart, userId: string, countByPartUser: Map<string, number>) {
-  if (!part.targetEntries) return false
-  return (countByPartUser.get(entryKey(part.id, userId)) ?? 0) >= part.targetEntries
-}
-
-function isPartUnlocked(
-  study: StudyWithReminderData,
-  part: ReminderPart,
-  partIndex: number,
-  participant: ReminderParticipant,
-  countByPartUser: Map<string, number>
-) {
-  if (!part.isActive) return false
-  if (!study.sequential || partIndex === 0) return true
-
-  if (part.unlockRule === 'IMMEDIATE') return true
-  if (part.unlockRule === 'MANUAL') return part.isActive
-  if (part.unlockRule === 'DATE') return !!part.unlockAt && part.unlockAt <= new Date()
-
-  return study.parts
-    .slice(0, partIndex)
-    .every((previous) => isPartComplete(previous, participant.user.id, countByPartUser))
 }
 
 function reminderDashboardUrl(appUrl: string) {
@@ -195,8 +180,8 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
 
   for (const study of studies) {
     const entries = await prisma.entry.findMany({
-      where: { studyId: study.id },
-      select: { id: true, partId: true, userId: true, date: true, submittedAt: true },
+      where: { studyId: study.id, isPilot: false },
+      select: { id: true, partId: true, userId: true, date: true, submittedAt: true, isPilot: true },
     })
     const countByPartUser = new Map<string, number>()
     const entriesByPartUserDate = new Set<string>()
@@ -222,7 +207,13 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
       }
 
       const participantEntries = entries.filter((entry) => entry.userId === participant.user.id)
-      const journeyStages = study.parts.filter((part) => part.isActive && isJourneyStage(part))
+      const participantParts = study.parts.map((part) => ({
+        ...part,
+        entries: participantEntries.filter((entry) => entry.partId === part.id),
+        _count: { entries: countByPartUser.get(entryKey(part.id, participant.user.id)) ?? 0 },
+      }))
+      const participantStudy = { ...study, parts: participantParts }
+      const journeyStages = activeJourneyStages(participantStudy)
       const candidateReminders: Array<{ part: ReminderPart; directEntryUrl: string; opensDashboard: boolean }> = []
 
       if (journeyStages.length > 0) {
@@ -256,28 +247,26 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
 
       if (candidateReminders.length === 0) {
         const standardCandidates: Array<{ part: ReminderPart; directEntryUrl: string }> = []
-        for (const [partIndex, part] of study.parts.entries()) {
+        for (const [partIndex, part] of participantParts.entries()) {
           if (isJourneyStage(part)) continue
           result.checked += 1
-          if (!isPartUnlocked(study, part, partIndex, participant, countByPartUser)) {
+          if (!isSequentialPartUnlocked(participantStudy, partIndex)) {
             addSkip(result, 'part locked')
             continue
           }
-          if (isPartComplete(part, participant.user.id, countByPartUser)) {
+          if (isPartTargetReached(part)) {
             addSkip(result, 'target complete')
             continue
           }
-          const partEntries = participantEntries.filter((entry) => entry.partId === part.id)
-          const entryState = resolveStandardPartEntryState({
-            study,
+          const action = resolveStandardParticipantAction({
+            study: participantStudy,
             part,
+            partIndex,
             participation: participant,
-            entries: partEntries,
             today,
-            recommended: true,
           })
-          if (!canOpenEntryForm(entryState.state)) {
-            addSkip(result, entryState.reason)
+          if (!action.canSubmit) {
+            addSkip(result, action.entryState.reason)
             continue
           }
           if (entriesByPartUserDate.has(entryDateKey(part.id, participant.user.id, today)) && part.entryPolicy === 'ONCE_PER_DAY') {

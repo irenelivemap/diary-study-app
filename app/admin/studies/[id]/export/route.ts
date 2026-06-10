@@ -21,6 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         include: {
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
           entries: {
+            where: { isPilot: false },
             include: {
               journey: { select: { id: true, label: true } },
               user: {
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     'date',
     'submitted_at',
     'timezone',
+    'is_pilot_entry',
     'quality_flags',
     'study_version',
     ...allQuestions.flatMap((q) => {
@@ -103,6 +105,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         entry.date,
         entry.submittedAt.toISOString(),
         entry.timezone ?? '',
+        entry.isPilot ? 'true' : 'false',
         entry.qualityFlags.map(entryQualityLabel).join('; '),
         String(study.version),
         ...allQuestions.flatMap((q) => {

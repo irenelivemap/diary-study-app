@@ -9,22 +9,17 @@ import { startJourney } from '@/app/actions/entries'
 import { ButtonLink, ChevronDownIcon, EyeIcon } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
-import { canOpenEntryForm, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
-
-function journeyArticle(name: string) {
-  return /^[aeiou]/i.test(name.trim()) ? 'an' : 'a'
-}
-
-function pluralizeJourneyName(name: string) {
-  const words = name.trim().split(/\s+/)
-  const last = words.pop() ?? 'journey'
-  const pluralLast = /[^aeiou]y$/i.test(last)
-    ? `${last.slice(0, -1)}ies`
-    : /(s|x|z|ch|sh)$/i.test(last)
-    ? `${last}es`
-    : `${last}s`
-  return [...words, pluralLast].join(' ')
-}
+import {
+  activeJourneyStages,
+  countPendingParticipantActions,
+  journeyArticle,
+  pluralizeJourneyName,
+  resolveJourneyNextStage,
+  resolveJourneyStageParticipantAction,
+  resolveStandardParticipantAction,
+  splitParticipantJourneys,
+} from '@/app/lib/participant-actions'
+import { resolveStudyStatus } from '@/app/lib/study-lifecycle'
 
 export default async function DashboardPage() {
   const session = await getSession()
@@ -69,7 +64,7 @@ export default async function DashboardPage() {
             include: {
               entries: {
                 orderBy: { submittedAt: 'asc' },
-                select: { id: true, partId: true, submittedAt: true, date: true },
+                select: { id: true, partId: true, submittedAt: true, date: true, isPilot: true },
               },
             },
           },
@@ -78,68 +73,7 @@ export default async function DashboardPage() {
     },
   })
 
-  function getDurationState(joinedAt: Date, durationDays: number | null) {
-    if (!durationDays) return null
-    const endDate = new Date(joinedAt)
-    endDate.setDate(endDate.getDate() + durationDays)
-    const todayDate = new Date(today)
-    const daysLeft = Math.ceil((endDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
-    return { endDate, daysLeft, ended: daysLeft <= 0 }
-  }
-
-  // A part is complete for sequential purposes when target entries are reached.
-  // Duration is a time limit shown to participants but does NOT gate progression.
-  function isPartComplete(part: { entries: unknown[]; targetEntries: number | null; _count?: { entries: number } }) {
-    if (part.targetEntries == null) return false // no target = never auto-completes
-    return (part._count?.entries ?? part.entries.length) >= part.targetEntries
-  }
-
-  function statusText(part: { entryPolicy: string; targetEntries: number | null }, todayCount: number, entryCount: number, goalReached: boolean) {
-    if (part.entryPolicy === 'MULTIPLE_PER_DAY') {
-      if (todayCount > 0) return `${todayCount} submitted today`
-      if (part.targetEntries && !goalReached) return 'Ready to submit today'
-      return 'Ready when something happens'
-    }
-    if (todayCount > 0) return "Today's entry submitted"
-    if (goalReached) return 'Completed'
-    if (part.targetEntries) return `${Math.max(part.targetEntries - entryCount, 0)} left`
-    return 'Ready to submit'
-  }
-
-  function isSequentialPartUnlocked(
-    study: { sequential: boolean; parts: Array<{ id: string; unlockRule: string | null; unlockAt: Date | null; isActive: boolean; entries: unknown[]; targetEntries: number | null; _count?: { entries: number } }> },
-    index: number
-  ) {
-    if (!study.sequential || index === 0) return true
-    const part = study.parts[index]
-    const rule = part.unlockRule ?? 'AFTER_PREVIOUS_TARGET'
-    if (rule === 'IMMEDIATE') return true
-    if (rule === 'MANUAL') return part.isActive
-    if (rule === 'DATE') return !!part.unlockAt && new Date(part.unlockAt) <= new Date()
-    return study.parts.slice(0, index).every((prev) => isPartComplete(prev))
-  }
-
-  const pendingToday = participations.reduce((count, { study, joinedAt, consentedAt }) => {
-    if (!consentedAt) return count
-    const hasJourneyStages = study.parts.some((part) => part.isActive && part.flow === 'JOURNEY_STAGE')
-    const journeyPending = hasJourneyStages && study.journeys.some((journey) => !journey.completedAt) ? 1 : 0
-    const pending = study.parts.filter((p, pi) => {
-      if (p.flow === 'JOURNEY_STAGE') return false
-      if (!isSequentialPartUnlocked(study, pi)) return false
-      const state = resolveStandardPartEntryState({
-        study,
-        part: p,
-        participation: { joinedAt, consentedAt },
-        entries: p.entries,
-        today,
-        recommended: true,
-      })
-      if (!canOpenEntryForm(state.state)) return false
-      if (p.entryPolicy === 'MULTIPLE_PER_DAY' && !p.targetEntries) return false
-      return !isPartComplete(p) || p.entryPolicy === 'ONCE_PER_DAY'
-    }).length
-    return count + journeyPending + pending
-  }, 0)
+  const pendingToday = countPendingParticipantActions({ participations, today })
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
@@ -169,13 +103,14 @@ export default async function DashboardPage() {
               const partCountLabel = study.mode === 'JOURNEY'
                 ? `${journeyStageCount || study.parts.length} stages`
                 : `${study.parts.length} parts`
+              const studyStatus = resolveStudyStatus(study)
               return (
               <div key={study.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="px-5 pt-5 pb-3 border-b border-slate-50 sm:px-6">
                   <div className="flex items-start justify-between">
                     <h2 className="font-semibold text-slate-900">{study.name}</h2>
-                    {!study.isActive && (
-                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Inactive</span>
+                    {studyStatus === 'CLOSED' && (
+                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Closed</span>
                     )}
                   </div>
                   {study.parts.length > 1 && (
@@ -197,27 +132,10 @@ export default async function DashboardPage() {
                     const configuredJourneyName = study.journeyName?.trim()
                     const journeyName = configuredJourneyName && configuredJourneyName !== 'Journey' ? configuredJourneyName : 'journey'
                     const journeyNamePlural = pluralizeJourneyName(journeyName)
-                    const activeParts = study.parts.filter((stage) => stage.isActive && stage.flow === 'JOURNEY_STAGE')
+                    const activeParts = activeJourneyStages(study)
                     const independentParts = study.parts.filter((candidate) => candidate.flow !== 'JOURNEY_STAGE')
-                    const openJourney = study.journeys.find((journey) => !journey.completedAt)
-                    const otherOpenJourneys = study.journeys.filter((journey) => !journey.completedAt && journey.id !== openJourney?.id)
-                    const startedOtherOpenJourneys = otherOpenJourneys.filter((journey) => journey.entries.length > 0)
-                    const completedJourneys = study.journeys.filter((journey) => journey.completedAt)
-                    const previousJourneys = [...startedOtherOpenJourneys, ...completedJourneys]
+                    const { completedJourneys, openJourney, previousJourneys, startedOtherOpenJourneys } = splitParticipantJourneys(study)
                     const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
-                    const journeyNextStage = (journey: typeof study.journeys[number]) => {
-                      const entriesByPart = new Map(journey.entries.map((entry) => [entry.partId, entry]))
-                      const stage = activeParts.find((candidate) => !entriesByPart.has(candidate.id))
-                      if (!stage) return null
-                      const stageIndex = activeParts.findIndex((candidate) => candidate.id === stage.id)
-                      const latestSubmittedIndex = activeParts.reduce((latest, candidate, index) => {
-                        return entriesByPart.has(candidate.id) ? Math.max(latest, index) : latest
-                      }, -1)
-                      return {
-                        stage,
-                        isMissingEarlierStage: stageIndex < latestSubmittedIndex,
-                      }
-                    }
                     const stagePreview = (
                       <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stages</p>
@@ -248,7 +166,7 @@ export default async function DashboardPage() {
                         </summary>
                         <div className="space-y-2 border-t border-slate-100 px-5 py-4">
                           {startedOtherOpenJourneys.slice(0, 4).map((journey) => {
-                            const otherStageState = journeyNextStage(journey)
+                            const otherStageState = resolveJourneyNextStage(activeParts, journey)
                             const nextOtherStage = otherStageState?.stage
                             return (
                               <div key={journey.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm">
@@ -285,7 +203,7 @@ export default async function DashboardPage() {
                                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Completed</span>
                                 </div>
                                 <p className="text-slate-600">
-                                  {journey.completedAt ? journey.completedAt.toLocaleDateString() : 'All stages submitted'}
+                                  {journey.completedAt ? new Date(journey.completedAt).toLocaleDateString() : 'All stages submitted'}
                                 </p>
                               </div>
                               {canViewPastEntries && (
@@ -307,38 +225,29 @@ export default async function DashboardPage() {
 
                     const independentPartCards = independentParts.map((part) => {
                       const pi = study.parts.findIndex((candidate) => candidate.id === part.id)
-                      const todayEntries = part.entries.filter((e) => e.date === today)
-                      const todayEntry = todayEntries[0]
-                      const pastEntries = part.entries.filter((e) => e.date !== today)
-                      const isOverdue = part.dueDate && new Date(part.dueDate) < new Date()
-                      const dur = getDurationState(joinedAt, part.durationDays)
-                      const entryCount = part._count.entries
-                      const target = part.targetEntries
-                      const allowMultipleEntries = part.entryPolicy === 'MULTIPLE_PER_DAY'
-                      const goalReached = target != null && entryCount >= target
-                      const entryState = resolveStandardPartEntryState({
+                      const action = resolveStandardParticipantAction({
                         study,
                         part,
+                        partIndex: pi,
                         participation: { joinedAt, consentedAt },
-                        entries: part.entries,
                         today,
-                        recommended: !todayEntry && !goalReached,
                       })
-                      const isClosed = entryState.state === 'CLOSED' || entryState.state === 'HIDDEN'
-                      const canSubmit = canOpenEntryForm(entryState.state)
-                      const currentStatus = statusText(part, todayEntries.length, entryCount, goalReached)
-                      const targetLabel = target ? `${entryCount}/${target} entries` : `${entryCount} submitted`
-                      const timeLabel = isOverdue
-                        ? 'Deadline passed'
-                        : dur?.ended
-                        ? `Ended ${dur.endDate.toLocaleDateString()}`
-                        : dur
-                        ? dur.daysLeft === 1
-                          ? 'Last day today'
-                          : `${dur.daysLeft} days left`
-                        : part.dueDate
-                        ? `Due ${new Date(part.dueDate).toLocaleDateString()}`
-                        : null
+                      const {
+                        allowMultipleEntries,
+                        canSubmit,
+                        currentStatus,
+                        entryCount,
+                        goalReached,
+                        isClosed,
+                        isOverdue,
+                        pastEntries,
+                        target,
+                        targetLabel,
+                        timeLabel,
+                        todayEntries,
+                        todayEntry,
+                        durationState: dur,
+                      } = action
 
                       return (
                         <div key={part.id} className={`rounded-2xl border p-4 sm:p-5 ${
@@ -479,20 +388,15 @@ export default async function DashboardPage() {
 
                         <div className="space-y-2">
                           {activeParts.map((stage, index) => {
-                            const entry = entriesByPart.get(stage.id)
-                            const entryState = resolveJourneyStageEntryState({
+                            const stageAction = resolveJourneyStageParticipantAction({
                               study,
                               stage,
                               activeStages: activeParts,
                               participation: { joinedAt, consentedAt },
-                              journeyEntries: openJourney.entries,
+                              journey: openJourney,
                               strictOrder: strictJourneyOrder,
                             })
-                            const isSubmitted = entryState.state === 'SUBMITTED'
-                            const isRecommended = entryState.state === 'RECOMMENDED'
-                            const isLocked = entryState.state === 'LOCKED'
-                            const isClosed = entryState.state === 'CLOSED'
-                            const canAnswerStage = canOpenEntryForm(entryState.state)
+                            const { canAnswer: canAnswerStage, entry, isClosed, isLocked, isRecommended, isSubmitted } = stageAction
                             return (
                               <div key={stage.id} className={`rounded-xl border px-4 py-3 ${
                                 isSubmitted
@@ -513,9 +417,11 @@ export default async function DashboardPage() {
                                           <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
                                             Submitted
                                           </span>
-                                          <span className="text-xs font-medium text-slate-500">
-                                            {entry.submittedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                          </span>
+                                          {entry.submittedAt && (
+                                            <span className="text-xs font-medium text-slate-500">
+                                              {new Date(entry.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                          )}
                                         </>
                                       )}
                                       {isRecommended && (
@@ -595,45 +501,32 @@ export default async function DashboardPage() {
                       </>
                     )
                   })() : study.parts.map((part, pi) => {
-                    const todayEntries = part.entries.filter((e) => e.date === today)
-                    const todayEntry = todayEntries[0]
-                    const pastEntries = part.entries.filter((e) => e.date !== today)
                     const canViewPastEntries = study.participantEntryAccess === 'SHOW_READ_ONLY'
-                    const isOverdue = part.dueDate && new Date(part.dueDate) < new Date()
-                    const dur = getDurationState(joinedAt, part.durationDays)
-                    const entryCount = part._count.entries
-                    const target = part.targetEntries
-                    const allowMultipleEntries = part.entryPolicy === 'MULTIPLE_PER_DAY'
-                    const goalReached = target != null && entryCount >= target
-                    const entryState = resolveStandardPartEntryState({
+                    const action = resolveStandardParticipantAction({
                       study,
                       part,
+                      partIndex: pi,
                       participation: { joinedAt, consentedAt },
-                      entries: part.entries,
                       today,
-                      recommended: !todayEntry && !goalReached,
                     })
-                    const isClosed = entryState.state === 'CLOSED' || entryState.state === 'HIDDEN'
-                    const canSubmit = canOpenEntryForm(entryState.state)
-                    const currentStatus = statusText(part, todayEntries.length, entryCount, goalReached)
-                    const targetLabel = target ? `${entryCount}/${target} entries` : `${entryCount} submitted`
-                    const timeLabel = isOverdue
-                      ? 'Deadline passed'
-                      : dur?.ended
-                      ? `Ended ${dur.endDate.toLocaleDateString()}`
-                      : dur
-                      ? dur.daysLeft === 1
-                        ? 'Last day today'
-                        : `${dur.daysLeft} days left`
-                      : part.dueDate
-                      ? `Due ${new Date(part.dueDate).toLocaleDateString()}`
-                      : null
-
-                    // Sequential: locked if any previous part is not complete
-                    const isLocked = !isSequentialPartUnlocked(study, pi)
-                    const prevPartName = isLocked
-                      ? study.parts.slice(0, pi).reverse().find((p) => !isPartComplete(p))?.name
-                      : null
+                    const {
+                      allowMultipleEntries,
+                      canSubmit,
+                      currentStatus,
+                      entryCount,
+                      goalReached,
+                      isClosed,
+                      isOverdue,
+                      lockedBySequence: isLocked,
+                      prevPartName,
+                      pastEntries,
+                      target,
+                      targetLabel,
+                      timeLabel,
+                      todayEntries,
+                      todayEntry,
+                      durationState: dur,
+                    } = action
 
                     if (isLocked) {
                       return (

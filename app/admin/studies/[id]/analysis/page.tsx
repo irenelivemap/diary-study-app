@@ -26,6 +26,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
             include: { tagDefinitions: { orderBy: { label: 'asc' } } },
           },
           entries: {
+            where: { isPilot: false },
             include: {
               user: { select: { id: true, name: true, email: true } },
               journey: { select: { id: true, label: true, completedAt: true, createdAt: true } },
@@ -104,7 +105,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="analysis" studyName={study.name} isActive={study.isActive} />
+      <StudyTabs studyId={id} active="analysis" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8">
         <AnalysisDashboard

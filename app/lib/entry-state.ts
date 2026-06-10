@@ -1,3 +1,5 @@
+import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
+
 export type EntryAvailabilityState =
   | 'SUBMITTED'
   | 'RECOMMENDED'
@@ -53,6 +55,7 @@ type ParticipationLike = {
 }
 
 type StudyLike = {
+  status?: 'PREPARATION' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED' | null
   isActive: boolean
   isArchived: boolean
   sequential?: boolean
@@ -112,7 +115,7 @@ export function resolveStandardPartEntryState({
   if (isJourneyStage(part)) {
     return { state: 'HIDDEN', reason: 'not-relevant', recommended: false }
   }
-  if (!study.isActive || study.isArchived) {
+  if (!acceptsParticipantEntries(study)) {
     return { state: 'CLOSED', reason: 'study-closed', recommended: false }
   }
   if (!participation?.consentedAt) {
@@ -159,7 +162,7 @@ export function resolveJourneyStageEntryState({
   if (!isJourneyStage(stage)) {
     return { state: 'HIDDEN', reason: 'standard-part-inside-journey', recommended: false }
   }
-  if (!study.isActive || study.isArchived) {
+  if (!acceptsParticipantEntries(study)) {
     return { state: 'CLOSED', reason: 'study-closed', recommended: false }
   }
   if (!participation?.consentedAt) {

@@ -49,10 +49,8 @@ type Props = {
   initialReminderDays?: string[]
   initialReminderSubject?: string
   initialReminderBody?: string
-  initialIsActive?: boolean
   initialSequential?: boolean
   initialParts?: Part[]
-  showStudyStatus?: boolean
   initialSaved?: boolean
   submitLabel?: string
 }
@@ -116,13 +114,13 @@ function defaultPart(order: number): Part {
 }
 
 export default function StudyForm({
-  action, initialName = '', initialDescription = '', initialIsActive = true,
+  action, initialName = '', initialDescription = '',
   initialMode = 'STANDARD', initialJourneyName = '',
   initialConsentText = '', initialContactEmail = '', initialParticipantEntryAccess = 'SHOW_READ_ONLY', initialReminderNote = '',
   initialRemindersEnabled = false, initialReminderTime = '18:00',
   initialReminderDays = [],
   initialReminderSubject = '', initialReminderBody = '',
-  initialSequential = false, initialParts = [], showStudyStatus = true, initialSaved = false, submitLabel = 'Create study',
+  initialSequential = false, initialParts = [], initialSaved = false, submitLabel = 'Create study',
 }: Props) {
   const [state, formAction, pending] = useActionState(action, null)
   const [parts, setParts] = useState<Part[]>(
@@ -130,7 +128,6 @@ export default function StudyForm({
   )
   const [activePart, setActivePart] = useState(0)
   const [renamingPart, setRenamingPart] = useState<string | null>(null)
-  const [isActive, setIsActive] = useState(initialIsActive)
   const [studyMode, setStudyMode] = useState<'STANDARD' | 'JOURNEY'>(initialMode)
   const [isSequential, setIsSequential] = useState(initialSequential)
   const [remindersEnabled, setRemindersEnabled] = useState(initialRemindersEnabled)
@@ -507,25 +504,6 @@ export default function StudyForm({
               </div>
             )}
           </fieldset>
-          <div className={`grid grid-cols-1 gap-3 ${showStudyStatus ? 'sm:grid-cols-2' : ''}`}>
-            {showStudyStatus && <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <span className="text-sm font-medium text-slate-800">Study status</span>
-              <label className="flex items-center gap-2.5 cursor-pointer shrink-0">
-                <input type="hidden" name="isActive" value="false" />
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  value="true"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="sr-only"
-                />
-                <SwitchVisual checked={isActive} />
-                <span className="text-sm text-slate-600">{isActive ? 'Active' : 'Inactive'}</span>
-              </label>
-            </div>}
-          </div>
-
         <details className="group rounded-2xl border border-slate-200 bg-white">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
             <div>

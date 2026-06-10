@@ -142,6 +142,7 @@ export default async function ParticipantEntriesPage({
           id: true,
           name: true,
           isActive: true,
+          status: true,
           parts: {
             orderBy: { order: 'asc' },
             select: { id: true, name: true },
@@ -162,7 +163,7 @@ export default async function ParticipantEntriesPage({
   const demographics = { ...legacyDemographics, ...profileDemographics }
 
   const entries = await prisma.entry.findMany({
-    where: { studyId: id, userId },
+    where: { studyId: id, userId, isPilot: false },
     include: {
       part: { select: { id: true, name: true, order: true } },
       answers: {
@@ -202,6 +203,7 @@ export default async function ParticipantEntriesPage({
         active="participants"
         studyName={participation.study.name}
         isActive={participation.study.isActive}
+        status={participation.study.status}
       />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">

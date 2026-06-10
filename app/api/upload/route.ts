@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         partId,
         studyId,
         type: 'SCREENSHOT',
-        part: { isActive: true, study: { isActive: true, isArchived: false } },
+        part: { isActive: true, study: { isArchived: false, status: { in: ['PREPARATION', 'ACTIVE'] } } },
       },
       select: { id: true },
     })

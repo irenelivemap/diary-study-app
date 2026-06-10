@@ -7,6 +7,7 @@ import { prisma } from '@/app/lib/db'
 import { createSession, deleteSession, getSession } from '@/app/lib/session'
 import { isValidEmail, normalizeEmail } from '@/app/lib/validation'
 import { demographicsFromFormData } from '@/app/lib/demographics'
+import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 
 function splitName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -81,7 +82,11 @@ export async function signup(prevState: { error?: string } | null, formData: For
   })
 
   const invitations = await prisma.studyInvitation.findMany({
-    where: { email, acceptedAt: null, study: { isArchived: false } },
+    where: {
+      email,
+      acceptedAt: null,
+      study: { isArchived: false, status: { in: ['PREPARATION', 'ACTIVE'] } },
+    },
     select: { id: true, studyId: true, externalParticipantId: true },
   })
   for (const invitation of invitations) {
@@ -99,13 +104,13 @@ export async function signup(prevState: { error?: string } | null, formData: For
   if (inviteToken) {
     const invitation = await prisma.studyInvitation.findUnique({
       where: { token: inviteToken },
-      include: { study: { select: { id: true, isArchived: true } } },
+      include: { study: { select: { id: true, status: true, isActive: true, isArchived: true } } },
     })
     const study = invitation?.study ?? await prisma.study.findUnique({
       where: { inviteToken },
-      select: { id: true, isArchived: true },
+      select: { id: true, status: true, isActive: true, isArchived: true },
     })
-    if (study && !study.isArchived && (!invitation || invitation.email.toLowerCase() === email)) {
+    if (study && acceptsParticipantEntries(study) && (!invitation || invitation.email.toLowerCase() === email)) {
       await prisma.studyParticipant.upsert({
         where: { studyId_userId: { studyId: study.id, userId: user.id } },
         update: externalParticipantId || invitation?.externalParticipantId
