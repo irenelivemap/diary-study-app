@@ -5,6 +5,7 @@ import { prisma } from '@/app/lib/db'
 import EntryForm from '@/app/components/EntryForm'
 import { normalizeTimezone } from '@/app/lib/validation'
 import { canOpenEntryForm, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
+import { resolveStudyStatus } from '@/app/lib/study-lifecycle'
 
 export default async function NewEntryPage({
   searchParams,
@@ -40,16 +41,17 @@ export default async function NewEntryPage({
           name: true,
           mode: true,
           journeyName: true,
+          status: true,
           isActive: true,
           isArchived: true,
           sequential: true,
           parts: {
             orderBy: { order: 'asc' },
-            include: { entries: { where: { userId: session.userId }, select: { id: true, date: true } } },
+            include: { entries: { where: { userId: session.userId }, select: { id: true, date: true, isPilot: true } } },
           },
           journeys: {
             where: { id: journeyId ?? '__no_journey__', userId: session.userId },
-            include: { entries: { select: { id: true, partId: true } } },
+            include: { entries: { select: { id: true, partId: true, isPilot: true } } },
           },
         },
       },
@@ -58,10 +60,20 @@ export default async function NewEntryPage({
   if (!part || !part.isActive || !part.study.isActive || part.study.isArchived) redirect('/dashboard')
 
   const journey = journeyId ? part.study.journeys[0] : null
+  const showPilotEntries = resolveStudyStatus(part.study) === 'PREPARATION'
+  const visibleStudyParts = part.study.parts.map((studyPart) => ({
+    ...studyPart,
+    entries: showPilotEntries ? studyPart.entries : studyPart.entries.filter((entry) => !entry.isPilot),
+  }))
+  const visibleJourneyEntries = journey
+    ? showPilotEntries ? journey.entries : journey.entries.filter((entry) => !entry.isPilot)
+    : []
+
   if (isJourneyStage(part)) {
     if (!journey) redirect('/dashboard')
+    if (!showPilotEntries && journey.isPilot) redirect('/dashboard')
     const activePartIds = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate)).map((candidate) => candidate.id)
-    const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
+    const existingStageEntry = visibleJourneyEntries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
     const activeStages = part.study.parts.filter((candidate) => activePartIds.includes(candidate.id))
     const entryState = resolveJourneyStageEntryState({
@@ -69,7 +81,7 @@ export default async function NewEntryPage({
       stage: part,
       activeStages,
       participation,
-      journeyEntries: journey.entries,
+      journeyEntries: visibleJourneyEntries,
       strictOrder: part.study.sequential,
     })
     if (entryState.state === 'SUBMITTED' && entryState.existingEntryId) redirect(`/entry/${entryState.existingEntryId}`)
@@ -79,7 +91,7 @@ export default async function NewEntryPage({
   }
 
   if (!isJourneyStage(part)) {
-    const currentPart = part.study.parts.find((candidate) => candidate.id === part.id)
+    const currentPart = visibleStudyParts.find((candidate) => candidate.id === part.id)
     const entryState = resolveStandardPartEntryState({
       study: part.study,
       part,

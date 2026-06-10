@@ -5,6 +5,7 @@ import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { normalizeTimezone } from '@/app/lib/validation'
 import { canOpenEntryForm, type EntryQualityFlag, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
+import { isPilotSubmission } from '@/app/lib/study-lifecycle'
 
 const OTHER_SENTINEL = '__OTHER__'
 const MAX_TEXT_ANSWER_LENGTH = 10000
@@ -104,6 +105,7 @@ export async function startJourney(formData: FormData) {
       id: true,
       isActive: true,
       isArchived: true,
+      status: true,
       journeyName: true,
       participants: { where: { userId: session.userId }, select: { consentedAt: true } },
       parts: { where: { isActive: true, flow: 'JOURNEY_STAGE' }, orderBy: { order: 'asc' }, select: { id: true } },
@@ -114,7 +116,12 @@ export async function startJourney(formData: FormData) {
 
   if (!forceNewJourney) {
     const existingJourney = await prisma.journey.findFirst({
-      where: { studyId, userId: session.userId, completedAt: null },
+      where: {
+        studyId,
+        userId: session.userId,
+        completedAt: null,
+        ...(isPilotSubmission(study) ? {} : { isPilot: false }),
+      },
       orderBy: { createdAt: 'desc' },
       include: { entries: { select: { partId: true } } },
     })
@@ -137,6 +144,7 @@ export async function startJourney(formData: FormData) {
     data: {
       studyId,
       userId: session.userId,
+      isPilot: isPilotSubmission(study),
       label: `${study.journeyName || 'Journey'} #${journeyCount + 1}`,
     },
   })
@@ -163,11 +171,11 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
           participants: { where: { userId: session.userId }, select: { consentedAt: true, joinedAt: true } },
           parts: {
             orderBy: { order: 'asc' },
-            include: { entries: { where: { userId: session.userId }, select: { id: true, date: true } } },
+            include: { entries: { where: { userId: session.userId }, select: { id: true, date: true, isPilot: true } } },
           },
           journeys: {
             where: { id: journeyId ?? '__no_journey__', userId: session.userId },
-            include: { entries: { select: { id: true, partId: true } } },
+            include: { entries: { select: { id: true, partId: true, isPilot: true } } },
           },
         },
       },
@@ -184,10 +192,20 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   }
 
   const journey = journeyId ? part.study.journeys[0] : null
+  const showPilotEntries = isPilotSubmission(part.study)
+  const visibleStudyParts = part.study.parts.map((studyPart) => ({
+    ...studyPart,
+    entries: showPilotEntries ? studyPart.entries : studyPart.entries.filter((entry) => !entry.isPilot),
+  }))
+  const visibleJourneyEntries = journey
+    ? showPilotEntries ? journey.entries : journey.entries.filter((entry) => !entry.isPilot)
+    : []
+
   if (isJourneyStage(part)) {
     if (!journey) return { error: 'Please start this journey from your dashboard.' }
+    if (!showPilotEntries && journey.isPilot) return { error: 'This test journey is no longer available. Please start from your dashboard.' }
     const activePartIds = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate)).map((candidate) => candidate.id)
-    const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
+    const existingStageEntry = visibleJourneyEntries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
     const activeStages = part.study.parts.filter((candidate) => activePartIds.includes(candidate.id))
     const entryState = resolveJourneyStageEntryState({
@@ -195,7 +213,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
       stage: part,
       activeStages,
       participation,
-      journeyEntries: journey.entries,
+      journeyEntries: visibleJourneyEntries,
       strictOrder: part.study.sequential,
     })
     if (!canOpenEntryForm(entryState.state)) {
@@ -216,7 +234,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
       part.unlockRule === 'IMMEDIATE' ||
       (part.unlockRule === 'MANUAL' && part.isActive) ||
       (part.unlockRule === 'DATE' && !!part.unlockAt && part.unlockAt <= new Date()) ||
-      (part.unlockRule === 'AFTER_PREVIOUS_TARGET' && part.study.parts.slice(0, partIndex).every(isPartComplete))
+      (part.unlockRule === 'AFTER_PREVIOUS_TARGET' && visibleStudyParts.slice(0, partIndex).every(isPartComplete))
     if (!unlocked) return { error: 'This part is not unlocked yet.' }
   }
 
@@ -225,7 +243,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   }
 
   if (!isJourneyStage(part)) {
-    const currentPart = part.study.parts.find((candidate) => candidate.id === part.id)
+    const currentPart = visibleStudyParts.find((candidate) => candidate.id === part.id)
     const entryState = resolveStandardPartEntryState({
       study: part.study,
       part,
@@ -313,7 +331,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
 
   if (isJourneyStage(part) && journey) {
     const activeStages = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate))
-    const submittedStageIds = new Set(journey.entries.map((entry) => entry.partId))
+    const submittedStageIds = new Set(visibleJourneyEntries.map((entry) => entry.partId))
     const currentStageIndex = activeStages.findIndex((stage) => stage.id === part.id)
     const hasMissingEarlierStage = currentStageIndex > 0 && activeStages
       .slice(0, currentStageIndex)
@@ -338,6 +356,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
       journeyId,
       date,
       timezone,
+      isPilot: isPilotSubmission(part.study),
       qualityFlags: Array.from(qualityFlags),
       answers: {
         create: part.questions.map((q) => {

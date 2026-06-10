@@ -7,6 +7,7 @@ import ReminderSendCard from '@/app/components/ReminderSendCard'
 import OverviewSection from '@/app/components/OverviewSection'
 import { ButtonLink } from '@/app/components/ui'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
+import { studyStatusLabel } from '@/app/lib/study-lifecycle'
 
 export default async function StudyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -20,7 +21,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
         orderBy: { order: 'asc' },
         include: {
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
-          _count: { select: { entries: true } },
+          _count: { select: { entries: { where: { isPilot: false } } } },
         },
       },
       participants: {
@@ -35,8 +36,9 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
         orderBy: { sentAt: 'desc' },
         take: 5,
       },
-      _count: { select: { entries: true } },
+      _count: { select: { entries: { where: { isPilot: false } } } },
       entries: {
+        where: { isPilot: false },
         take: 6,
         include: {
           user: { select: { id: true, name: true, email: true } },
@@ -57,17 +59,17 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   const [entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, invitedUsers] = await Promise.all([
     prisma.entry.groupBy({
       by: ['date'],
-      where: { studyId: id, date: { in: dayKeys } },
+      where: { studyId: id, isPilot: false, date: { in: dayKeys } },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId'],
-      where: { studyId: id },
+      where: { studyId: id, isPilot: false },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId', 'partId'],
-      where: { studyId: id },
+      where: { studyId: id, isPilot: false },
       _count: { id: true },
     }),
     invitedEmails.length
@@ -108,7 +110,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   const recentEntries = study.entries.slice(0, 6)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
   const readiness = [
-    { label: 'Study is active', ok: study.isActive, fix: 'Turn on Study status in Setup.' },
+    { label: `Study status: ${studyStatusLabel(study.status)}`, ok: study.status !== 'ARCHIVED', fix: 'Restore the study before running fieldwork.' },
     { label: 'At least one participant is enrolled', ok: study.participants.length > 0, fix: 'Add participants in the Participants tab.' },
     { label: 'At least one active part exists', ok: study.parts.some((p) => p.isActive), fix: 'Activate a part in Setup.' },
     { label: 'All questions have text', ok: allQuestions.every((q) => q.text.replace(/<[^>]*>/g, '').trim().length > 0), fix: 'Add text to every question in Setup.' },
@@ -126,7 +128,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="overview" studyName={study.name} isActive={study.isActive} />
+      <StudyTabs studyId={id} active="overview" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">

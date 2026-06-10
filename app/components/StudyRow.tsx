@@ -1,9 +1,10 @@
 'use client'
 import { useState, useRef, useTransition } from 'react'
 import Link from 'next/link'
-import { toggleStudyStatus, renameStudy } from '@/app/actions/studies'
+import { renameStudy } from '@/app/actions/studies'
 import StudyActionsMenu from '@/app/components/StudyActionsMenu'
-import { ButtonLink, SwitchVisual } from '@/app/components/ui'
+import StudyStatusToggle from '@/app/components/StudyStatusToggle'
+import { ButtonLink } from '@/app/components/ui'
 
 type Props = {
   study: {
@@ -11,6 +12,7 @@ type Props = {
     name: string
     description: string | null
     isActive: boolean
+    status: 'PREPARATION' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'
     _count: { participants: number; entries: number }
   }
 }
@@ -18,7 +20,6 @@ type Props = {
 export default function StudyRow({ study }: Props) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [name, setName] = useState(study.name)
-  const [active, setActive] = useState(study.isActive)
   const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -35,12 +36,6 @@ export default function StudyRow({ study }: Props) {
     }
     setIsRenaming(false)
     startTransition(() => renameStudy(study.id, name.trim()))
-  }
-
-  function handleToggle() {
-    const previous = active
-    setActive(!previous)
-    startTransition(() => toggleStudyStatus(study.id, previous))
   }
 
   return (
@@ -92,16 +87,7 @@ export default function StudyRow({ study }: Props) {
         <ButtonLink href={`/admin/studies/${study.id}`} size="md">
           Open study
         </ButtonLink>
-        <button
-          type="button"
-          onClick={handleToggle}
-          title={active ? 'Deactivate study' : 'Activate study'}
-          aria-pressed={active}
-          className="inline-flex h-10 items-center gap-2.5 rounded-xl px-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-        >
-          <SwitchVisual checked={active} />
-          <span>{active ? 'Active' : 'Inactive'}</span>
-        </button>
+        <StudyStatusToggle studyId={study.id} initialStatus={study.status === 'ARCHIVED' ? 'CLOSED' : study.status} />
         <StudyActionsMenu studyId={study.id} studyName={name} />
       </div>
     </div>

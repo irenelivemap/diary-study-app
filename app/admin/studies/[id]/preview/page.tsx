@@ -35,7 +35,7 @@ export default async function PreviewPage({
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="preview" studyName={study.name} isActive={study.isActive} />
+      <StudyTabs studyId={id} active="preview" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <div className="bg-amber-50 border-b border-amber-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3">

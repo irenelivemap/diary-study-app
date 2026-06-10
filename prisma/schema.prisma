@@ -34,6 +34,7 @@ model Study {
   inviteToken String?  @unique
   mode        StudyMode @default(STANDARD)
   journeyName String?
+  status      StudyStatus @default(PREPARATION)
   isActive    Boolean  @default(true)
   isArchived  Boolean  @default(false)
   sequential  Boolean  @default(false)
@@ -82,6 +83,7 @@ model Journey {
   studyId     String
   userId      String
   label       String?
+  isPilot     Boolean   @default(false)
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
@@ -157,6 +159,7 @@ model Entry {
   submittedAt DateTime @default(now())
   date        String   // YYYY-MM-DD
   timezone    String?
+  isPilot     Boolean  @default(false)
   qualityFlags String[] @default([])
 
   study   Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
@@ -258,6 +261,13 @@ enum ParticipantEntryAccess {
 enum StudyMode {
   STANDARD
   JOURNEY
+}
+
+enum StudyStatus {
+  PREPARATION
+  ACTIVE
+  CLOSED
+  ARCHIVED
 }
 
 enum EntryPolicy {

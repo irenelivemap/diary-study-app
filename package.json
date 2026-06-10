@@ -9,6 +9,7 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "eslint",
+    "qa:actions": "tsx scripts/participant-actions-check.ts",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "create-admin": "tsx scripts/create-admin.ts",

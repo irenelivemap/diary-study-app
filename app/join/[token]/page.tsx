@@ -3,6 +3,7 @@ import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { joinStudyWithInvite } from '@/app/actions/studies'
 import { Button, ButtonLink } from '@/app/components/ui'
+import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 
 export default async function JoinStudyPage({
   params,
@@ -18,13 +19,13 @@ export default async function JoinStudyPage({
   const session = await getSession()
   const invitation = await prisma.studyInvitation.findUnique({
     where: { token },
-    include: { study: { select: { id: true, name: true, description: true, isArchived: true } } },
+    include: { study: { select: { id: true, name: true, description: true, status: true, isActive: true, isArchived: true } } },
   })
   const study = invitation?.study ?? await prisma.study.findUnique({
     where: { inviteToken: token },
-    select: { id: true, name: true, description: true, isArchived: true },
+    select: { id: true, name: true, description: true, status: true, isActive: true, isArchived: true },
   })
-  if (!study || study.isArchived) notFound()
+  if (!study || !acceptsParticipantEntries(study)) notFound()
 
   async function join(formData: FormData) {
     'use server'

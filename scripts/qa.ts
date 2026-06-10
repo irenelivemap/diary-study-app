@@ -22,6 +22,7 @@ const baseUrl = process.env.QA_BASE_URL
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const steps: Step[] = [
+  { name: 'Participant action rules', command: npmCommand, args: ['run', 'qa:actions'] },
   { name: 'Seed QA fixtures', command: npmCommand, args: ['run', 'qa:seed'] },
   { name: 'Public smoke checks', command: npmCommand, args: ['run', 'smoke'], env: { QA_BASE_URL: baseUrl } },
   { name: 'Authenticated participant and admin flow', command: npmCommand, args: ['run', 'qa:flow'], env: { QA_BASE_URL: baseUrl } },

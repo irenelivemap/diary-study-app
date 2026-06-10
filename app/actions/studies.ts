@@ -1,12 +1,13 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { EntryPolicy, ParticipantEntryAccess, StudyMode } from '@prisma/client'
+import { EntryPolicy, ParticipantEntryAccess, StudyMode, StudyStatus } from '@prisma/client'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
 import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
 import { sendParticipantRemovalEmail } from '@/app/lib/participant-removal'
+import { acceptsParticipantEntries, lifecyclePersistence } from '@/app/lib/study-lifecycle'
 import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
 
 const REMOVED_INVITE_PREFIX = 'removed_'
@@ -231,6 +232,7 @@ export async function createStudy(prevState: unknown, formData: FormData) {
   const final = await prisma.study.create({
     data: {
       ...studyFields,
+      ...lifecyclePersistence(StudyStatus.PREPARATION),
       mode: hasJourneyStages ? StudyMode.JOURNEY : StudyMode.STANDARD,
       journeyName: hasJourneyStages ? (studyFields.journeyName || 'Journey') : null,
       reminderTime: studyFields.reminderTime,
@@ -250,6 +252,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
 
   const studyFields = normalizedStudyFields(formData)
   const isActive = formData.has('isActive') ? checkboxValue(formData, 'isActive') : undefined
+  const lifecycle = isActive === undefined ? null : lifecyclePersistence(isActive ? StudyStatus.ACTIVE : StudyStatus.CLOSED)
   const partsJson = formData.get('parts') as string
 
   if (!studyFields.name) return { error: 'Study name is required.' }
@@ -267,12 +270,12 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
   if (validationError) return { error: validationError }
   const hasJourneyStages = parts.some((part) => normalizedPartFlow(part.flow) === 'JOURNEY_STAGE')
 
-  const existingEntries = await prisma.entry.count({ where: { studyId } })
+  const existingEntries = await prisma.entry.count({ where: { studyId, isPilot: false } })
   const currentParts = await prisma.part.findMany({
     where: { studyId },
     include: {
-      _count: { select: { entries: true } },
-      questions: { include: { _count: { select: { answers: true } } } },
+      _count: { select: { entries: { where: { isPilot: false } } } },
+      questions: { include: { _count: { select: { answers: { where: { entry: { isPilot: false } } } } } } },
     },
   })
   const currentPartsById = new Map(currentParts.map((part) => [part.id, part]))
@@ -303,7 +306,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
           reminderDays: studyFields.reminderDays,
           reminderSubject: studyFields.reminderSubject,
           reminderBody: studyFields.reminderBody,
-          ...(isActive === undefined ? {} : { isActive }),
+          ...(lifecycle ?? {}),
           sequential: studyFields.sequential,
           ...(existingEntries > 0 ? { version: { increment: 1 } } : {}),
         },
@@ -392,14 +395,14 @@ export async function deleteStudy(studyId: string) {
 
 export async function archiveStudy(studyId: string) {
   await requireAdmin()
-  await prisma.study.update({ where: { id: studyId }, data: { isArchived: true, isActive: false } })
+  await prisma.study.update({ where: { id: studyId }, data: lifecyclePersistence(StudyStatus.ARCHIVED) })
   revalidatePath('/admin')
   redirect('/admin')
 }
 
 export async function restoreStudy(studyId: string) {
   await requireAdmin()
-  await prisma.study.update({ where: { id: studyId }, data: { isArchived: false } })
+  await prisma.study.update({ where: { id: studyId }, data: lifecyclePersistence(StudyStatus.CLOSED) })
   revalidatePath('/admin')
 }
 
@@ -431,8 +434,7 @@ export async function duplicateStudy(studyId: string) {
         contactEmail: source.contactEmail,
         mode: source.mode,
         journeyName: source.journeyName,
-        isActive: false,
-        isArchived: false,
+        ...lifecyclePersistence(StudyStatus.PREPARATION),
         sequential: source.sequential,
         reminderNote: source.reminderNote,
         remindersEnabled: source.remindersEnabled,
@@ -542,7 +544,7 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
     include: { study: true },
   })
   const study = invitation?.study ?? await prisma.study.findUnique({ where: { inviteToken: token } })
-  if (!study || study.isArchived) return { error: 'This invite link is not valid.' }
+  if (!study || study.isArchived || study.status === StudyStatus.CLOSED || study.status === StudyStatus.ARCHIVED) return { error: 'This invite link is not valid.' }
   if (invitation?.token.startsWith(REMOVED_INVITE_PREFIX)) return { error: 'This invite link is not valid.' }
   if (invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()) {
     return { error: `This invitation is for ${invitation.email}. Please sign in with that email.` }
@@ -579,8 +581,22 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
 
 export async function toggleStudyStatus(studyId: string, currentStatus: boolean) {
   await requireAdmin()
-  await prisma.study.update({ where: { id: studyId }, data: { isActive: !currentStatus } })
+  await prisma.study.update({
+    where: { id: studyId },
+    data: lifecyclePersistence(currentStatus ? StudyStatus.CLOSED : StudyStatus.ACTIVE),
+  })
   revalidatePath('/admin')
+}
+
+type EditableStudyStatus = typeof StudyStatus.PREPARATION | typeof StudyStatus.ACTIVE | typeof StudyStatus.CLOSED
+
+export async function setStudyLifecycleStatus(studyId: string, status: EditableStudyStatus) {
+  await requireAdmin()
+  if (![StudyStatus.PREPARATION, StudyStatus.ACTIVE, StudyStatus.CLOSED].includes(status)) return
+  await prisma.study.update({ where: { id: studyId }, data: lifecyclePersistence(status) })
+  revalidatePath('/admin')
+  revalidatePath(`/admin/studies/${studyId}`)
+  revalidatePath('/dashboard')
 }
 
 export async function renameStudy(studyId: string, name: string) {
@@ -604,9 +620,9 @@ export async function acceptConsent(prevState: unknown, formData: FormData) {
 
   const participation = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId, userId: session.userId } },
-    include: { study: { select: { isActive: true, isArchived: true } } },
+    include: { study: { select: { status: true, isActive: true, isArchived: true } } },
   })
-  if (!participation || participation.study.isArchived || !participation.study.isActive) {
+  if (!participation || !acceptsParticipantEntries(participation.study)) {
     return { error: 'This study is not available.' }
   }
 

@@ -23,6 +23,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
         include: {
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
           entries: {
+            where: { isPilot: false },
             include: {
               user: { select: { id: true, name: true, email: true } },
               journey: { select: { id: true, label: true, createdAt: true, completedAt: true } },
@@ -65,6 +66,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
       submittedAt: e.submittedAt.toISOString(),
       timezone: e.timezone,
       qualityFlags: e.qualityFlags,
+      isPilot: e.isPilot,
       answers: Object.fromEntries(e.answers.map((a) => [a.questionId, a.value])),
       answerShown: Object.fromEntries(e.answers.map((a) => [a.questionId, a.wasShown])),
       answerTags: Object.fromEntries(e.answers.map((a) => [
@@ -85,7 +87,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="responses" studyName={study.name} isActive={study.isActive} />
+      <StudyTabs studyId={id} active="responses" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <div className="max-w-full px-4 sm:px-6 py-6">
         <DataExplorer

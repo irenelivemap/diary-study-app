@@ -30,7 +30,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
     include: {
       parts: {
         orderBy: { order: 'asc' },
-        include: { _count: { select: { entries: true } } },
+        include: { _count: { select: { entries: { where: { isPilot: false } } } } },
       },
       participants: {
         include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true, demographics: true } } },
@@ -46,12 +46,12 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
   const [entriesByPartAndUser, latestEntryByUser] = await Promise.all([
     prisma.entry.groupBy({
       by: ['partId', 'userId'],
-      where: { studyId: id },
+      where: { studyId: id, isPilot: false },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId'],
-      where: { studyId: id },
+      where: { studyId: id, isPilot: false },
       _max: { date: true },
     }),
   ])
@@ -109,7 +109,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} />
+      <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">

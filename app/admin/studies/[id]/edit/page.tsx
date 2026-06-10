@@ -25,7 +25,7 @@ export default async function EditStudyPage({
         orderBy: { order: 'asc' },
         include: { questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] } },
       },
-      _count: { select: { entries: true } },
+      _count: { select: { entries: { where: { isPilot: false } } } },
     },
   })
   if (!study) notFound()
@@ -35,7 +35,7 @@ export default async function EditStudyPage({
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="setup" studyName={study.name} isActive={study.isActive} />
+      <StudyTabs studyId={id} active="setup" studyName={study.name} isActive={study.isActive} status={study.status} />
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
         {study._count.entries > 0 && (
           <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
@@ -60,9 +60,7 @@ export default async function EditStudyPage({
           initialReminderDays={study.reminderDays}
           initialReminderSubject={study.reminderSubject ?? ''}
           initialReminderBody={study.reminderBody ?? ''}
-          initialIsActive={study.isActive}
           initialSequential={study.sequential}
-          showStudyStatus={false}
           initialSaved={saved === '1'}
           initialParts={study.parts.map((p) => ({
             id: p.id,
