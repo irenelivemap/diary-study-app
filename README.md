@@ -139,6 +139,20 @@ If this is the first time running browser QA on a machine, install the Chromium 
 npx playwright install chromium
 ```
 
+## GitHub Actions
+
+Two workflows keep the app safer:
+
+- `CI` runs automatically on pushes and pull requests. It installs dependencies, runs `npm run typecheck`, and builds the app.
+- `Production QA` is manual. Open GitHub Actions, choose `Production QA`, keep the production URL, and run it after Vercel deploys.
+
+The manual production QA workflow needs these GitHub repository secrets:
+
+- `DATABASE_URL`
+- `SESSION_SECRET`
+
+Use the same values that are configured in Vercel so the QA fixtures are created in the production database being tested.
+
 ## Screenshot uploads
 
 Screenshot uploads require `BLOB_READ_WRITE_TOKEN` from [Vercel Blob](https://vercel.com/docs/storage/vercel-blob). Without it, the upload API will fail. If you don't need screenshot questions, simply don't add screenshot-type questions to your studies.

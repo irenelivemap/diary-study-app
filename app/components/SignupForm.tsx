@@ -21,8 +21,9 @@ export default function SignupForm({
       {inviteToken && <input type="hidden" name="inviteToken" value={inviteToken} />}
       {externalParticipantId && <input type="hidden" name="externalParticipantId" value={externalParticipantId} />}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Full name</label>
+        <label htmlFor="signup-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full name</label>
         <TextInput
+          id="signup-name"
           name="name"
           type="text"
           required
@@ -31,8 +32,9 @@ export default function SignupForm({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
+        <label htmlFor="signup-email" className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
         <TextInput
+          id="signup-email"
           name="email"
           type="email"
           required
@@ -42,8 +44,9 @@ export default function SignupForm({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+        <label htmlFor="signup-password" className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
         <TextInput
+          id="signup-password"
           name="password"
           type="password"
           required
