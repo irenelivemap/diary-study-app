@@ -156,6 +156,8 @@ async function main() {
   const participant = await prisma.user.findUnique({ where: { email: QA_PARTICIPANT_EMAIL } })
   assert(participant, `QA participant not found. Run npm run qa:seed first.`)
   assert(participant.role === 'PARTICIPANT', `QA user must be PARTICIPANT, got ${participant.role}.`)
+  const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' } })
+  assert(admin, 'No admin user found. Create an admin before running QA flow.')
 
   const simpleStudy = await loadQaStudy(SIMPLE_STUDY_NAME)
   const journeyStudy = await loadQaStudy(JOURNEY_STUDY_NAME, participant.id)
@@ -176,6 +178,12 @@ async function main() {
     role: participant.role,
     name: participant.name,
     email: participant.email,
+  })
+  const adminCookie = await sessionCookie({
+    id: admin.id,
+    role: admin.role,
+    name: admin.name,
+    email: admin.email,
   })
   const simpleAnswer = `QA simple submission ${Date.now()}`
   const journeyAnswer = `QA journey submission ${Date.now()}`
@@ -275,6 +283,60 @@ async function main() {
     const { response, text } = await fetchText(pathUrl('/dashboard'), cookie)
     assert(response.ok, `Expected dashboard 200 after submissions, got ${response.status}`)
     assert(text.includes('Submitted') || text.includes('submitted'), 'Dashboard did not show a submitted state after QA entries.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin dashboard loads QA studies', async () => {
+    const { response, text } = await fetchText(pathUrl('/admin'), adminCookie)
+    assert(response.ok, `Expected admin dashboard 200, got ${response.status}`)
+    assert(text.includes(SIMPLE_STUDY_NAME), 'Admin dashboard does not show the simple QA study.')
+    assert(text.includes(JOURNEY_STUDY_NAME), 'Admin dashboard does not show the journey QA study.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin study overview loads entries', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}`), adminCookie)
+    assert(response.ok, `Expected admin study overview 200, got ${response.status}`)
+    assert(text.includes(SIMPLE_STUDY_NAME), 'Admin study overview does not show the QA study name.')
+    assert(text.includes('Participants'), 'Admin study overview does not show study tabs or participant context.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin participants page shows QA participant', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/participants`), adminCookie)
+    assert(response.ok, `Expected participants page 200, got ${response.status}`)
+    assert(text.includes(QA_PARTICIPANT_EMAIL), 'Participants page does not show the QA participant.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin participant detail shows stored entry', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/participants/${participant.id}`), adminCookie)
+    assert(response.ok, `Expected participant detail 200, got ${response.status}`)
+    assert(text.includes(simpleAnswer), 'Participant detail does not show the stored simple answer.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin data page shows stored answer', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/data`), adminCookie)
+    assert(response.ok, `Expected data page 200, got ${response.status}`)
+    assert(text.includes(simpleAnswer), 'Data page does not include the stored simple answer.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin analysis page loads', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/analysis`), adminCookie)
+    assert(response.ok, `Expected analysis page 200, got ${response.status}`)
+    assert(text.includes(SIMPLE_STUDY_NAME), 'Analysis page does not show the QA study name.')
+    assert(text.includes('Analysis') || text.includes('Free text'), 'Analysis page did not render expected analysis context.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin export returns CSV with stored answer', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/export`), adminCookie)
+    assert(response.ok, `Expected export 200, got ${response.status}`)
+    assert(response.headers.get('content-type')?.includes('text/csv'), `Expected text/csv export, got ${response.headers.get('content-type')}`)
+    assert(text.includes(simpleAnswer), 'CSV export does not include the stored simple answer.')
+    assert(text.includes('participant_email'), 'CSV export does not include expected participant metadata headers.')
     return `${response.status} ${response.statusText}`
   })
 
