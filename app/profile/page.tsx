@@ -1,19 +1,29 @@
 import { redirect } from 'next/navigation'
 import NavBar from '@/app/components/NavBar'
 import ProfileForm from '@/app/components/ProfileForm'
+import { ButtonLink } from '@/app/components/ui'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
+
+function safeReturnTo(value: string | undefined) {
+  if (!value) return null
+  if (!value.startsWith('/') || value.startsWith('//')) return null
+  if (/^\/?https?:/i.test(value)) return null
+  if (value.startsWith('/profile')) return null
+  return value
+}
 
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>
+  searchParams: Promise<{ from?: string; returnTo?: string }>
 }) {
   const session = await getSession()
   if (!session) redirect('/login')
-  const { from } = await searchParams
-  const profileMode = from === 'dashboard' ? 'PARTICIPANT' : session.role
-  const homeHref = from === 'dashboard' ? '/dashboard' : session.role === 'ADMIN' ? '/admin' : '/dashboard'
+  const { from, returnTo } = await searchParams
+  const backHref = safeReturnTo(returnTo) ?? (from === 'dashboard' ? '/dashboard' : session.role === 'ADMIN' ? '/admin' : '/dashboard')
+  const profileMode = backHref.startsWith('/dashboard') || from === 'dashboard' ? 'PARTICIPANT' : session.role
+  const homeHref = profileMode === 'PARTICIPANT' ? '/dashboard' : '/admin'
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -27,10 +37,18 @@ export default async function ProfilePage({
         name={session.name}
         role={profileMode}
         homeHref={homeHref}
-        profileHref={`/profile?from=${from === 'dashboard' ? 'dashboard' : 'admin'}`}
+        profileHref={`/profile?${new URLSearchParams({
+          from: profileMode === 'PARTICIPANT' ? 'dashboard' : 'admin',
+          returnTo: backHref,
+        }).toString()}`}
         canSwitchModes={session.role === 'ADMIN'}
       />
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mb-4">
+          <ButtonLink href={backHref} tone="secondary" size="sm">
+            Back
+          </ButtonLink>
+        </div>
         <ProfileForm
           firstName={user.firstName}
           lastName={user.lastName}
