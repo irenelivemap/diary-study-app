@@ -1,0 +1,47 @@
+name: Production QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Production URL to test
+        required: true
+        default: https://diary-study-app.vercel.app
+      run_browser:
+        description: Run real browser QA
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  production-qa:
+    name: Production QA
+    runs-on: ubuntu-latest
+    env:
+      QA_BASE_URL: ${{ inputs.base_url }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      NEXT_PUBLIC_APP_URL: ${{ inputs.base_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run production API/page QA
+        run: npm run qa
+
+      - name: Install Chromium
+        if: ${{ inputs.run_browser }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Run production browser QA
+        if: ${{ inputs.run_browser }}
+        run: npm run qa:browser
