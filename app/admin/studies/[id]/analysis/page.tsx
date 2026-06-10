@@ -77,6 +77,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
       date: entry.date,
       submittedAt: entry.submittedAt.toISOString(),
       timezone: entry.timezone,
+      qualityFlags: entry.qualityFlags,
       answers: Object.fromEntries(entry.answers.map((answer) => [
         answer.questionId,
         {

@@ -64,6 +64,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
       date: e.date,
       submittedAt: e.submittedAt.toISOString(),
       timezone: e.timezone,
+      qualityFlags: e.qualityFlags,
       answers: Object.fromEntries(e.answers.map((a) => [a.questionId, a.value])),
       answerShown: Object.fromEntries(e.answers.map((a) => [a.questionId, a.wasShown])),
       answerTags: Object.fromEntries(e.answers.map((a) => [

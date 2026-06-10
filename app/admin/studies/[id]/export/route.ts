@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { DEMOGRAPHIC_FIELDS, demographicFieldLabel } from '@/app/lib/demographics'
+import { entryQualityLabel } from '@/app/lib/entry-state'
 
 function csvCell(value: string) {
   return `"${value.replace(/"/g, '""')}"`
@@ -65,6 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     'date',
     'submitted_at',
     'timezone',
+    'quality_flags',
     'study_version',
     ...allQuestions.flatMap((q) => {
       const text = q.text.replace(/<[^>]*>/g, '')
@@ -101,6 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         entry.date,
         entry.submittedAt.toISOString(),
         entry.timezone ?? '',
+        entry.qualityFlags.map(entryQualityLabel).join('; '),
         String(study.version),
         ...allQuestions.flatMap((q) => {
           const answer = answerMap[q.id] ?? ''

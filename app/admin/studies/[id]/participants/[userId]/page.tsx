@@ -7,6 +7,7 @@ import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import { demographicFieldLabel } from '@/app/lib/demographics'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
+import { entryQualityLabel } from '@/app/lib/entry-state'
 
 function stripHtml(value: string) {
   return value
@@ -285,6 +286,11 @@ export default async function ParticipantEntriesPage({
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="text-base font-bold text-slate-950">{entry.date}</p>
                                   <span className="text-sm text-slate-500">Submitted {formatTime(entry.submittedAt)}</span>
+                                  {entry.qualityFlags.map((flag) => (
+                                    <span key={flag} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                                      {entryQualityLabel(flag)}
+                                    </span>
+                                  ))}
                                 </div>
                                 {summaryAnswers.length > 0 && (
                                   <div className="mt-3 flex flex-wrap gap-2 group-open:hidden">
