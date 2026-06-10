@@ -11,9 +11,12 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "create-admin": "tsx scripts/create-admin.ts",
+    "qa": "tsx scripts/qa.ts",
     "smoke": "tsx scripts/smoke.ts",
     "qa:seed": "tsx scripts/qa-seed.ts",
     "qa:flow": "tsx scripts/qa-flow.ts",
+    "qa:browser": "npm run qa:seed && playwright test",
+    "test:e2e": "playwright test",
     "send-reminders": "tsx scripts/send-reminders.ts",
     "seed-demo": "tsx scripts/seed-demo.ts",
     "seed-mock": "tsx scripts/seed-mock-data.ts",
@@ -38,6 +41,7 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

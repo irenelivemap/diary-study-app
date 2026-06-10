@@ -7,6 +7,7 @@ type SmokeResult = {
 export {}
 
 const rawBaseUrl = process.env.SMOKE_BASE_URL
+  || process.env.QA_BASE_URL
   || process.env.NEXT_PUBLIC_APP_URL
   || process.env.APP_URL
   || 'http://localhost:3000'

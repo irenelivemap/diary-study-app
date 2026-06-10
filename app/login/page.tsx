@@ -63,14 +63,14 @@ function LoginContent() {
           <form action={action} className="space-y-4">
             {next && <input type="hidden" name="next" value={next} />}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
-              <TextInput name="email" type="email" required autoComplete="email"
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
+              <TextInput id="email" name="email" type="email" required autoComplete="email"
                 placeholder="you@example.com"
                 className="h-12" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
-              <TextInput name="password" type="password" required autoComplete="current-password"
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+              <TextInput id="password" name="password" type="password" required autoComplete="current-password"
                 placeholder="••••••••"
                 className="h-12" />
             </div>
