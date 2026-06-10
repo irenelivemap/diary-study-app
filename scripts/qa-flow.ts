@@ -9,6 +9,8 @@ type QaResult = {
   detail: string
 }
 
+type QaPart = NonNullable<Awaited<ReturnType<typeof loadQaStudy>>>['parts'][number]
+
 const QA_PARTICIPANT_EMAIL = process.env.QA_PARTICIPANT_EMAIL || 'qa.participant@diari.test'
 const SIMPLE_STUDY_NAME = 'QA Smoke — Simple Diary'
 const JOURNEY_STUDY_NAME = 'QA Smoke — Journey Study'
@@ -26,6 +28,16 @@ function normalizeBaseUrl(value: string) {
 
 function pathUrl(path: string) {
   return `${baseUrl}${path}`
+}
+
+function localDate(timeZone = 'Europe/Zurich') {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  return `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}-${parts.find((part) => part.type === 'day')?.value}`
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -84,6 +96,60 @@ async function sessionCookie(user: { id: string; role: 'ADMIN' | 'PARTICIPANT'; 
   return `session=${token}`
 }
 
+function loadQaStudy(name: string, userId?: string) {
+  return prisma.study.findFirst({
+    where: { name },
+    include: {
+      parts: { orderBy: { order: 'asc' }, include: { questions: { orderBy: { order: 'asc' } } } },
+      journeys: userId ? { where: { userId }, orderBy: { createdAt: 'desc' } } : false,
+    },
+  })
+}
+
+async function cleanQaEntries(studyId: string, userId: string) {
+  await prisma.entry.deleteMany({ where: { studyId, userId } })
+  await prisma.journey.updateMany({
+    where: { studyId, userId },
+    data: { completedAt: null },
+  })
+}
+
+async function createQaEntry({
+  studyId,
+  part,
+  userId,
+  journeyId,
+  answer,
+}: {
+  studyId: string
+  part: QaPart
+  userId: string
+  journeyId?: string | null
+  answer: string
+}) {
+  const question = part.questions.find((candidate) => candidate.type !== 'CONTENT')
+  assert(question, `Part ${part.name} has no answerable question.`)
+  return prisma.entry.create({
+    data: {
+      studyId,
+      partId: part.id,
+      userId,
+      journeyId,
+      date: localDate(),
+      timezone: 'Europe/Zurich',
+      qualityFlags: [],
+      answers: {
+        create: {
+          questionId: question.id,
+          value: answer,
+          wasShown: true,
+        },
+      },
+    },
+    include: { answers: true },
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.')
 
@@ -91,17 +157,8 @@ async function main() {
   assert(participant, `QA participant not found. Run npm run qa:seed first.`)
   assert(participant.role === 'PARTICIPANT', `QA user must be PARTICIPANT, got ${participant.role}.`)
 
-  const simpleStudy = await prisma.study.findFirst({
-    where: { name: SIMPLE_STUDY_NAME },
-    include: { parts: { orderBy: { order: 'asc' }, include: { questions: { orderBy: { order: 'asc' } } } } },
-  })
-  const journeyStudy = await prisma.study.findFirst({
-    where: { name: JOURNEY_STUDY_NAME },
-    include: {
-      parts: { orderBy: { order: 'asc' }, include: { questions: { orderBy: { order: 'asc' } } } },
-      journeys: { where: { userId: participant.id }, orderBy: { createdAt: 'desc' } },
-    },
-  })
+  const simpleStudy = await loadQaStudy(SIMPLE_STUDY_NAME)
+  const journeyStudy = await loadQaStudy(JOURNEY_STUDY_NAME, participant.id)
   assert(simpleStudy, `Simple QA study not found. Run npm run qa:seed first.`)
   assert(journeyStudy, `Journey QA study not found. Run npm run qa:seed first.`)
 
@@ -120,6 +177,13 @@ async function main() {
     name: participant.name,
     email: participant.email,
   })
+  const simpleAnswer = `QA simple submission ${Date.now()}`
+  const journeyAnswer = `QA journey submission ${Date.now()}`
+  let simpleEntryId = ''
+  let journeyEntryId = ''
+
+  await cleanQaEntries(simpleStudy.id, participant.id)
+  await cleanQaEntries(journeyStudy.id, participant.id)
 
   await record('Logged-out dashboard redirects to login', async () => {
     const response = await fetch(pathUrl('/dashboard'), { redirect: 'manual' })
@@ -165,6 +229,52 @@ async function main() {
     const { response, text } = await fetchText(pathUrl(`/entry/new?studyId=${journeyStudy.id}&partId=${journeyPart.id}&journeyId=${journey.id}`), cookie)
     assert(response.ok, `Expected journey stage form 200, got ${response.status}`)
     assert(text.includes(journeyPart.questions[0].text), 'Journey entry form did not show the QA stage question.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Simple QA submission is stored', async () => {
+    const entry = await createQaEntry({
+      studyId: simpleStudy.id,
+      part: simplePart,
+      userId: participant.id,
+      answer: simpleAnswer,
+    })
+    simpleEntryId = entry.id
+    assert(entry.answers[0]?.value === simpleAnswer, 'Stored simple answer does not match.')
+    return `entry ${entry.id}`
+  })
+
+  await record('Journey QA submission is stored', async () => {
+    const entry = await createQaEntry({
+      studyId: journeyStudy.id,
+      part: journeyPart,
+      userId: participant.id,
+      journeyId: journey.id,
+      answer: journeyAnswer,
+    })
+    journeyEntryId = entry.id
+    assert(entry.answers[0]?.value === journeyAnswer, 'Stored journey answer does not match.')
+    return `entry ${entry.id}`
+  })
+
+  await record('Stored simple entry renders read-only', async () => {
+    const { response, text } = await fetchText(pathUrl(`/entry/${simpleEntryId}`), cookie)
+    assert(response.ok, `Expected simple entry read-only page 200, got ${response.status}`)
+    assert(text.includes(simpleAnswer), 'Read-only simple entry page did not show the stored answer.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Stored journey entry renders read-only', async () => {
+    const { response, text } = await fetchText(pathUrl(`/entry/${journeyEntryId}`), cookie)
+    assert(response.ok, `Expected journey entry read-only page 200, got ${response.status}`)
+    assert(text.includes(journeyAnswer), 'Read-only journey entry page did not show the stored answer.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Dashboard reflects QA submissions', async () => {
+    const { response, text } = await fetchText(pathUrl('/dashboard'), cookie)
+    assert(response.ok, `Expected dashboard 200 after submissions, got ${response.status}`)
+    assert(text.includes('Submitted') || text.includes('submitted'), 'Dashboard did not show a submitted state after QA entries.')
     return `${response.status} ${response.statusText}`
   })
 
