@@ -2,6 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { deleteEntryFromForm } from '@/app/actions/entries'
 import { Badge, Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
+import { entryQualityLabel } from '@/app/lib/entry-state'
 
 type Question = { id: string; partId: string; partName: string; text: string; type: string }
 type Part = { id: string; name: string }
@@ -18,6 +19,7 @@ type Row = {
   date: string
   submittedAt: string
   timezone: string | null
+  qualityFlags: string[]
   answers: Record<string, string>
   answerShown?: Record<string, boolean>
   answerTags?: Record<string, string[]>
@@ -42,6 +44,7 @@ const BASE_COLUMNS = [
   { id: 'date', label: 'Date' },
   { id: 'submittedAt', label: 'Submitted time' },
   { id: 'timezone', label: 'Timezone' },
+  { id: 'qualityFlags', label: 'Quality flags' },
   { id: 'studyVersion', label: 'Study version' },
 ] as const
 
@@ -116,6 +119,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const [entryToDelete, setEntryToDelete] = useState<Row | null>(null)
   const [search, setSearch] = useState('')
   const showJourney = rows.some((row) => row.journeyId || row.journeyLabel)
+  const availableQualityFlags = useMemo(
+    () => Array.from(new Set(rows.flatMap((row) => row.qualityFlags))).sort(),
+    [rows]
+  )
+  const [selectedQualityFlags, setSelectedQualityFlags] = useState<Set<string> | null>(null)
   const participantAliasById = useMemo(() => new Map(
     [...participants]
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -135,6 +143,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const filteredRows = useMemo(() => rows.filter((r) => {
     if (!selectedParts.has(r.partId)) return false
     if (!selectedParticipants.has(r.participantId)) return false
+    if (selectedQualityFlags && selectedQualityFlags.size > 0 && !r.qualityFlags.some((flag) => selectedQualityFlags.has(flag))) return false
     if (dateFrom && r.date < dateFrom) return false
     if (dateTo && r.date > dateTo) return false
     if (search.trim()) {
@@ -146,19 +155,21 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
         r.journeyLabel ?? '',
         r.partName,
         r.date,
+        ...r.qualityFlags.map(entryQualityLabel),
         ...Object.values(r.answers),
         ...Object.values(r.answerTags ?? {}).flat(),
       ].join(' ').toLowerCase()
       if (!haystack.includes(query)) return false
     }
     return true
-  }), [rows, selectedParts, selectedParticipants, dateFrom, dateTo, search])
+  }), [rows, selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search])
 
   const selectedQuestions = answerQuestions.filter((q) => selectedQuestionCols.has(q.id))
 
   const partFilterBadge = selectedParts.size < parts.length ? parts.length - selectedParts.size : 0
   const participantFilterBadge = selectedParticipants.size < participants.length ? participants.length - selectedParticipants.size : 0
   const dateFilterBadge = (dateFrom || dateTo) ? 1 : 0
+  const qualityFilterBadge = selectedQualityFlags?.size ?? 0
   const selectedColumnCount = selectedBaseCols.size + selectedQuestionCols.size
     - (!showJourney && selectedBaseCols.has('journey') ? 1 : 0)
   const totalColumnCount = BASE_COLUMNS.length - (showJourney ? 0 : 1) + answerQuestions.length
@@ -208,6 +219,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
         if (col.id === 'date') return [r.date]
         if (col.id === 'submittedAt') return [r.submittedAt]
         if (col.id === 'timezone') return [r.timezone ?? '']
+        if (col.id === 'qualityFlags') return [r.qualityFlags.map(entryQualityLabel).join('; ')]
         return [String(studyVersion)]
       })
       return [
@@ -290,6 +302,33 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
               )}
             </div>
           </Dropdown>
+
+          {availableQualityFlags.length > 0 && (
+            <Dropdown label="Quality" badge={qualityFilterBadge}>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Quality flags</p>
+              <div className="space-y-1.5">
+                {availableQualityFlags.map((flag) => (
+                  <label key={flag} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedQualityFlags?.has(flag) ?? false}
+                      onChange={() => {
+                        const current = selectedQualityFlags ?? new Set<string>()
+                        setSelectedQualityFlags(toggle(current, flag))
+                      }}
+                      className="w-4 h-4 rounded text-indigo-600"
+                    />
+                    <span className="text-sm text-slate-700">{entryQualityLabel(flag)}</span>
+                  </label>
+                ))}
+              </div>
+              {qualityFilterBadge > 0 && (
+                <Button type="button" onClick={() => setSelectedQualityFlags(null)} tone="ghost" size="sm" className="mt-3">
+                  Clear
+                </Button>
+              )}
+            </Dropdown>
+          )}
 
           <span className="text-sm text-slate-400 pl-1">
             <span className="font-semibold text-slate-600">{filteredRows.length}</span> entries
@@ -432,6 +471,15 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                       className="h-4 w-4 rounded border-slate-300 text-indigo-600"
                     />
                   </th>
+                  <th className="px-4 py-2 bg-slate-50 min-w-[160px]">
+                    <input
+                      type="checkbox"
+                      checked={baseColumnSelected('qualityFlags')}
+                      onChange={() => toggleBaseColumn('qualityFlags')}
+                      aria-label="Include quality flags in download"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                  </th>
                   <th className="px-4 py-2 bg-slate-50 min-w-[120px]">
                     <input
                       type="checkbox"
@@ -483,6 +531,9 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[140px]">
                     <span className={`${baseColumnSelected('timezone') ? '' : 'opacity-45'}`}>Timezone</span>
                   </th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[160px]">
+                    <span className={`${baseColumnSelected('qualityFlags') ? '' : 'opacity-45'}`}>Quality flags</span>
+                  </th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[120px]">
                     <span className={`${baseColumnSelected('studyVersion') ? '' : 'opacity-45'}`}>Study version</span>
                   </th>
@@ -531,6 +582,19 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                     </td>
                     <td className={`px-4 py-3 text-slate-500 whitespace-nowrap text-xs ${baseColumnSelected('timezone') ? '' : 'bg-slate-50/50 opacity-60'}`}>
                       {row.timezone ?? '—'}
+                    </td>
+                    <td className={`px-4 py-3 text-slate-500 whitespace-nowrap text-xs ${baseColumnSelected('qualityFlags') ? '' : 'bg-slate-50/50 opacity-60'}`}>
+                      {row.qualityFlags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.qualityFlags.map((flag) => (
+                            <span key={flag} className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                              {entryQualityLabel(flag)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
                     <td className={`px-4 py-3 text-slate-500 whitespace-nowrap text-xs ${baseColumnSelected('studyVersion') ? '' : 'bg-slate-50/50 opacity-60'}`}>
                       {studyVersion}

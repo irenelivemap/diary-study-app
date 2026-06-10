@@ -4,10 +4,7 @@ import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import EntryForm from '@/app/components/EntryForm'
 import { normalizeTimezone } from '@/app/lib/validation'
-
-function isJourneyStage(part: { flow?: string | null }) {
-  return part.flow === 'JOURNEY_STAGE'
-}
+import { canOpenEntryForm, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
 
 export default async function NewEntryPage({
   searchParams,
@@ -48,7 +45,7 @@ export default async function NewEntryPage({
           sequential: true,
           parts: {
             orderBy: { order: 'asc' },
-            include: { entries: { where: { userId: session.userId }, select: { date: true } } },
+            include: { entries: { where: { userId: session.userId }, select: { id: true, date: true } } },
           },
           journeys: {
             where: { id: journeyId ?? '__no_journey__', userId: session.userId },
@@ -64,45 +61,35 @@ export default async function NewEntryPage({
   if (isJourneyStage(part)) {
     if (!journey) redirect('/dashboard')
     const activePartIds = part.study.parts.filter((candidate) => candidate.isActive && isJourneyStage(candidate)).map((candidate) => candidate.id)
-    const completedPartIds = new Set(journey.entries.map((entry) => entry.partId))
     const existingStageEntry = journey.entries.find((entry) => entry.partId === partId)
     if (existingStageEntry) redirect(`/entry/${existingStageEntry.id}`)
-    if (part.study.sequential) {
-      const nextPartId = activePartIds.find((candidateId) => !completedPartIds.has(candidateId))
-      if (nextPartId !== partId) redirect('/dashboard')
-    }
+    const activeStages = part.study.parts.filter((candidate) => activePartIds.includes(candidate.id))
+    const entryState = resolveJourneyStageEntryState({
+      study: part.study,
+      stage: part,
+      activeStages,
+      participation,
+      journeyEntries: journey.entries,
+      strictOrder: part.study.sequential,
+    })
+    if (entryState.state === 'SUBMITTED' && entryState.existingEntryId) redirect(`/entry/${entryState.existingEntryId}`)
+    if (!canOpenEntryForm(entryState.state)) redirect('/dashboard')
   } else if (journeyId) {
     redirect('/dashboard')
   }
 
-  if (!isJourneyStage(part) && part.entryPolicy === 'ONCE_PER_DAY') {
-    const existing = await prisma.entry.findFirst({
-      where: { partId, userId: session.userId, date: today },
-      orderBy: { submittedAt: 'desc' },
+  if (!isJourneyStage(part)) {
+    const currentPart = part.study.parts.find((candidate) => candidate.id === part.id)
+    const entryState = resolveStandardPartEntryState({
+      study: part.study,
+      part,
+      participation,
+      entries: currentPart?.entries ?? [],
+      today,
+      recommended: true,
     })
-    if (existing) redirect(`/entry/${existing.id}`)
-  }
-
-  if (part.dueDate && part.dueDate < new Date()) redirect('/dashboard')
-  if (part.durationDays) {
-    const end = new Date(participation.joinedAt)
-    end.setDate(end.getDate() + part.durationDays)
-    if (end < new Date()) redirect('/dashboard')
-  }
-
-  // Sequential guard: block access if a previous part has not reached its target entries
-  if (!isJourneyStage(part) && part.study.sequential) {
-    const thisIndex = part.study.parts.findIndex((p) => p.id === partId)
-    const rule = part.unlockRule ?? 'AFTER_PREVIOUS_TARGET'
-    const unlocked =
-      thisIndex === 0 ||
-      rule === 'IMMEDIATE' ||
-      (rule === 'MANUAL' && part.isActive) ||
-      (rule === 'DATE' && part.unlockAt && new Date(part.unlockAt) <= new Date()) ||
-      (rule === 'AFTER_PREVIOUS_TARGET' && part.study.parts.slice(0, thisIndex).every((p) =>
-        p.targetEntries != null && p.entries.length >= p.targetEntries
-      ))
-    if (!unlocked) redirect('/dashboard')
+    if (entryState.state === 'SUBMITTED' && entryState.existingEntryId) redirect(`/entry/${entryState.existingEntryId}`)
+    if (!canOpenEntryForm(entryState.state)) redirect('/dashboard')
   }
 
   return (

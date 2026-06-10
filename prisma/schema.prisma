@@ -157,6 +157,7 @@ model Entry {
   submittedAt DateTime @default(now())
   date        String   // YYYY-MM-DD
   timezone    String?
+  qualityFlags String[] @default([])
 
   study   Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
   part    Part     @relation(fields: [partId], references: [id], onDelete: Cascade)

@@ -9,6 +9,7 @@ import { startJourney } from '@/app/actions/entries'
 import { ButtonLink, ChevronDownIcon, EyeIcon } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
+import { canOpenEntryForm, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
 
 function journeyArticle(name: string) {
   return /^[aeiou]/i.test(name.trim()) ? 'an' : 'a'
@@ -124,14 +125,18 @@ export default async function DashboardPage() {
     const journeyPending = hasJourneyStages && study.journeys.some((journey) => !journey.completedAt) ? 1 : 0
     const pending = study.parts.filter((p, pi) => {
       if (p.flow === 'JOURNEY_STAGE') return false
-      if (!p.isActive) return false
-      if (isPartComplete(p)) return false
-      if (p.entries.find((e) => e.date === today)) return false
-      if (p.entryPolicy === 'MULTIPLE_PER_DAY' && !p.targetEntries) return false
-      const dur = getDurationState(joinedAt, p.durationDays)
-      if (dur?.ended) return false
       if (!isSequentialPartUnlocked(study, pi)) return false
-      return true
+      const state = resolveStandardPartEntryState({
+        study,
+        part: p,
+        participation: { joinedAt, consentedAt },
+        entries: p.entries,
+        today,
+        recommended: true,
+      })
+      if (!canOpenEntryForm(state.state)) return false
+      if (p.entryPolicy === 'MULTIPLE_PER_DAY' && !p.targetEntries) return false
+      return !isPartComplete(p) || p.entryPolicy === 'ONCE_PER_DAY'
     }).length
     return count + journeyPending + pending
   }, 0)
@@ -311,8 +316,16 @@ export default async function DashboardPage() {
                       const target = part.targetEntries
                       const allowMultipleEntries = part.entryPolicy === 'MULTIPLE_PER_DAY'
                       const goalReached = target != null && entryCount >= target
-                      const isClosed = !!dur?.ended || !!isOverdue || part.isActive === false
-                      const canSubmit = part.isActive && !isClosed && (allowMultipleEntries || (!todayEntry && !goalReached))
+                      const entryState = resolveStandardPartEntryState({
+                        study,
+                        part,
+                        participation: { joinedAt, consentedAt },
+                        entries: part.entries,
+                        today,
+                        recommended: !todayEntry && !goalReached,
+                      })
+                      const isClosed = entryState.state === 'CLOSED' || entryState.state === 'HIDDEN'
+                      const canSubmit = canOpenEntryForm(entryState.state)
                       const currentStatus = statusText(part, todayEntries.length, entryCount, goalReached)
                       const targetLabel = target ? `${entryCount}/${target} entries` : `${entryCount} submitted`
                       const timeLabel = isOverdue
@@ -467,17 +480,29 @@ export default async function DashboardPage() {
                         <div className="space-y-2">
                           {activeParts.map((stage, index) => {
                             const entry = entriesByPart.get(stage.id)
-                            const isRecommended = nextStage?.id === stage.id
-                            const isLocked = strictJourneyOrder && !entry && !isRecommended
-                            const canAnswerStage = !entry && !isLocked
+                            const entryState = resolveJourneyStageEntryState({
+                              study,
+                              stage,
+                              activeStages: activeParts,
+                              participation: { joinedAt, consentedAt },
+                              journeyEntries: openJourney.entries,
+                              strictOrder: strictJourneyOrder,
+                            })
+                            const isSubmitted = entryState.state === 'SUBMITTED'
+                            const isRecommended = entryState.state === 'RECOMMENDED'
+                            const isLocked = entryState.state === 'LOCKED'
+                            const isClosed = entryState.state === 'CLOSED'
+                            const canAnswerStage = canOpenEntryForm(entryState.state)
                             return (
                               <div key={stage.id} className={`rounded-xl border px-4 py-3 ${
-                                entry
+                                isSubmitted
                                   ? 'border-slate-200 bg-white'
                                   : isRecommended
                                   ? 'border-indigo-200 bg-indigo-50'
-                                  : !isLocked
+                                  : canAnswerStage
                                   ? 'border-slate-200 bg-white'
+                                  : isClosed
+                                  ? 'border-slate-100 bg-slate-50'
                                   : 'border-slate-100 bg-slate-50'
                               }`}>
                                 <div className="flex items-center justify-between gap-3">
@@ -500,15 +525,17 @@ export default async function DashboardPage() {
                                       )}
                                     </div>
                                     <p className={`text-sm font-semibold ${isLocked ? 'text-slate-500' : 'text-slate-900'}`}>
-                                      {isLocked ? 'Locked: ' : ''}
+                                      {isLocked ? 'Locked: ' : isClosed ? 'Closed: ' : ''}
                                       {stage.name}
                                     </p>
                                     {!entry && (
                                       <p className="mt-0.5 text-sm text-slate-500">
                                         {isRecommended
                                           ? (stage.instructions || 'Answer this when this moment applies.')
-                                          : !isLocked
+                                          : canAnswerStage
                                           ? 'Available if needed'
+                                          : isClosed
+                                          ? 'No longer accepting entries'
                                           : `Available after ${activeParts[index - 1]?.name ?? 'the previous stage'}`}
                                       </p>
                                     )}
@@ -578,8 +605,16 @@ export default async function DashboardPage() {
                     const target = part.targetEntries
                     const allowMultipleEntries = part.entryPolicy === 'MULTIPLE_PER_DAY'
                     const goalReached = target != null && entryCount >= target
-                    const isClosed = !!dur?.ended || !!isOverdue || part.isActive === false
-                    const canSubmit = part.isActive && !isClosed && (allowMultipleEntries || (!todayEntry && !goalReached))
+                    const entryState = resolveStandardPartEntryState({
+                      study,
+                      part,
+                      participation: { joinedAt, consentedAt },
+                      entries: part.entries,
+                      today,
+                      recommended: !todayEntry && !goalReached,
+                    })
+                    const isClosed = entryState.state === 'CLOSED' || entryState.state === 'HIDDEN'
+                    const canSubmit = canOpenEntryForm(entryState.state)
                     const currentStatus = statusText(part, todayEntries.length, entryCount, goalReached)
                     const targetLabel = target ? `${entryCount}/${target} entries` : `${entryCount} submitted`
                     const timeLabel = isOverdue

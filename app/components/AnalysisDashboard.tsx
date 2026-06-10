@@ -37,6 +37,7 @@ type Row = {
   date: string
   submittedAt: string
   timezone: string | null
+  qualityFlags: string[]
   answers: Record<string, AnswerCell>
 }
 

@@ -1,6 +1,7 @@
 import { prisma } from '@/app/lib/db'
 import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
 import { normalizeTimezone } from '@/app/lib/validation'
+import { canOpenEntryForm, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
 
 type ReminderResult = {
   configured: boolean
@@ -31,6 +32,10 @@ function getReminderStudies(studyId?: string) {
     },
     include: {
       parts: { orderBy: { order: 'asc' } },
+      journeys: {
+        orderBy: { createdAt: 'desc' },
+        include: { entries: { select: { id: true, partId: true, date: true, submittedAt: true } } },
+      },
       participants: {
         where: { consentedAt: { not: null } },
         include: { user: { select: { id: true, name: true, email: true, timezone: true } } },
@@ -112,15 +117,9 @@ function isPartUnlocked(
     .every((previous) => isPartComplete(previous, participant.user.id, countByPartUser))
 }
 
-function isWithinPartWindow(part: ReminderPart, participant: ReminderParticipant) {
-  const now = new Date()
-  if (part.dueDate && part.dueDate < now) return false
-
-  if (!part.durationDays) return true
-  const start = participant.joinedAt
-  const end = new Date(start)
-  end.setDate(end.getDate() + part.durationDays)
-  return now <= end
+function reminderEntryUrl(appUrl: string, studyId: string, partId: string, journeyId?: string | null) {
+  const url = `${appUrl.replace(/\/$/, '')}/entry/new?studyId=${studyId}&partId=${partId}`
+  return journeyId ? `${url}&journeyId=${journeyId}` : url
 }
 
 function emailSubject(study: StudyWithReminderData, part: ReminderPart) {
@@ -186,7 +185,7 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
   for (const study of studies) {
     const entries = await prisma.entry.findMany({
       where: { studyId: study.id },
-      select: { partId: true, userId: true, date: true },
+      select: { id: true, partId: true, userId: true, date: true, submittedAt: true },
     })
     const countByPartUser = new Map<string, number>()
     const entriesByPartUserDate = new Set<string>()
@@ -211,24 +210,77 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
         continue
       }
 
-      for (const [partIndex, part] of study.parts.entries()) {
-        result.checked += 1
-        if (!isPartUnlocked(study, part, partIndex, participant, countByPartUser)) {
-          addSkip(result, 'part locked')
-          continue
+      const participantEntries = entries.filter((entry) => entry.userId === participant.user.id)
+      const journeyStages = study.parts.filter((part) => part.isActive && isJourneyStage(part))
+      const candidateReminders: Array<{ part: ReminderPart; entryUrl: string }> = []
+
+      if (journeyStages.length > 0) {
+        const openJourney = study.journeys.find((journey) => journey.userId === participant.user.id && !journey.completedAt)
+        if (!openJourney) {
+          addSkip(result, 'no open journey', Math.max(journeyStages.length, 1))
+        } else {
+          for (const part of journeyStages) {
+            result.checked += 1
+            const entryState = resolveJourneyStageEntryState({
+              study,
+              stage: part,
+              activeStages: journeyStages,
+              participation: participant,
+              journeyEntries: openJourney.entries,
+              strictOrder: study.sequential,
+            })
+            if (entryState.state !== 'RECOMMENDED') {
+              addSkip(result, entryState.reason)
+              continue
+            }
+            candidateReminders.push({
+              part,
+              entryUrl: reminderEntryUrl(appUrl, study.id, part.id, openJourney.id),
+            })
+            break
+          }
         }
-        if (!isWithinPartWindow(part, participant)) {
-          addSkip(result, 'outside part window')
-          continue
+      }
+
+      if (candidateReminders.length === 0) {
+        for (const [partIndex, part] of study.parts.entries()) {
+          if (isJourneyStage(part)) continue
+          result.checked += 1
+          if (!isPartUnlocked(study, part, partIndex, participant, countByPartUser)) {
+            addSkip(result, 'part locked')
+            continue
+          }
+          if (isPartComplete(part, participant.user.id, countByPartUser)) {
+            addSkip(result, 'target complete')
+            continue
+          }
+          const partEntries = participantEntries.filter((entry) => entry.partId === part.id)
+          const entryState = resolveStandardPartEntryState({
+            study,
+            part,
+            participation: participant,
+            entries: partEntries,
+            today,
+            recommended: true,
+          })
+          if (!canOpenEntryForm(entryState.state)) {
+            addSkip(result, entryState.reason)
+            continue
+          }
+          if (entriesByPartUserDate.has(entryDateKey(part.id, participant.user.id, today)) && part.entryPolicy === 'ONCE_PER_DAY') {
+            addSkip(result, 'already submitted today')
+            continue
+          }
+          candidateReminders.push({
+            part,
+            entryUrl: reminderEntryUrl(appUrl, study.id, part.id),
+          })
+          break
         }
-        if (isPartComplete(part, participant.user.id, countByPartUser)) {
-          addSkip(result, 'target complete')
-          continue
-        }
-        if (entriesByPartUserDate.has(entryDateKey(part.id, participant.user.id, today))) {
-          addSkip(result, 'already submitted today')
-          continue
-        }
+      }
+
+      if (candidateReminders.length === 0) continue
+      const { part, entryUrl } = candidateReminders[0]
 
         const existing = await prisma.emailReminderLog.findUnique({
           where: {
@@ -245,8 +297,6 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
           addSkip(result, 'already reminded today')
           continue
         }
-
-        const entryUrl = `${appUrl.replace(/\/$/, '')}/entry/new?studyId=${study.id}&partId=${part.id}`
 
         try {
           const response = await resend.emails.send({
@@ -312,7 +362,6 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
           result.failed += 1
           result.errors.push(`${participant.user.email}: ${message}`)
         }
-      }
     }
   }
 
