@@ -93,6 +93,24 @@ Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to 
 - Export a test CSV and confirm it contains the columns you need.
 - Keep database backups enabled in your hosting provider.
 
+## Smoke checks
+
+Run a fast production sanity check after a deploy:
+
+```bash
+SMOKE_BASE_URL="https://diary-study-app.vercel.app" npm run smoke
+```
+
+To also verify a specific invite link:
+
+```bash
+SMOKE_BASE_URL="https://diary-study-app.vercel.app" \
+SMOKE_INVITE_URL="https://diary-study-app.vercel.app/join/your-token" \
+npm run smoke
+```
+
+The smoke check confirms public auth pages load, protected pages redirect to login, the reminder endpoint is protected, and the optional invite link renders.
+
 ## Screenshot uploads
 
 Screenshot uploads require `BLOB_READ_WRITE_TOKEN` from [Vercel Blob](https://vercel.com/docs/storage/vercel-blob). Without it, the upload API will fail. If you don't need screenshot questions, simply don't add screenshot-type questions to your studies.
