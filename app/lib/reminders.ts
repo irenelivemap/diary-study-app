@@ -21,6 +21,13 @@ type SendDueRemindersOptions = {
 type StudyWithReminderData = Awaited<ReturnType<typeof getReminderStudies>>[number]
 type ReminderPart = StudyWithReminderData['parts'][number]
 type ReminderParticipant = StudyWithReminderData['participants'][number]
+type ReminderStudy = Pick<StudyWithReminderData, 'name' | 'reminderSubject' | 'reminderBody' | 'reminderNote' | 'contactEmail'>
+type ReminderRecipient = {
+  user: {
+    name: string | null
+    email: string
+  }
+}
 
 function getReminderStudies(studyId?: string) {
   return prisma.study.findMany({
@@ -126,11 +133,11 @@ function reminderEntryUrl(appUrl: string, studyId: string, partId: string, journ
   return journeyId ? `${url}&journeyId=${journeyId}` : url
 }
 
-function emailSubject(study: StudyWithReminderData, part: ReminderPart) {
+function emailSubject(study: ReminderStudy, part: ReminderPart) {
   return study.reminderSubject?.trim() || `Reminder: ${part.name} in ${study.name}`
 }
 
-function emailHtml(study: StudyWithReminderData, part: ReminderPart, participant: ReminderParticipant, entryUrl: string, opensDashboard: boolean) {
+function emailHtml(study: ReminderStudy, part: ReminderPart, participant: ReminderRecipient, entryUrl: string, opensDashboard: boolean) {
   const body = study.reminderBody?.trim()
     || study.reminderNote?.trim()
     || `Please complete today's diary entry when you have a moment.`
@@ -156,7 +163,7 @@ function emailHtml(study: StudyWithReminderData, part: ReminderPart, participant
   `
 }
 
-function emailText(study: StudyWithReminderData, part: ReminderPart, participant: ReminderParticipant, entryUrl: string, opensDashboard: boolean) {
+function emailText(study: ReminderStudy, part: ReminderPart, participant: ReminderRecipient, entryUrl: string, opensDashboard: boolean) {
   const body = study.reminderBody?.trim()
     || study.reminderNote?.trim()
     || `Please complete today's diary entry when you have a moment.`
@@ -379,4 +386,58 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
   }
 
   return result
+}
+
+export async function sendReminderPreviewEmail(studyId: string, recipientEmail: string) {
+  const apiKey = process.env.RESEND_API_KEY
+  const from = emailFrom()
+  const appUrl = appBaseUrl()
+  if (!apiKey) return { configured: false, sent: false, error: 'RESEND_API_KEY is not configured.' }
+
+  const study = await prisma.study.findUnique({
+    where: { id: studyId },
+    include: { parts: { orderBy: { order: 'asc' } } },
+  })
+
+  if (!study) return { configured: true, sent: false, error: 'Study not found.' }
+
+  const activeParts = study.parts.filter((part) => part.isActive)
+  const firstPart = activeParts[0]
+  if (!firstPart) return { configured: true, sent: false, error: 'This study has no active parts to preview.' }
+
+  const journeyStages = activeParts.filter(isJourneyStage)
+  const standardParts = activeParts.filter((part) => !isJourneyStage(part))
+  const previewPart = journeyStages[0] ?? standardParts[0] ?? firstPart
+  const opensDashboard = journeyStages.length > 0 || standardParts.length !== 1
+  const entryUrl = opensDashboard
+    ? reminderDashboardUrl(appUrl)
+    : reminderEntryUrl(appUrl, study.id, previewPart.id)
+
+  const previewRecipient: ReminderRecipient = {
+    user: {
+      name: 'there',
+      email: recipientEmail,
+    },
+  }
+
+  try {
+    const resend = resendClient()
+    if (!resend) return { configured: false, sent: false, error: 'RESEND_API_KEY is not configured.' }
+
+    await resend.emails.send({
+      from,
+      to: recipientEmail,
+      subject: emailSubject(study, previewPart),
+      html: emailHtml(study, previewPart, previewRecipient, entryUrl, opensDashboard),
+      text: emailText(study, previewPart, previewRecipient, entryUrl, opensDashboard),
+    })
+
+    return { configured: true, sent: true, error: null }
+  } catch (error) {
+    return {
+      configured: true,
+      sent: false,
+      error: error instanceof Error ? error.message : 'Unknown email error.',
+    }
+  }
 }

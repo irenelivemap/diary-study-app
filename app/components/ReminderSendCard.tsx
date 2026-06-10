@@ -67,14 +67,14 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, embed
             disabled={testPending}
             onClick={() => {
               startTestTransition(async () => {
-                const result = await sendReminderTestEmail()
+                const result = await sendReminderTestEmail(studyId)
                 setTestSummary(result)
               })
             }}
             tone="secondary"
             size="sm"
           >
-            {testPending ? 'Testing...' : 'Send test to me'}
+            {testPending ? 'Sending...' : 'Send test to me'}
           </Button>
           <Button
             type="button"
@@ -124,7 +124,7 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, embed
         {testSummary && (
           <div className={`rounded-xl px-4 py-3 ${testSummary.sent ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
             <p className="text-sm font-medium">
-              {testSummary.sent ? 'Test email sent to your admin email.' : 'Test email failed.'}
+              {testSummary.sent ? 'Test reminder sent to your admin email.' : 'Test reminder failed.'}
             </p>
             {testSummary.error && <p className="mt-1 text-xs">{testSummary.error}</p>}
           </div>
