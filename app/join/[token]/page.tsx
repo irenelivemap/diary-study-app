@@ -47,7 +47,11 @@ export default async function JoinStudyPage({
             <Button className="w-full" size="lg">
               Join study
             </Button>
-            <p className="text-xs text-slate-400 text-center mt-3">You are signed in as {session.email}.</p>
+            <p className="text-xs text-slate-400 text-center mt-3">
+              {invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()
+                ? `This invite is for ${invitation.email}. You are signed in as ${session.email}.`
+                : `You are signed in as ${session.email}.`}
+            </p>
           </form>
         ) : (
           <div className="mt-6 space-y-3">

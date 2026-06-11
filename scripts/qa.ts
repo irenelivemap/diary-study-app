@@ -31,6 +31,7 @@ const steps: Step[] = [
   { name: 'Reminder delivery rules', command: npmCommand, args: ['run', 'qa:reminder-delivery'] },
   { name: 'Answer dataset rules', command: npmCommand, args: ['run', 'qa:dataset'] },
   { name: 'Upload cleanup rules', command: npmCommand, args: ['run', 'qa:uploads'] },
+  { name: 'Invite flow rules', command: npmCommand, args: ['run', 'qa:invites'] },
   { name: 'Seed QA fixtures', command: npmCommand, args: ['run', 'qa:seed'] },
   { name: 'Public smoke checks', command: npmCommand, args: ['run', 'smoke'], env: { QA_BASE_URL: baseUrl } },
   { name: 'Authenticated participant and admin flow', command: npmCommand, args: ['run', 'qa:flow'], env: { QA_BASE_URL: baseUrl } },
