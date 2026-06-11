@@ -6,6 +6,7 @@ import { Badge, Card, SwitchVisual, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionTag } from '@/app/actions/analysis'
 import { phaseSoftBadgeClass } from '@/app/lib/phase-colors'
+import { entryQualityLabel } from '@/app/lib/entry-state'
 import { answerValue as normalizedAnswerValue, answerWasShown, parseMultipleChoiceAnswer } from '@/app/lib/answer-dataset'
 
 type Question = {
@@ -1686,11 +1687,18 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
     return {
       answered: totals.answered + analysis.answered,
       eligible: totals.eligible + analysis.eligible,
+      missing: totals.missing + analysis.missing,
+      notShown: totals.notShown + analysis.notShown,
     }
-  }, { answered: 0, eligible: 0 })
+  }, { answered: 0, eligible: 0, missing: 0, notShown: 0 })
   const answeredValues = coverageTotals.answered
   const possibleValues = coverageTotals.eligible
   const coverage = possibleValues ? Math.round((answeredValues / possibleValues) * 100) : 0
+  const qualityFlagCounts = filteredRows.reduce((counts, row) => {
+    for (const flag of row.qualityFlags) counts.set(flag, (counts.get(flag) ?? 0) + 1)
+    return counts
+  }, new Map<string, number>())
+  const qualityFlagEntries = Array.from(qualityFlagCounts.entries()).sort((a, b) => b[1] - a[1])
 
   return (
     <div className="space-y-5">
@@ -1767,7 +1775,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
         </div>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <p className="text-3xl font-bold text-slate-950">{filteredRows.length}</p>
           <p className="text-sm text-slate-600">Entries analyzed</p>
@@ -1778,9 +1786,35 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
         </Card>
         <Card>
           <p className="text-3xl font-bold text-slate-950">{coverage}%</p>
-          <p className="text-sm text-slate-600">Answer coverage</p>
+          <p className="text-sm text-slate-600">Answer completion</p>
+          <p className="mt-1 text-xs text-slate-500">{answeredValues} of {possibleValues} expected answers</p>
+        </Card>
+        <Card>
+          <p className="text-3xl font-bold text-slate-950">{coverageTotals.missing}</p>
+          <p className="text-sm text-slate-600">Missing answers</p>
+          <p className="mt-1 text-xs text-slate-500">{coverageTotals.notShown} hidden by conditions</p>
         </Card>
       </div>
+
+      {qualityFlagEntries.length > 0 && (
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-950">Data quality notes</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                These entries are included in analysis, but should be reviewed before reporting.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {qualityFlagEntries.map(([flag, count]) => (
+                <span key={flag} className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-900">
+                  {entryQualityLabel(flag)} · {count}
+                </span>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <JourneySummaryCard rows={filteredRows} />
       {questionType === 'all' && (
