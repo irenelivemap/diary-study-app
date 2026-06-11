@@ -58,6 +58,10 @@ function answerIndicatesRetrospection(value: string, today: string) {
   return !!match && match[1] < today
 }
 
+function isValidUploadedFileValue(value: string) {
+  return /^https?:\/\//.test(value) || value.startsWith('/api/upload/file?')
+}
+
 async function requireAdmin() {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') redirect('/login')
@@ -322,7 +326,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
       addQualityFlag(qualityFlags, 'retrospective')
     }
 
-    if (q.type === 'SCREENSHOT' && value && !/^https?:\/\//.test(value)) {
+    if (q.type === 'SCREENSHOT' && value && !isValidUploadedFileValue(value)) {
       return { error: 'One uploaded file is not valid.' }
     }
 

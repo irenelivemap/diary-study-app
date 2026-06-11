@@ -33,7 +33,7 @@ function formatTime(date: Date) {
 }
 
 function isImageValue(value: string) {
-  return /^https?:\/\//.test(value) || value.startsWith('/uploads/')
+  return /^https?:\/\//.test(value) || value.startsWith('/uploads/') || value.startsWith('/api/upload/file?')
 }
 
 function hasAnswer(value: string) {

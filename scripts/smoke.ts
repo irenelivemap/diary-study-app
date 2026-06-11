@@ -112,6 +112,13 @@ async function main() {
     return `${response.status} ${response.statusText}`
   })
 
+  await record('Private upload files require login', async () => {
+    const { response, text } = await fetchText(pathUrl('/api/upload/file?pathname=entries/test/stage/question/user/file.png'))
+    assert(response.status === 401, `Expected 401, got ${response.status}`)
+    assert(/unauthorized/i.test(text), 'Private upload file route did not reject unauthenticated requests')
+    return `${response.status} ${response.statusText}`
+  })
+
   if (inviteUrl) {
     await record('Invite link loads', async () => {
       const { response, text } = await fetchText(inviteUrl)

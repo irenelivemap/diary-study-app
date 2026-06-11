@@ -24,6 +24,7 @@ type ReminderResult = {
 type SendDueRemindersOptions = {
   studyId?: string
   force?: boolean
+  dryRun?: boolean
 }
 
 type StudyWithReminderData = Awaited<ReturnType<typeof getReminderStudies>>[number]
@@ -162,13 +163,13 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
   const apiKey = process.env.RESEND_API_KEY
   const from = emailFrom()
   const appUrl = appBaseUrl()
-  const result: ReminderResult = { configured: !!apiKey, checked: 0, sent: 0, skipped: 0, failed: 0, errors: [], skippedByReason: {} }
+  const result: ReminderResult = { configured: options.dryRun || !!apiKey, checked: 0, sent: 0, skipped: 0, failed: 0, errors: [], skippedByReason: {} }
 
   const studies = await getReminderStudies(options.studyId)
-  if (!apiKey) return result
+  if (!apiKey && !options.dryRun) return result
 
-  const resend = resendClient()
-  if (!resend) return result
+  const resend = options.dryRun ? null : resendClient()
+  if (!resend && !options.dryRun) return result
 
   for (const study of studies) {
     const entries = await prisma.entry.findMany({
@@ -211,7 +212,15 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
       if (journeyStages.length > 0) {
         const openJourney = study.journeys.find((journey) => journey.userId === participant.user.id && !journey.completedAt)
         if (!openJourney) {
-          addSkip(result, 'no open journey', Math.max(journeyStages.length, 1))
+          const firstStage = journeyStages[0]
+          if (firstStage) {
+            result.checked += 1
+            candidateReminders.push({
+              part: firstStage,
+              directEntryUrl: reminderDashboardUrl(appUrl),
+              opensDashboard: true,
+            })
+          }
         } else {
           for (const part of journeyStages) {
             result.checked += 1
@@ -302,6 +311,16 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
         })
         if (existing?.status === 'SENT') {
           addSkip(result, 'already reminded today')
+          continue
+        }
+
+        if (options.dryRun) {
+          result.sent += 1
+          continue
+        }
+        if (!resend) {
+          result.failed += 1
+          result.errors.push(`${participant.user.email}: RESEND_API_KEY is not configured.`)
           continue
         }
 

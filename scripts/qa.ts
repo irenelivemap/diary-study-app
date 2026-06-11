@@ -28,6 +28,7 @@ const steps: Step[] = [
   { name: 'Access audit', command: npmCommand, args: ['run', 'qa:access-audit'] },
   { name: 'Participant action rules', command: npmCommand, args: ['run', 'qa:actions'] },
   { name: 'Reminder link rules', command: npmCommand, args: ['run', 'qa:reminders'] },
+  { name: 'Reminder delivery rules', command: npmCommand, args: ['run', 'qa:reminder-delivery'] },
   { name: 'Answer dataset rules', command: npmCommand, args: ['run', 'qa:dataset'] },
   { name: 'Seed QA fixtures', command: npmCommand, args: ['run', 'qa:seed'] },
   { name: 'Public smoke checks', command: npmCommand, args: ['run', 'smoke'], env: { QA_BASE_URL: baseUrl } },

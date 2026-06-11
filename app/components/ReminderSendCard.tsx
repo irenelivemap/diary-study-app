@@ -29,6 +29,8 @@ type Props = {
     id: string
     status: string
     date: string
+    partName: string
+    recipientEmail: string
     sentAt: string
     error: string | null
   }[]
@@ -145,12 +147,17 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, embed
             <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden">
               {recentLogs.map((log) => (
                 <div key={log.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-3 py-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${log.status === 'SENT' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                    <span className="font-medium text-slate-700">{log.status === 'SENT' ? 'Sent' : 'Failed'}</span>
-                    <span className="text-slate-400">for {log.date}</span>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${log.status === 'SENT' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                      <span className="font-medium text-slate-700">{log.status === 'SENT' ? 'Sent' : 'Failed'}</span>
+                      <span className="truncate text-slate-500">{log.partName}</span>
+                    </div>
+                    <p className="mt-0.5 truncate pl-4 text-xs text-slate-500">
+                      {log.recipientEmail} · {log.date}
+                    </p>
                   </div>
-                  <span className="text-xs text-slate-400">
+                  <span className="shrink-0 text-xs text-slate-400">
                     {new Date(log.sentAt).toLocaleString()}
                   </span>
                   {log.error && <p className="text-xs text-red-500 sm:col-span-2">{log.error}</p>}
