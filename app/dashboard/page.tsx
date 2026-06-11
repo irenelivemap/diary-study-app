@@ -37,7 +37,13 @@ export default async function DashboardPage() {
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
 
   const participations = await prisma.studyParticipant.findMany({
-    where: { userId: session.userId },
+    where: {
+      userId: session.userId,
+      study: {
+        isArchived: false,
+        status: { not: 'ARCHIVED' },
+      },
+    },
     include: {
       study: {
         include: {
@@ -317,10 +323,13 @@ export default async function DashboardPage() {
                           </div>
 
                           {canViewPastEntries && pastEntries.length > 0 && (
-                            <details className="mt-4 rounded-xl border border-slate-100 bg-white">
-                              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                                Previous entries
-                                <span className="ml-2 text-sm font-normal text-slate-400">{pastEntries.length}</span>
+                            <details className="group mt-4 rounded-xl border border-slate-100 bg-white">
+                              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700">
+                                <span>
+                                  Previous entries
+                                  <span className="ml-2 text-sm font-normal text-slate-400">{pastEntries.length}</span>
+                                </span>
+                                <ChevronDownIcon className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
                               </summary>
                               <div className="border-t border-slate-100 px-4 py-2">
                                 {pastEntries.slice(0, 5).map((entry) => (
@@ -409,7 +418,7 @@ export default async function DashboardPage() {
                                   ? 'border-slate-100 bg-slate-50'
                                   : 'border-slate-100 bg-slate-50'
                               }`}>
-                                <div className="flex items-center justify-between gap-3">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                   <div className="min-w-0">
                                     <div className="mb-1 flex flex-wrap items-center gap-2">
                                       {entry && (
@@ -446,13 +455,13 @@ export default async function DashboardPage() {
                                       </p>
                                     )}
                                   </div>
-                                  <div className="shrink-0">
+                                  <div className="shrink-0 sm:self-center">
                                     {entry && canViewPastEntries && (
                                       <Link
                                         href={`/entry/${entry.id}`}
                                         aria-label={`View ${stage.name}`}
                                         title={`View ${stage.name}`}
-                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 sm:w-auto"
                                       >
                                         <EyeIcon />
                                         <span className="hidden sm:inline">View</span>
@@ -463,6 +472,7 @@ export default async function DashboardPage() {
                                         href={`/entry/new?studyId=${study.id}&partId=${stage.id}&journeyId=${openJourney.id}`}
                                         tone={isRecommended ? 'primary' : 'secondary'}
                                         size="sm"
+                                        className="w-full sm:w-auto"
                                       >
                                         Answer
                                       </ButtonLink>
@@ -618,10 +628,13 @@ export default async function DashboardPage() {
                         </div>
 
                         {canViewPastEntries && pastEntries.length > 0 && (
-                          <details className="mt-4 rounded-xl border border-slate-100 bg-white">
-                            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
-                              Previous entries
-                              <span className="ml-2 text-sm font-normal text-slate-400">{pastEntries.length}</span>
+                          <details className="group mt-4 rounded-xl border border-slate-100 bg-white">
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700">
+                              <span>
+                                Previous entries
+                                <span className="ml-2 text-sm font-normal text-slate-400">{pastEntries.length}</span>
+                              </span>
+                              <ChevronDownIcon className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
                             </summary>
                             <div className="border-t border-slate-100 px-4 py-2">
                               {pastEntries.slice(0, 5).map((entry) => (

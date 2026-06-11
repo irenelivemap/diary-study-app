@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
@@ -63,9 +62,9 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       <header className="sticky top-0 z-10 border-b border-slate-100 bg-white">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <Link href={backHref} aria-label="Back" className="text-sm text-slate-400 transition-colors hover:text-slate-600">
-              Back
-            </Link>
+            <ButtonLink href={backHref} tone="ghost" size="sm" className="-ml-3 shrink-0">
+              {isOwnJourney ? 'Dashboard' : 'Participant'}
+            </ButtonLink>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-900">{journey.label ?? journey.study.journeyName ?? journey.study.name}</p>
               <p className="text-xs text-slate-400">
@@ -88,9 +87,6 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
             Read-only summary of what was submitted.
           </p>
-          <ButtonLink href={backHref} tone="secondary" size="md" className="mt-4 w-full sm:w-auto">
-            Back
-          </ButtonLink>
         </div>
 
         {journey.study.parts.map((part) => {

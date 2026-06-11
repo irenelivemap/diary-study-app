@@ -179,4 +179,31 @@ const pendingCount = countPendingParticipantActions({
 })
 assert.equal(pendingCount, 2)
 
+const closedPendingCount = countPendingParticipantActions({
+  today,
+  participations: [
+    {
+      joinedAt,
+      consentedAt,
+      study: study({
+        isActive: false,
+        status: 'CLOSED',
+        parts: [before, during, after],
+        journeys: [{ id: 'closed-open-journey', label: 'Visit #1', completedAt: null, entries: [] }],
+      }),
+    },
+    {
+      joinedAt,
+      consentedAt,
+      study: study({
+        isActive: true,
+        isArchived: true,
+        status: 'ARCHIVED',
+        parts: [standardPart({ targetEntries: 1 })],
+      }),
+    },
+  ],
+})
+assert.equal(closedPendingCount, 0)
+
 console.log('Participant action checks passed.')

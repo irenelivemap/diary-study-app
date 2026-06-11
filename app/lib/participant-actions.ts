@@ -302,6 +302,8 @@ export function countPendingParticipantActions({
 }) {
   return participations.reduce((count, { study, joinedAt, consentedAt }) => {
     if (!consentedAt) return count
+    const studyStatus = resolveStudyStatus(study)
+    if (studyStatus !== 'PREPARATION' && studyStatus !== 'ACTIVE') return count
 
     const journeyPending = activeJourneyStages(study).length > 0 && !!splitParticipantJourneys(study).openJourney ? 1 : 0
     const standardPending = study.parts.filter((part, partIndex) => {

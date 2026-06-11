@@ -336,7 +336,16 @@ async function main() {
     assert(response.ok, `Expected export 200, got ${response.status}`)
     assert(response.headers.get('content-type')?.includes('text/csv'), `Expected text/csv export, got ${response.headers.get('content-type')}`)
     assert(text.includes(simpleAnswer), 'CSV export does not include the stored simple answer.')
-    assert(text.includes('participant_email'), 'CSV export does not include expected participant metadata headers.')
+    assert(text.includes('participant_id'), 'CSV export does not include anonymized participant IDs by default.')
+    assert(!text.includes('participant_email'), 'CSV export should not include participant emails by default.')
+    return `${response.status} ${response.statusText}`
+  })
+
+  await record('Admin identifiable export includes participant metadata when requested', async () => {
+    const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/export?anonymize=false`), adminCookie)
+    assert(response.ok, `Expected identifiable export 200, got ${response.status}`)
+    assert(text.includes('participant_email'), 'Identifiable CSV export does not include participant email header.')
+    assert(text.includes(QA_PARTICIPANT_EMAIL), 'Identifiable CSV export does not include the QA participant email.')
     return `${response.status} ${response.statusText}`
   })
 

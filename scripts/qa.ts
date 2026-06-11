@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { spawn } from 'node:child_process'
+import { ChildProcess, spawn } from 'node:child_process'
 
 type Step = {
   name: string
@@ -21,6 +21,7 @@ const baseUrl = process.env.QA_BASE_URL
   || 'http://localhost:3000'
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+const isLocalBaseUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(baseUrl)
 const steps: Step[] = [
   { name: 'Environment configuration', command: npmCommand, args: ['run', 'qa:env'] },
   { name: 'Access rules', command: npmCommand, args: ['run', 'qa:access'] },
@@ -56,18 +57,57 @@ function runStep(step: Step): Promise<StepResult> {
   })
 }
 
+async function canReachBaseUrl() {
+  try {
+    const response = await fetch(baseUrl, { redirect: 'manual' })
+    return response.status > 0
+  } catch {
+    return false
+  }
+}
+
+async function waitForBaseUrl(timeoutMs = 120_000) {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await canReachBaseUrl()) return
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error(`Timed out waiting for ${baseUrl}`)
+}
+
+async function ensureLocalServer(): Promise<ChildProcess | null> {
+  if (!isLocalBaseUrl) return null
+  if (await canReachBaseUrl()) {
+    console.log(`Local server already running at ${baseUrl}`)
+    return null
+  }
+
+  console.log(`Starting local dev server at ${baseUrl}`)
+  const server = spawn(npmCommand, ['run', 'dev'], {
+    stdio: 'inherit',
+    env: process.env,
+  })
+  await waitForBaseUrl()
+  return server
+}
+
 function formatDuration(ms: number) {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
 async function main() {
   console.log(`Running diARI QA against ${baseUrl}`)
+  const server = await ensureLocalServer()
   const results: StepResult[] = []
 
-  for (const step of steps) {
-    const result = await runStep(step)
-    results.push(result)
-    if (!result.ok) break
+  try {
+    for (const step of steps) {
+      const result = await runStep(step)
+      results.push(result)
+      if (!result.ok) break
+    }
+  } finally {
+    server?.kill('SIGTERM')
   }
 
   console.log('\nQA summary\n')
