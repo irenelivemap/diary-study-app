@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { sendReminderTestEmail, sendStudyRemindersNow } from '@/app/actions/reminders'
 import { Button } from '@/app/components/ui'
+import type { ReminderDiagnostic } from '@/app/lib/reminder-diagnostics'
 
 type ReminderSummary = {
   configured: boolean
@@ -25,6 +26,7 @@ type Props = {
   enabled: boolean
   reminderTime: string
   embedded?: boolean
+  diagnostic: ReminderDiagnostic
   recentLogs: {
     id: string
     status: string
@@ -36,7 +38,14 @@ type Props = {
   }[]
 }
 
-export default function ReminderSendCard({ studyId, enabled, reminderTime, embedded = false, recentLogs }: Props) {
+const diagnosticToneClass = {
+  neutral: 'border-slate-200 bg-slate-50 text-slate-700',
+  ok: 'border-emerald-100 bg-emerald-50 text-emerald-900',
+  warning: 'border-amber-100 bg-amber-50 text-amber-900',
+  critical: 'border-red-100 bg-red-50 text-red-800',
+}
+
+export default function ReminderSendCard({ studyId, enabled, reminderTime, diagnostic, embedded = false, recentLogs }: Props) {
   const [pending, startTransition] = useTransition()
   const [testPending, startTestTransition] = useTransition()
   const [summary, setSummary] = useState<ReminderSummary | null>(null)
@@ -96,6 +105,28 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, embed
       </div>
 
       <div className="p-5 space-y-4">
+        <div className={`rounded-xl border px-4 py-3 ${diagnosticToneClass[diagnostic.tone]}`}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">{diagnostic.label}</p>
+              <p className="mt-1 text-sm opacity-85">{diagnostic.detail}</p>
+            </div>
+            <div className="flex shrink-0 gap-2 text-xs font-semibold">
+              {diagnostic.recentSent > 0 && (
+                <span className="rounded-full bg-white/70 px-2.5 py-1">{diagnostic.recentSent} sent</span>
+              )}
+              {diagnostic.recentFailed > 0 && (
+                <span className="rounded-full bg-white/70 px-2.5 py-1">{diagnostic.recentFailed} failed</span>
+              )}
+            </div>
+          </div>
+          {diagnostic.lastAttemptAt && (
+            <p className="mt-2 text-xs opacity-75">
+              Last attempt: {new Date(diagnostic.lastAttemptAt).toLocaleString()}
+            </p>
+          )}
+        </div>
+
         {summary && (
           <div className={`rounded-xl px-4 py-3 ${summary.configured ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-800'}`}>
             <p className="text-sm font-medium">

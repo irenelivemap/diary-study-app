@@ -29,6 +29,7 @@ const steps: Step[] = [
   { name: 'Participant action rules', command: npmCommand, args: ['run', 'qa:actions'] },
   { name: 'Reminder link rules', command: npmCommand, args: ['run', 'qa:reminders'] },
   { name: 'Reminder delivery rules', command: npmCommand, args: ['run', 'qa:reminder-delivery'] },
+  { name: 'Reminder diagnostic rules', command: npmCommand, args: ['run', 'qa:reminder-diagnostics'] },
   { name: 'Answer dataset rules', command: npmCommand, args: ['run', 'qa:dataset'] },
   { name: 'Upload cleanup rules', command: npmCommand, args: ['run', 'qa:uploads'] },
   { name: 'Invite flow rules', command: npmCommand, args: ['run', 'qa:invites'] },

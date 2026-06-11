@@ -8,6 +8,7 @@ import OverviewSection from '@/app/components/OverviewSection'
 import { ButtonLink } from '@/app/components/ui'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
 import { studyStatusLabel } from '@/app/lib/study-lifecycle'
+import { buildReminderDiagnostic } from '@/app/lib/reminder-diagnostics'
 
 export default async function StudyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -108,6 +109,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     completed: invitedUserIds.filter(participantCompletedStudy).length,
   }
   const recentEntries = study.entries.slice(0, 6)
+  const reminderDiagnostic = buildReminderDiagnostic(study.remindersEnabled, study.reminderLogs)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
   const partNameById = new Map(study.parts.map((part) => [part.id, part.name]))
   const participantEmailByUserId = new Map(study.participants.map((participant) => [participant.user.id, participant.user.email]))
@@ -272,6 +274,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
                 enabled={study.remindersEnabled}
                 reminderTime={study.reminderTime ?? '18:00'}
                 embedded
+                diagnostic={reminderDiagnostic}
                 recentLogs={study.reminderLogs.map((log) => ({
                   id: log.id,
                   status: log.status,
