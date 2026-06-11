@@ -35,6 +35,7 @@ const steps: Step[] = [
   { name: 'Seed QA fixtures', command: npmCommand, args: ['run', 'qa:seed'] },
   { name: 'Public smoke checks', command: npmCommand, args: ['run', 'smoke'], env: { QA_BASE_URL: baseUrl } },
   { name: 'Authenticated participant and admin flow', command: npmCommand, args: ['run', 'qa:flow'], env: { QA_BASE_URL: baseUrl } },
+  { name: 'Browser layout and interaction checks', command: npmCommand, args: ['run', 'test:e2e'], env: { QA_BASE_URL: baseUrl } },
 ]
 
 function runStep(step: Step): Promise<StepResult> {
