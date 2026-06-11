@@ -40,6 +40,8 @@ jobs:
 
       - name: Run production API/page QA
         run: npm run qa
+        env:
+          QA_SKIP_BROWSER: 'true'
 
       - name: Install Chromium
         if: ${{ inputs.run_browser }}
