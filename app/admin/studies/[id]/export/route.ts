@@ -2,17 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { DEMOGRAPHIC_FIELDS, demographicFieldLabel } from '@/app/lib/demographics'
-import { entryQualityLabel } from '@/app/lib/entry-state'
-
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`
-}
+import { csvCell, dataTypeLabel, formatQualityFlags, formatVisibleAnswer } from '@/app/lib/answer-dataset'
+import { plainTextFromHtml } from '@/app/lib/sanitize-html'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+  const includePilot = req.nextUrl.searchParams.get('includePilot') === 'true'
   const study = await prisma.study.findUnique({
     where: { id },
     include: {
@@ -21,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         include: {
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
           entries: {
-            where: { isPilot: false },
+            ...(includePilot ? {} : { where: { isPilot: false } }),
             include: {
               journey: { select: { id: true, label: true } },
               user: {
@@ -54,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const allQuestions = study.parts.flatMap((p) => p.questions).filter((q) => q.type !== 'CONTENT')
   const demographicFields = DEMOGRAPHIC_FIELDS.map((field) => field.key)
   const showJourney = study.mode === 'JOURNEY' || study.parts.some((part) => part.entries.some((entry) => entry.journeyId))
-  const anonymize = req.nextUrl.searchParams.get('anonymize') === 'true'
+  const anonymize = req.nextUrl.searchParams.get('anonymize') !== 'false'
   const participantIds = new Map<string, string>()
   let participantCounter = 0
 
@@ -67,18 +65,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     'date',
     'submitted_at',
     'timezone',
+    'data_type',
     'is_pilot_entry',
     'quality_flags',
     'study_version',
     ...allQuestions.flatMap((q) => {
-      const text = q.text.replace(/<[^>]*>/g, '')
+      const text = plainTextFromHtml(q.text)
       return q.type === 'FREE_TEXT' ? [text, `${text} tags`] : [text]
     })
   ]
 
   const rows = study.parts.flatMap((part) =>
     part.entries.map((entry) => {
-      const answerMap = Object.fromEntries(entry.answers.map((a) => [a.questionId, a.value]))
+      const answerMap = Object.fromEntries(entry.answers.map((a) => [
+        a.questionId,
+        { value: a.value, wasShown: a.wasShown },
+      ]))
       const tagMap = Object.fromEntries(entry.answers.map((a) => [
         a.questionId,
         a.tags.map((answerTag) => answerTag.tag.label).join('; '),
@@ -105,11 +107,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         entry.date,
         entry.submittedAt.toISOString(),
         entry.timezone ?? '',
+        dataTypeLabel(entry.isPilot),
         entry.isPilot ? 'true' : 'false',
-        entry.qualityFlags.map(entryQualityLabel).join('; '),
+        formatQualityFlags(entry.qualityFlags),
         String(study.version),
         ...allQuestions.flatMap((q) => {
-          const answer = answerMap[q.id] ?? ''
+          const answer = formatVisibleAnswer(answerMap[q.id], q.type)
           return q.type === 'FREE_TEXT' ? [answer, tagMap[q.id] ?? ''] : [answer]
         }),
       ].map((value) => csvCell(String(value))).join(',')

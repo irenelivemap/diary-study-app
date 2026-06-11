@@ -1,31 +1,24 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { deleteEntryFromForm } from '@/app/actions/entries'
-import { Badge, Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
+import { Badge, Button, IconButton, SwitchVisual, TextInput, TrashIcon } from '@/app/components/ui'
 import { entryQualityLabel } from '@/app/lib/entry-state'
+import {
+  NOT_SHOWN_LABEL,
+  countPilotRows,
+  csvCell,
+  dataTypeLabel,
+  datasetHasJourney,
+  datasetQualityFlags,
+  filterDatasetRowsByPilot,
+  formatQualityFlags,
+  formatVisibleAnswer,
+  type DatasetRow,
+} from '@/app/lib/answer-dataset'
 
 type Question = { id: string; partId: string; partName: string; text: string; type: string }
 type Part = { id: string; name: string }
 type Participant = { id: string; name: string; email: string }
-type Row = {
-  entryId: string
-  partId: string
-  partName: string
-  participantId: string
-  participantName: string
-  participantEmail: string
-  journeyId?: string | null
-  journeyLabel?: string | null
-  date: string
-  submittedAt: string
-  timezone: string | null
-  isPilot?: boolean
-  qualityFlags: string[]
-  answers: Record<string, string>
-  answerShown?: Record<string, boolean>
-  answerTags?: Record<string, string[]>
-}
-
 type Props = {
   studyId: string
   studyName: string
@@ -33,11 +26,12 @@ type Props = {
   parts: Part[]
   participants: Participant[]
   questions: Question[]
-  rows: Row[]
+  rows: DatasetRow[]
 }
 
 const BASE_COLUMNS = [
   { id: 'entryId', label: 'Entry ID' },
+  { id: 'dataType', label: 'Data type' },
   { id: 'participant', label: 'Participant' },
   { id: 'email', label: 'Email' },
   { id: 'journey', label: 'Journey' },
@@ -95,19 +89,6 @@ function formatSubmittedTime(value: string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function formatAnswerValue(value: string, type: string) {
-  if (type !== 'MULTIPLE_CHOICE') return value
-  try {
-    const parsed = JSON.parse(value)
-    if (Array.isArray(parsed)) return parsed.map(String).join('; ')
-  } catch {}
-  return value
-}
-
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`
-}
-
 export default function DataExplorer({ studyId, studyName, studyVersion, parts, participants, questions, rows }: Props) {
   const answerQuestions = questions.filter((q) => q.type !== 'CONTENT')
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set(parts.map((p) => p.id)))
@@ -116,13 +97,19 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const [dateTo, setDateTo] = useState('')
   const [selectedBaseCols, setSelectedBaseCols] = useState<Set<BaseColumnId>>(new Set(BASE_COLUMNS.map((col) => col.id)))
   const [selectedQuestionCols, setSelectedQuestionCols] = useState<Set<string>>(new Set(answerQuestions.map((q) => q.id)))
-  const [anonymize, setAnonymize] = useState(false)
-  const [entryToDelete, setEntryToDelete] = useState<Row | null>(null)
+  const [anonymize, setAnonymize] = useState(true)
+  const [entryToDelete, setEntryToDelete] = useState<DatasetRow | null>(null)
   const [search, setSearch] = useState('')
-  const showJourney = rows.some((row) => row.journeyId || row.journeyLabel)
+  const [includePilotData, setIncludePilotData] = useState(false)
+  const pilotRowCount = useMemo(() => countPilotRows(rows), [rows])
+  const datasetRows = useMemo(
+    () => filterDatasetRowsByPilot(rows, includePilotData),
+    [rows, includePilotData]
+  )
+  const showJourney = datasetHasJourney(datasetRows)
   const availableQualityFlags = useMemo(
-    () => Array.from(new Set(rows.flatMap((row) => row.qualityFlags))).sort(),
-    [rows]
+    () => datasetQualityFlags(datasetRows),
+    [datasetRows]
   )
   const [selectedQualityFlags, setSelectedQualityFlags] = useState<Set<string> | null>(null)
   const participantAliasById = useMemo(() => new Map(
@@ -141,7 +128,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
     return next
   }
 
-  const filteredRows = useMemo(() => rows.filter((r) => {
+  const filteredRows = useMemo(() => datasetRows.filter((r) => {
     if (!selectedParts.has(r.partId)) return false
     if (!selectedParticipants.has(r.participantId)) return false
     if (selectedQualityFlags && selectedQualityFlags.size > 0 && !r.qualityFlags.some((flag) => selectedQualityFlags.has(flag))) return false
@@ -163,7 +150,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
       if (!haystack.includes(query)) return false
     }
     return true
-  }), [rows, selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search])
+  }), [datasetRows, selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search])
 
   const selectedQuestions = answerQuestions.filter((q) => selectedQuestionCols.has(q.id))
 
@@ -213,6 +200,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
         if (!showJourney && col.id === 'journey') return []
         if (!selectedBaseCols.has(col.id)) return []
         if (col.id === 'entryId') return [r.entryId]
+        if (col.id === 'dataType') return [dataTypeLabel(r.isPilot)]
         if (col.id === 'participant') return [anonymize ? participantAliasById.get(r.participantId) ?? 'P000' : r.participantName]
         if (col.id === 'email') return anonymize ? [] : [r.participantEmail]
         if (col.id === 'journey') return [r.journeyLabel || r.journeyId || '']
@@ -220,13 +208,13 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
         if (col.id === 'date') return [r.date]
         if (col.id === 'submittedAt') return [r.submittedAt]
         if (col.id === 'timezone') return [r.timezone ?? '']
-        if (col.id === 'qualityFlags') return [r.qualityFlags.map(entryQualityLabel).join('; ')]
+        if (col.id === 'qualityFlags') return [formatQualityFlags(r.qualityFlags)]
         return [String(studyVersion)]
       })
       return [
       ...baseValues,
       ...selectedQuestions.flatMap((q) => {
-        const answer = r.answerShown?.[q.id] === false ? 'Not shown' : formatAnswerValue(r.answers[q.id] ?? '', q.type)
+        const answer = formatVisibleAnswer({ value: r.answers[q.id], wasShown: r.answerShown?.[q.id] }, q.type)
         if (q.type !== 'FREE_TEXT') return [answer]
         const tags = (r.answerTags?.[q.id] ?? []).join('; ')
         return [answer, tags]
@@ -331,16 +319,41 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
             </Dropdown>
           )}
 
+          <button
+            type="button"
+            disabled={pilotRowCount === 0}
+            onClick={() => setIncludePilotData((current) => !current)}
+            className={`inline-flex min-h-10 items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+              pilotRowCount === 0
+                ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
+                : includePilotData
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <span>
+              <span className="block font-semibold">
+                {includePilotData ? 'Including pilot data' : 'Fieldwork data only'}
+              </span>
+              <span className="block text-xs text-slate-500">
+                {pilotRowCount > 0
+                  ? `${pilotRowCount} pilot ${pilotRowCount === 1 ? 'entry' : 'entries'} available`
+                  : 'No pilot data yet'}
+              </span>
+            </span>
+            <SwitchVisual checked={includePilotData} />
+          </button>
+
           <span className="text-sm text-slate-400 pl-1">
             <span className="font-semibold text-slate-600">{filteredRows.length}</span> entries
           </span>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-500">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
             <input type="checkbox" checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)}
               className="w-4 h-4 rounded text-indigo-600" />
-            Anonymize export
+            Anonymize CSV
           </label>
           <Button onClick={downloadCSV} className="shrink-0">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -402,6 +415,15 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                       checked={baseColumnSelected('entryId')}
                       onChange={() => toggleBaseColumn('entryId')}
                       aria-label="Include entry ID in download"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                  </th>
+                  <th className="px-4 py-2 bg-slate-50 min-w-[110px]">
+                    <input
+                      type="checkbox"
+                      checked={baseColumnSelected('dataType')}
+                      onChange={() => toggleBaseColumn('dataType')}
+                      aria-label="Include data type in download"
                       className="h-4 w-4 rounded border-slate-300 text-indigo-600"
                     />
                   </th>
@@ -507,6 +529,9 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap sticky left-0 z-10 border-r border-slate-100 min-w-[130px]">
                     <span className={`${baseColumnSelected('entryId') ? '' : 'opacity-45'}`}>Entry ID</span>
                   </th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[110px]">
+                    <span className={`${baseColumnSelected('dataType') ? '' : 'opacity-45'}`}>Data type</span>
+                  </th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[130px]">
                     <span className={`${baseColumnSelected('participant') ? '' : 'opacity-45'}`}>Participant</span>
                   </th>
@@ -559,6 +584,15 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                     <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap sticky left-0 border-r border-slate-100 z-10 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${baseColumnSelected('entryId') ? '' : 'opacity-60'}`}>
                       <span className={`${baseColumnSelected('entryId') ? '' : 'opacity-60'}`}>{row.entryId.slice(0, 10)}</span>
                     </td>
+                    <td className={`px-4 py-3 whitespace-nowrap text-xs ${baseColumnSelected('dataType') ? '' : 'bg-slate-50/50 opacity-60'}`}>
+                      <span className={`rounded-full px-2.5 py-1 font-semibold ${
+                        row.isPilot
+                          ? 'bg-sky-50 text-sky-700'
+                          : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {dataTypeLabel(row.isPilot)}
+                      </span>
+                    </td>
                     <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap ${baseColumnSelected('participant') ? '' : 'opacity-60'}`}>
                       {row.participantName}
                     </td>
@@ -602,11 +636,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                     </td>
                     {answerQuestions.map((q) => {
                       const wasShown = row.answerShown?.[q.id] !== false
-                      const val = wasShown ? formatAnswerValue(row.answers[q.id] ?? '', q.type) : 'Not shown'
+                      const val = formatVisibleAnswer({ value: row.answers[q.id], wasShown: row.answerShown?.[q.id] }, q.type)
                       return (
                         <td key={q.id} className={`px-4 py-3 text-slate-700 max-w-[220px] align-top ${selectedQuestionCols.has(q.id) ? '' : 'bg-slate-50/50 opacity-60'}`}>
                           {!wasShown ? (
-                            <span className="text-xs font-medium text-slate-400">Not shown</span>
+                            <span className="text-xs font-medium text-slate-400">{NOT_SHOWN_LABEL}</span>
                           ) : q.type === 'SCREENSHOT' ? (
                             val
                               ? <a href={val} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline text-xs">View</a>

@@ -29,6 +29,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Environment configuration
+        run: npm run qa:env
+
+      - name: Access rules
+        run: npm run qa:access
+
+      - name: Access audit
+        run: npm run qa:access-audit
+
+      - name: Participant action rules
+        run: npm run qa:actions
+
+      - name: Reminder link rules
+        run: npm run qa:reminders
+
+      - name: Answer dataset rules
+        run: npm run qa:dataset
+
       - name: Typecheck
         run: npm run typecheck
 

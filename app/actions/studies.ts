@@ -9,8 +9,7 @@ import { invitationUrl, sendStudyInvitationEmail } from '@/app/lib/invitations'
 import { sendParticipantRemovalEmail } from '@/app/lib/participant-removal'
 import { acceptsParticipantEntries, lifecyclePersistence } from '@/app/lib/study-lifecycle'
 import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
-
-const REMOVED_INVITE_PREFIX = 'removed_'
+import { REMOVED_INVITE_PREFIX, isRemovedInviteToken } from '@/app/lib/invitation-access'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -545,7 +544,7 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
   })
   const study = invitation?.study ?? await prisma.study.findUnique({ where: { inviteToken: token } })
   if (!study || study.isArchived || study.status === StudyStatus.CLOSED || study.status === StudyStatus.ARCHIVED) return { error: 'This invite link is not valid.' }
-  if (invitation?.token.startsWith(REMOVED_INVITE_PREFIX)) return { error: 'This invite link is not valid.' }
+  if (isRemovedInviteToken(invitation?.token)) return { error: 'This invite link is not valid.' }
   if (invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()) {
     return { error: `This invitation is for ${invitation.email}. Please sign in with that email.` }
   }
@@ -553,7 +552,7 @@ export async function joinStudyWithInvite(prevState: unknown, formData: FormData
     where: { studyId_email: { studyId: study.id, email: session.email.toLowerCase() } },
     select: { token: true },
   })
-  if (removedInvitation?.token.startsWith(REMOVED_INVITE_PREFIX)) {
+  if (isRemovedInviteToken(removedInvitation?.token)) {
     return { error: 'You no longer have access to this study. Contact the researcher if this seems wrong.' }
   }
 

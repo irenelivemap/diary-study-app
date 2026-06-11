@@ -6,6 +6,7 @@ import { Badge, Card, SwitchVisual, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionTag } from '@/app/actions/analysis'
 import { phaseSoftBadgeClass } from '@/app/lib/phase-colors'
+import { answerValue as normalizedAnswerValue, answerWasShown, parseMultipleChoiceAnswer } from '@/app/lib/answer-dataset'
 
 type Question = {
   id: string
@@ -121,16 +122,6 @@ function ExportMenu({
   )
 }
 
-function cleanValue(value: string | undefined) {
-  const trimmed = (value ?? '').trim()
-  if (!trimmed || trimmed === 'N/A - not shown') return ''
-  return trimmed
-}
-
-function answerValue(cell: AnswerCell | undefined) {
-  return cleanValue(cell?.value)
-}
-
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -160,14 +151,6 @@ function topCounts(values: string[]) {
   return Array.from(counts.entries())
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-}
-
-function parseMultiChoiceValue(value: string) {
-  try {
-    const parsed = JSON.parse(value)
-    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean)
-  } catch {}
-  return value ? [value] : []
 }
 
 function multipleChoiceStats(question: Question, points: DataPoint[], respondentDenominator: number) {
@@ -325,15 +308,14 @@ function exportPng(svg: SVGSVGElement | null, filename: string) {
 function eligibleRowsForQuestion(question: Question, rows: Row[]) {
   return rows.filter((row) => {
     if (row.partId !== question.partId) return false
-    const answer = row.answers[question.id]
-    return answer?.wasShown !== false
+    return answerWasShown(row.answers[question.id])
   })
 }
 
 function buildAnalysis(question: Question, rows: Row[]) {
   const eligibleRows = eligibleRowsForQuestion(question, rows)
   const notShown = rows.filter((row) => row.partId === question.partId && row.answers[question.id]?.wasShown === false).length
-  const values = eligibleRows.map((row) => answerValue(row.answers[question.id])).filter(Boolean)
+  const values = eligibleRows.map((row) => normalizedAnswerValue(row.answers[question.id])).filter(Boolean)
   const answered = values.length
   const eligible = eligibleRows.length
   const missing = Math.max(0, eligible - answered)
@@ -408,7 +390,7 @@ function buildAnalysis(question: Question, rows: Row[]) {
   }
 
   const points = question.type === 'MULTIPLE_CHOICE'
-    ? topCounts(values.flatMap(parseMultiChoiceValue))
+    ? topCounts(values.flatMap(parseMultipleChoiceAnswer))
     : topCounts(values)
   return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
 }
@@ -422,7 +404,7 @@ function freeTextAnswers(question: Question, rows: Row[]) {
       date: row.date,
       submittedAt: row.submittedAt,
       answerId: row.answers[question.id]?.id ?? '',
-      answer: answerValue(row.answers[question.id]),
+      answer: normalizedAnswerValue(row.answers[question.id]),
       tags: row.answers[question.id]?.tags ?? [],
     }))
     .filter((row) => row.answer)

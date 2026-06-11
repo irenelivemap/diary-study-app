@@ -19,8 +19,12 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const formData = await req.formData()
+  const context = String(formData.get('context') ?? '')
   const file = formData.get('file') as File
   if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json({ error: 'File uploads are not configured yet.' }, { status: 503 })
+  }
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
     return NextResponse.json({ error: 'Only image uploads are allowed.' }, { status: 400 })
   }
@@ -28,7 +32,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Image must be smaller than 8 MB.' }, { status: 400 })
   }
 
-  if (session.role !== 'ADMIN') {
+  let uploadPath = ''
+
+  if (context === 'study-content') {
+    if (session.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Only researchers can upload study content.' }, { status: 403 })
+    }
+    uploadPath = `study-content/${session.userId}/${Date.now()}_${safeFilename(file.name)}`
+  } else if (context === 'entry-answer') {
     const studyId = String(formData.get('studyId') ?? '')
     const partId = String(formData.get('partId') ?? '')
     const questionId = String(formData.get('questionId') ?? '')
@@ -52,9 +63,12 @@ export async function POST(req: NextRequest) {
     if (!question || !participation?.consentedAt) {
       return NextResponse.json({ error: 'Upload is not allowed for this question.' }, { status: 403 })
     }
+    uploadPath = `entries/${studyId}/${partId}/${questionId}/${session.userId}/${Date.now()}_${safeFilename(file.name)}`
+  } else {
+    return NextResponse.json({ error: 'Upload context is missing.' }, { status: 400 })
   }
 
-  const blob = await put(`entries/${session.userId}/${Date.now()}_${safeFilename(file.name)}`, file, {
+  const blob = await put(uploadPath, file, {
     access: 'public',
   })
 
