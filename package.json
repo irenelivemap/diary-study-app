@@ -14,6 +14,7 @@
     "qa:dataset": "tsx scripts/answer-dataset-check.ts",
     "qa:uploads": "tsx scripts/upload-cleanup-check.ts",
     "qa:retention": "tsx scripts/retention-policy-check.ts",
+    "qa:analysis-docs": "tsx scripts/analysis-docs-check.ts",
     "qa:invites": "tsx scripts/invite-flow-check.ts",
     "qa:access": "tsx scripts/access-rules-check.ts",
     "qa:access-audit": "tsx scripts/access-audit.ts",
