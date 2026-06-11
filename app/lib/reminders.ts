@@ -29,7 +29,6 @@ type SendDueRemindersOptions = {
 
 type StudyWithReminderData = Awaited<ReturnType<typeof getReminderStudies>>[number]
 type ReminderPart = StudyWithReminderData['parts'][number]
-type ReminderParticipant = StudyWithReminderData['participants'][number]
 type ReminderStudy = Pick<StudyWithReminderData, 'name' | 'reminderSubject' | 'reminderBody' | 'reminderNote' | 'contactEmail'>
 type ReminderRecipient = {
   user: {
