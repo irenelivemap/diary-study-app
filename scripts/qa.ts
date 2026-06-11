@@ -22,6 +22,10 @@ const baseUrl = process.env.QA_BASE_URL
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const isLocalBaseUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(baseUrl)
+const skipBrowserChecks = process.env.QA_SKIP_BROWSER === 'true'
+const browserSteps: Step[] = skipBrowserChecks
+  ? []
+  : [{ name: 'Browser layout and interaction checks', command: npmCommand, args: ['run', 'test:e2e'], env: { QA_BASE_URL: baseUrl } }]
 const steps: Step[] = [
   { name: 'Environment configuration', command: npmCommand, args: ['run', 'qa:env'] },
   { name: 'Access rules', command: npmCommand, args: ['run', 'qa:access'] },
@@ -38,7 +42,7 @@ const steps: Step[] = [
   { name: 'Seed QA fixtures', command: npmCommand, args: ['run', 'qa:seed'] },
   { name: 'Public smoke checks', command: npmCommand, args: ['run', 'smoke'], env: { QA_BASE_URL: baseUrl } },
   { name: 'Authenticated participant and admin flow', command: npmCommand, args: ['run', 'qa:flow'], env: { QA_BASE_URL: baseUrl } },
-  { name: 'Browser layout and interaction checks', command: npmCommand, args: ['run', 'test:e2e'], env: { QA_BASE_URL: baseUrl } },
+  ...browserSteps,
 ]
 
 function runStep(step: Step): Promise<StepResult> {
