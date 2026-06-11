@@ -121,6 +121,11 @@ async function loadJourneyStudy() {
       journeys: {
         where: { userId: participant!.id, completedAt: null },
         orderBy: { createdAt: 'desc' },
+        include: {
+          entries: {
+            select: { partId: true },
+          },
+        },
       },
     },
   })
@@ -270,6 +275,8 @@ test('journey reminder destination opens the dashboard with stage choices', asyn
   const { study, journey } = await loadJourneyStudy()
   const firstStage = study.parts[0]
   const secondStage = study.parts[1]
+  const submittedPartIds = new Set(journey.entries.map((entry) => entry.partId))
+  const targetStage = study.parts.find((part) => !submittedPartIds.has(part.id)) ?? firstStage
 
   await loginParticipant(page)
   await page.goto('/dashboard')
@@ -280,14 +287,19 @@ test('journey reminder destination opens the dashboard with stage choices', asyn
   await expect(page.getByText('Recommended next')).toBeVisible()
   await expectNoHorizontalOverflow(page, 'Journey dashboard')
 
-  const secondStageLink = page.locator(
-    `a[href="/entry/new?studyId=${study.id}&partId=${secondStage.id}&journeyId=${journey.id}"]`
+  const targetStageLink = page.locator(
+    `a[href*="studyId=${study.id}"][href*="partId=${targetStage.id}"][href*="journeyId=${journey.id}"]`
   )
-  await expect(secondStageLink).toBeVisible()
-  await secondStageLink.click()
+  await expect(targetStageLink).toBeVisible()
+  await targetStageLink.click()
 
-  await expect(page).toHaveURL(new RegExp(`/entry/new\\?studyId=${study.id}&partId=${secondStage.id}&journeyId=${journey.id}`))
-  await expect(page.getByText(secondStage.questions[0].text)).toBeVisible()
+  await expect(page).toHaveURL((url) =>
+    url.pathname === '/entry/new'
+    && url.searchParams.get('studyId') === study.id
+    && url.searchParams.get('partId') === targetStage.id
+    && url.searchParams.get('journeyId') === journey.id
+  )
+  await expect(page.getByText(targetStage.questions[0].text)).toBeVisible()
   await expectNoHorizontalOverflow(page, 'Journey entry form')
 })
 
