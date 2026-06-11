@@ -6,6 +6,7 @@ import { getSession } from '@/app/lib/session'
 import { normalizeTimezone } from '@/app/lib/validation'
 import { canOpenEntryForm, type EntryQualityFlag, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
 import { isPilotSubmission } from '@/app/lib/study-lifecycle'
+import { deleteUploadedAnswerFiles } from '@/app/lib/upload-cleanup'
 
 const OTHER_SENTINEL = '__OTHER__'
 const MAX_TEXT_ANSWER_LENGTH = 10000
@@ -76,9 +77,17 @@ export async function deleteEntryFromForm(formData: FormData) {
 
   const entry = await prisma.entry.findFirst({
     where: { id: entryId, studyId },
-    select: { id: true, journeyId: true },
+    select: {
+      id: true,
+      journeyId: true,
+      answers: {
+        where: { question: { type: 'SCREENSHOT' } },
+        select: { value: true },
+      },
+    },
   })
   if (entry) {
+    const uploadValues = entry.answers.map((answer) => answer.value)
     await prisma.entry.delete({ where: { id: entry.id } })
     if (entry.journeyId) {
       await prisma.journey.update({
@@ -86,6 +95,7 @@ export async function deleteEntryFromForm(formData: FormData) {
         data: { completedAt: null },
       })
     }
+    await deleteUploadedAnswerFiles(uploadValues)
   }
 
   revalidatePath(`/admin/studies/${studyId}`)

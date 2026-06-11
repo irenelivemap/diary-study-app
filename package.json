@@ -12,6 +12,7 @@
     "qa:env": "tsx scripts/env-check.ts",
     "qa:actions": "tsx scripts/participant-actions-check.ts",
     "qa:dataset": "tsx scripts/answer-dataset-check.ts",
+    "qa:uploads": "tsx scripts/upload-cleanup-check.ts",
     "qa:access": "tsx scripts/access-rules-check.ts",
     "qa:access-audit": "tsx scripts/access-audit.ts",
     "qa:reminders": "tsx scripts/reminder-links-check.ts",

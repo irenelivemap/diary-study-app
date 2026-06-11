@@ -153,6 +153,7 @@ Use the least destructive action that solves the problem:
 - Delete permanently: remove the study and all responses. Requires explicit confirmation.
 - Remove participant: blocks future participation. Choose whether to keep or delete their existing data.
 - Delete entry: removes one submitted entry from data, analysis, participant counts and exports.
+- Uploaded answer files attached to deleted entries are also removed from Blob storage when storage is configured.
 
 ## Before Calling A Study Finished
 
