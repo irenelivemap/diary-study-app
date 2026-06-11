@@ -144,6 +144,115 @@ Keep `Fieldwork data only` as the default view unless you are specifically revie
 
 CSV exports are anonymized by default. Participant names/emails are replaced with stable participant IDs such as `P001`, and demographic profile fields are excluded. Turn anonymization off only when you explicitly need direct identifiers, demographics, or operational fields for work like incentive reconciliation or participant follow-up.
 
+## Data And Analysis Reference
+
+Use `Data` when you need the row-level spreadsheet view. Use `Analysis` when you need question-level summaries and plots.
+
+### Data tab
+
+Each row represents one submitted entry. Standard entries and journey-stage entries both appear here; journey entries include the journey label when available so related stages can be connected.
+
+Core fields:
+
+- `Entry ID`: internal row identifier.
+- `Data type`: `Fieldwork` or `Pilot`.
+- `Participant`: anonymized participant ID by default in CSV exports.
+- `Email`: excluded while `Anonymize download` is on.
+- `Journey`: the journey label or ID for journey-based studies.
+- `Part`: the study part or stage.
+- `Date`: participant-local entry date.
+- `Submitted time`: actual submission timestamp.
+- `Timezone`: participant timezone used for dates and reminders.
+- `Quality flags`: automatic flags such as very short text or retrospective event time.
+- `Study version`: setup version at the time of export, so question edits can be interpreted carefully.
+
+Export behavior:
+
+- `Anonymize download` is on by default.
+- Column checkboxes choose what goes into CSV; the table stays visible even when a column is not selected.
+- Free-text questions export both the answer and a `{question} tags` column.
+- Identifiable exports may include names, email and optional profile/demographic fields. Use them only for operational needs.
+- `Fieldwork data only` excludes pilot rows. Include pilot data only for pilot review or methodological checks.
+
+Deletion behavior:
+
+- Deleting one entry removes that row from Data, Analysis, participant counts and exports.
+- Screenshot/upload answers attached to the deleted entry are removed from Blob storage when storage is configured.
+
+### Analysis tab
+
+The top cards summarize the filtered analysis set:
+
+- `Entries analyzed`: entries after filters and pilot-data selection.
+- `Participants represented`: distinct participants represented in those entries.
+- `Answer completion`: answered expected answers divided by eligible expected answers.
+- `Missing answers`: eligible answers without a value. Answers hidden by conditions are shown separately and are not treated as ordinary missing answers.
+
+Filters apply to all plots and cards:
+
+- Part
+- Participant
+- Question type
+- Date range
+- Fieldwork / pilot data
+
+### Question plots
+
+General rules:
+
+- Plots use percentages as the main visual unit so studies with different numbers of entries can be compared more easily.
+- Hover interactions show counts where available.
+- Use the pencil control to change plot title/subtitle and y-axis settings for presentation/export.
+- Use the download control to export PNG, SVG or CSV when available.
+- Screenshot questions are not plotted; they are reviewed as files.
+
+Rating scales:
+
+- Show average, median and middle 50% when numeric scale data supports it.
+- Interpret averages carefully on ordinal scales. Median, spread and distribution shape are often more important than the mean.
+- Long scales are binned when needed so labels and extremes remain readable.
+
+Single choice, multiple choice and yes/no:
+
+- Show percentage distribution across selected options.
+- Top options are highlighted consistently.
+- Multiple choice percentages may add to more than 100% because participants can select more than one option.
+- Useful metrics include top option, gap to runner-up and options used.
+
+Free text:
+
+- Starts as a list of answers.
+- Create tags per question before tagging answers.
+- Tags are manual, can overlap and can have colors.
+- Tag percentages may add to more than 100% because one answer can have multiple tags.
+- Filter by tag to review tagged subsets.
+- Tags are included in CSV exports.
+
+Date/time:
+
+- Summaries group submitted event times into readable distributions.
+- Participants can use `Now` in the entry form when the event is happening at submission time.
+
+Journey continuity:
+
+- `Journeys started`: number of journey instances represented in the filtered data.
+- `All stages submitted`: journeys with all expected stages captured.
+- `Avg. stages per journey`: average stage coverage per journey.
+- `Stage coverage`: how often each stage is captured across journeys.
+- Use this to check continuity, not just volume. A study can have many entries but weak continuity if stages are not connected within the same journey.
+
+### Recommended analysis workflow
+
+1. Start with `Fieldwork data only`.
+2. Check `Answer completion`, `Missing answers` and `Data quality notes`.
+3. Review participant progress if missingness looks concentrated.
+4. Inspect each question plot for distribution shape and outliers.
+5. For free text, define tags per question, tag a first pass, then review tag summaries.
+6. For journey studies, review `Journey continuity` before interpreting stage-to-stage relationships.
+7. Export plots only after checking titles, subtitles and axis settings.
+8. Export anonymized CSV for analysis by default.
+9. Export identifiable CSV only for a specific operational reason.
+
 ## Destructive Actions
 
 Use the least destructive action that solves the problem:
