@@ -155,6 +155,28 @@ Use the least destructive action that solves the problem:
 - Delete entry: removes one submitted entry from data, analysis, participant counts and exports.
 - Uploaded answer files attached to deleted entries are also removed from Blob storage when storage is configured.
 
+## Retention And Deletion Policy
+
+Default principle: keep research data until the researcher intentionally removes it, and make every destructive action explicit.
+
+| Action | Participant access after action | Data kept | Data removed |
+| --- | --- | --- | --- |
+| Close study | Participants cannot submit new entries. Read-only submitted entries may remain visible if the study setting allows it. | Study setup, participants, entries, answers, journeys, tags, analysis, exports, reminder logs and uploads. | Nothing. |
+| Archive study | Study disappears from participant dashboards and direct participant links no longer open it. | Study setup, participants, entries, answers, journeys, tags, analysis, exports, reminder logs and uploads. | Nothing. |
+| Delete study permanently | Nobody can access the study. | Nothing for that study. | Study, parts, questions, participants in that study, invitations, entries, answers, journeys, free-text tags, reminder logs and uploaded answer files. |
+| Remove participant and keep data | Participant cannot rejoin or continue that study. | Their existing entries remain in analysis, data tables and exports. | Their study participation record is removed and their invite token is invalidated. |
+| Remove participant and delete data | Participant cannot rejoin or continue that study. | Their user account remains for other studies. | Their participation, entries, answers, journeys and uploaded answer files for that study. |
+| Delete one entry | Participant keeps access to the study if still enrolled. | Other entries and participant record. | That entry, its answers, tags on those answers, and uploaded answer files attached to that entry. |
+
+Operational guidance:
+
+- Prefer `Closed` when fieldwork is over but you still need the study in active operational context.
+- Prefer `Archived` when the study is finished and should move out of day-to-day lists.
+- Prefer participant removal with data kept when someone should stop participating but their previous data is still part of the sample.
+- Use participant removal with data deletion only when their data should be excluded or removed for consent/privacy reasons.
+- Use permanent study deletion only when you are sure the entire study and its records should be erased.
+- Keep anonymized exports as the default; identifiable exports should be used only for operational needs like incentives, support or participant follow-up.
+
 ## Before Calling A Study Finished
 
 1. Study has correct lifecycle status.
