@@ -49,6 +49,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
 
   if (!entry) notFound()
   if (session.role !== 'ADMIN' && entry.userId !== session.userId) redirect('/dashboard')
+  if (session.role !== 'ADMIN' && (entry.study.isArchived || entry.study.status === 'ARCHIVED')) redirect('/dashboard')
 
   const sorted = [...entry.answers].sort((a, b) => a.question.order - b.question.order)
   const isOwnEntry = entry.userId === session.userId
