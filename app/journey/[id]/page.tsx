@@ -45,6 +45,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
 
   if (!journey) notFound()
   if (session.role !== 'ADMIN' && journey.userId !== session.userId) redirect('/dashboard')
+  if (session.role !== 'ADMIN' && (journey.study.isArchived || journey.study.status === 'ARCHIVED')) redirect('/dashboard')
   if (
     session.role !== 'ADMIN' &&
     journey.study.participantEntryAccess === 'HIDE_PAST_ENTRIES'

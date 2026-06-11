@@ -42,4 +42,14 @@ const studyActions = readFileSync(join(root, 'app/actions/studies.ts'), 'utf8')
 assert.match(studyActions, /ensureInviteLink[\s\S]*acceptsParticipantEntries/, 'Invite link creation should be blocked for closed or archived studies.')
 assert.match(studyActions, /addParticipant[\s\S]*acceptsParticipantEntries/, 'Participant invitations should be blocked for closed or archived studies.')
 
+const adminIndex = readFileSync(join(root, 'app/admin/page.tsx'), 'utf8')
+assert.match(adminIndex, /status:\s*\{\s*not:\s*['"]ARCHIVED['"]\s*\}/, 'Current studies should exclude archived lifecycle status.')
+assert.match(adminIndex, /OR:\s*\[[\s\S]*isArchived:\s*true[\s\S]*status:\s*['"]ARCHIVED['"][\s\S]*\]/, 'Past studies should include archived lifecycle status and archived legacy flag.')
+
+const entryPage = readFileSync(join(root, 'app/entry/[id]/page.tsx'), 'utf8')
+assert.match(entryPage, /entry\.study\.isArchived\s*\|\|\s*entry\.study\.status\s*===\s*['"]ARCHIVED['"]/, 'Participants should not be able to open archived study entries through old links.')
+
+const journeyPage = readFileSync(join(root, 'app/journey/[id]/page.tsx'), 'utf8')
+assert.match(journeyPage, /journey\.study\.isArchived\s*\|\|\s*journey\.study\.status\s*===\s*['"]ARCHIVED['"]/, 'Participants should not be able to open archived journeys through old links.')
+
 console.log('Access audit passed.')

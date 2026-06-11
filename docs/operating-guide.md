@@ -9,7 +9,7 @@ Use the lifecycle status deliberately:
 - `In preparation`: build the study and pilot it. Entries created here are pilot data.
 - `Active`: real fieldwork. Participants can join and submit entries. Automatic reminders can run.
 - `Closed`: fieldwork is stopped. Data, analysis and exports remain available. Participants can no longer submit; they may still see read-only past entries if that study setting is enabled.
-- `Archived`: the study moves to Past studies. Data is kept, participant activity stays stopped, and the study is hidden from participant dashboards.
+- `Archived`: the study moves to Past studies. Data is kept, participant activity stays stopped, and participant dashboards/direct participant links no longer show the study.
 
 Pilot data is excluded from participant progress, analysis, data tables, exports and reminders by default. Turn on the pilot-data toggle only when you intentionally want to inspect pilot rows.
 

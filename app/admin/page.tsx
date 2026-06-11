@@ -12,12 +12,20 @@ export default async function AdminPage() {
 
   const [currentStudies, pastStudies] = await Promise.all([
     prisma.study.findMany({
-      where: { isArchived: false },
+      where: {
+        isArchived: false,
+        status: { not: 'ARCHIVED' },
+      },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { participants: true, entries: { where: { isPilot: false } } } } },
     }),
     prisma.study.findMany({
-      where: { isArchived: true },
+      where: {
+        OR: [
+          { isArchived: true },
+          { status: 'ARCHIVED' },
+        ],
+      },
       orderBy: { updatedAt: 'desc' },
       include: { _count: { select: { participants: true, entries: { where: { isPilot: false } } } } },
     }),
