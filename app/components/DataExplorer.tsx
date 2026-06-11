@@ -158,9 +158,21 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const participantFilterBadge = selectedParticipants.size < participants.length ? participants.length - selectedParticipants.size : 0
   const dateFilterBadge = (dateFrom || dateTo) ? 1 : 0
   const qualityFilterBadge = selectedQualityFlags?.size ?? 0
-  const selectedColumnCount = selectedBaseCols.size + selectedQuestionCols.size
-    - (!showJourney && selectedBaseCols.has('journey') ? 1 : 0)
-  const totalColumnCount = BASE_COLUMNS.length - (showJourney ? 0 : 1) + answerQuestions.length
+
+  function baseColumnExported(id: BaseColumnId) {
+    if (id === 'email' && anonymize) return false
+    if (id === 'journey' && !showJourney) return false
+    return selectedBaseCols.has(id)
+  }
+
+  const exportableBaseColumnCount = BASE_COLUMNS.filter((col) => {
+    if (col.id === 'email' && anonymize) return false
+    if (col.id === 'journey' && !showJourney) return false
+    return true
+  }).length
+  const selectedColumnCount = BASE_COLUMNS.filter((col) => baseColumnExported(col.id)).length + selectedQuestionCols.size
+  const totalColumnCount = exportableBaseColumnCount + answerQuestions.length
+  const canDownloadCsv = filteredRows.length > 0 && selectedColumnCount > 0
 
   function allBaseCols() {
     return new Set(BASE_COLUMNS.filter((col) => showJourney || col.id !== 'journey').map((col) => col.id))
@@ -179,12 +191,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   }
 
   function downloadCSV() {
+    if (!canDownloadCsv) return
     const questionHeader = (q: Question) => parts.length > 1 ? `${q.partName}: ${q.text}` : q.text
     const baseHeaders = BASE_COLUMNS.flatMap((col) => {
-      if (!showJourney && col.id === 'journey') return []
-      if (!selectedBaseCols.has(col.id)) return []
+      if (!baseColumnExported(col.id)) return []
       if (col.id === 'participant') return [anonymize ? 'Participant ID' : 'Participant']
-      if (col.id === 'email' && anonymize) return []
       if (col.id === 'submittedAt') return ['Submitted at']
       return [col.label]
     })
@@ -197,12 +208,11 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
     const headers = [...baseHeaders, ...questionHeaders]
     const csvRows = filteredRows.map((r) => {
       const baseValues = BASE_COLUMNS.flatMap((col) => {
-        if (!showJourney && col.id === 'journey') return []
-        if (!selectedBaseCols.has(col.id)) return []
+        if (!baseColumnExported(col.id)) return []
         if (col.id === 'entryId') return [r.entryId]
         if (col.id === 'dataType') return [dataTypeLabel(r.isPilot)]
         if (col.id === 'participant') return [anonymize ? participantAliasById.get(r.participantId) ?? 'P000' : r.participantName]
-        if (col.id === 'email') return anonymize ? [] : [r.participantEmail]
+        if (col.id === 'email') return [r.participantEmail]
         if (col.id === 'journey') return [r.journeyLabel || r.journeyId || '']
         if (col.id === 'part') return [r.partName]
         if (col.id === 'date') return [r.date]
@@ -353,9 +363,9 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
           <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
             <input type="checkbox" checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)}
               className="w-4 h-4 rounded text-indigo-600" />
-            Anonymize CSV
+            Anonymize download
           </label>
-          <Button onClick={downloadCSV} className="shrink-0">
+          <Button onClick={downloadCSV} disabled={!canDownloadCsv} className="shrink-0">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
@@ -439,10 +449,12 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                   <th className="px-4 py-2 bg-slate-50 hidden md:table-cell min-w-[160px]">
                     <input
                       type="checkbox"
-                      checked={baseColumnSelected('email')}
+                      checked={baseColumnSelected('email') && !anonymize}
                       onChange={() => toggleBaseColumn('email')}
+                      disabled={anonymize}
                       aria-label="Include email in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                      title={anonymize ? 'Email is excluded from anonymized downloads.' : 'Include email in download'}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
                     />
                   </th>
                   {showJourney && (
@@ -536,7 +548,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                     <span className={`${baseColumnSelected('participant') ? '' : 'opacity-45'}`}>Participant</span>
                   </th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap hidden md:table-cell min-w-[160px]">
-                    <span className={`${baseColumnSelected('email') ? '' : 'opacity-45'}`}>Email</span>
+                    <span className={`${baseColumnExported('email') ? '' : 'opacity-45'}`}>Email</span>
                   </th>
                   {showJourney && (
                     <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[140px]">
@@ -596,7 +608,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
                     <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap ${baseColumnSelected('participant') ? '' : 'opacity-60'}`}>
                       {row.participantName}
                     </td>
-                    <td className={`px-4 py-3 text-slate-400 whitespace-nowrap text-xs hidden md:table-cell ${baseColumnSelected('email') ? '' : 'bg-slate-50/50 opacity-60'}`}>
+                    <td className={`px-4 py-3 text-slate-400 whitespace-nowrap text-xs hidden md:table-cell ${baseColumnExported('email') ? '' : 'bg-slate-50/50 opacity-60'}`}>
                       {row.participantEmail}
                     </td>
                     {showJourney && (
