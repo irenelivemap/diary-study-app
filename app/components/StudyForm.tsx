@@ -143,11 +143,18 @@ export default function StudyForm({
   const partsInputRef = useRef<HTMLInputElement>(null)
   const hasTrackedInitialParts = useRef(false)
 
+  const isEditForm = submitLabel === 'Save changes'
+
   useEffect(() => {
-    if (!recentlySaved) return
-    const timeout = window.setTimeout(() => setRecentlySaved(false), 3500)
-    return () => window.clearTimeout(timeout)
-  }, [recentlySaved])
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!isDirty || pending) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty, pending])
 
   useEffect(() => {
     if (partsInputRef.current) partsInputRef.current.value = JSON.stringify(parts)
@@ -377,7 +384,9 @@ export default function StudyForm({
     ? 'Unsaved changes'
     : recentlySaved
     ? 'Changes saved'
-    : 'Setup saved'
+    : isEditForm
+    ? 'Setup is up to date'
+    : 'Ready to create'
   const saveStatusCopy = pending
     ? 'Keep this page open while diARI saves the setup.'
     : hasSaveIssue
@@ -386,7 +395,9 @@ export default function StudyForm({
     ? 'Save once when you are done editing this study.'
     : recentlySaved
     ? 'Your latest setup changes were saved.'
-    : 'No unsaved changes.'
+    : isEditForm
+    ? 'Make a change and the save bar will follow you while you work.'
+    : 'Add the study details, then create the study.'
 
   const inputCls = "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
   const smallInputCls = "w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
@@ -1322,8 +1333,8 @@ export default function StudyForm({
               {saveStatusCopy}
             </p>
           </div>
-          <Button type="submit" disabled={pending || (recentlySaved && !isDirty)} size="lg" className="w-full sm:w-auto sm:min-w-40">
-            {pending ? 'Saving…' : recentlySaved && !isDirty ? 'Saved' : submitLabel}
+          <Button type="submit" disabled={pending || (isEditForm && !isDirty)} size="lg" className="w-full sm:w-auto sm:min-w-40">
+            {pending ? 'Saving…' : isEditForm && !isDirty ? 'Saved' : submitLabel}
           </Button>
         </div>
       </div>
