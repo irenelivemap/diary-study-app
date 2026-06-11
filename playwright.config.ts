@@ -6,6 +6,7 @@ const baseURL =
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.APP_URL ||
   'http://localhost:3000'
+const shouldStartLocalServer = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(baseURL)
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -20,10 +21,20 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
+  webServer: shouldStartLocalServer ? {
+    command: 'npm run dev',
+    url: baseURL,
+    reuseExistingServer: true,
+    timeout: 120_000,
+  } : undefined,
   projects: [
     {
-      name: 'chromium',
+      name: 'chromium-desktop',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'chromium-mobile',
+      use: { ...devices['Pixel 7'] },
     },
   ],
 })

@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import EntryForm from '@/app/components/EntryForm'
+import { ButtonLink } from '@/app/components/ui'
 import { normalizeTimezone } from '@/app/lib/validation'
 import { canOpenEntryForm, isJourneyStage, resolveJourneyStageEntryState, resolveStandardPartEntryState } from '@/app/lib/entry-state'
 import { resolveStudyStatus } from '@/app/lib/study-lifecycle'
@@ -108,8 +108,10 @@ export default async function NewEntryPage({
     <div className="min-h-screen bg-[#F7F8FC]">
       <header className="bg-white border-b border-slate-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
+          <div className="flex min-w-0 items-center gap-3">
+            <ButtonLink href="/dashboard" tone="ghost" size="sm" className="-ml-3 shrink-0">
+              Dashboard
+            </ButtonLink>
             <div>
               <p className="text-xs text-slate-400">
                 {isJourneyStage(part) ? `${journey?.label ?? part.study.journeyName ?? 'Journey'} · ${today}` : `${part.study.name} · ${today}`}

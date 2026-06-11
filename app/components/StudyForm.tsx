@@ -135,6 +135,7 @@ export default function StudyForm({
   const [collapsedQuestions, setCollapsedQuestions] = useState<Record<string, boolean>>({})
   const [draggedQuestion, setDraggedQuestion] = useState<{ partId: string; page: number; qId: string } | null>(null)
   const [draggedOption, setDraggedOption] = useState<{ partId: string; qId: string; index: number } | null>(null)
+  const [partToDelete, setPartToDelete] = useState<{ id: string; name: string } | null>(null)
   const [contentImageUploading, setContentImageUploading] = useState<Record<string, boolean>>({})
   const [localError, setLocalError] = useState('')
   const [isDirty, setIsDirty] = useState(false)
@@ -181,10 +182,19 @@ export default function StudyForm({
 
   function deletePart(idx: number) {
     if (parts.length === 1) return
-    const partToDelete = parts[idx]
-    if (!confirm(`Delete "${partToDelete.name}" and all questions in this part?`)) return
-    setParts((p) => p.filter((_, i) => i !== idx).map((x, i) => ({ ...x, order: i + 1 })))
-    setActivePart((a) => Math.min(a, parts.length - 2))
+    const candidate = parts[idx]
+    if (!candidate) return
+    setPartToDelete({ id: candidate.id, name: candidate.name })
+  }
+
+  function confirmDeletePart() {
+    if (!partToDelete || parts.length === 1) return
+    const nextParts = parts
+      .filter((candidate) => candidate.id !== partToDelete.id)
+      .map((candidate, index) => ({ ...candidate, order: index + 1 }))
+    setParts(nextParts)
+    setActivePart((current) => Math.min(current, Math.max(nextParts.length - 1, 0)))
+    setPartToDelete(null)
   }
 
   function updatePart(id: string, patch: Partial<Part>) {
@@ -439,12 +449,13 @@ export default function StudyForm({
       <div className="h-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
         <div className="p-5 space-y-4">
           <div>
-            <label className={fieldLabelCls}>Study name *</label>
-            <TextInput name="name" defaultValue={initialName} required placeholder="e.g. Daily wellbeing study" />
+            <label htmlFor="study-name" className={fieldLabelCls}>Study name *</label>
+            <TextInput id="study-name" name="name" defaultValue={initialName} required placeholder="e.g. Daily wellbeing study" />
           </div>
           <div>
-            <label className={fieldLabelCls}>Description</label>
+            <label htmlFor="study-description" className={fieldLabelCls}>Description</label>
             <textarea
+              id="study-description"
               name="description"
               defaultValue={initialDescription}
               rows={3}
@@ -499,8 +510,8 @@ export default function StudyForm({
             </div>
             {hasJourneyStages && (
               <div className="mt-3">
-                <label className={fieldLabelCls}>Journey name</label>
-                <TextInput name="journeyName" defaultValue={initialJourneyName} placeholder="e.g. Badi visit" />
+                <label htmlFor="journey-name" className={fieldLabelCls}>Journey name</label>
+                <TextInput id="journey-name" name="journeyName" defaultValue={initialJourneyName} placeholder="e.g. Badi visit" />
                 <p className="mt-2 text-sm text-slate-500">Participants will see actions using this name, for example “Start a mobility moment” or “Different Badi visit?”. Only parts marked as journey stages are included.</p>
               </div>
             )}
@@ -1316,6 +1327,42 @@ export default function StudyForm({
           </Button>
         </div>
       </div>
+
+      {partToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-950">Remove this part?</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  This removes <span className="font-semibold text-slate-900">{partToDelete.name}</span> and its questions from the setup. The change is only applied after you save the study.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPartToDelete(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close remove part dialog"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+              If this study already has responses, keep in mind that changing the structure can affect how older data is interpreted.
+            </div>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" tone="secondary" onClick={() => setPartToDelete(null)}>
+                Cancel
+              </Button>
+              <Button type="button" tone="danger" onClick={confirmDeletePart}>
+                Remove part
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }
