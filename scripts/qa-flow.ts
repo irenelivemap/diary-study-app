@@ -338,6 +338,7 @@ async function main() {
     assert(text.includes(simpleAnswer), 'CSV export does not include the stored simple answer.')
     assert(text.includes('participant_id'), 'CSV export does not include anonymized participant IDs by default.')
     assert(!text.includes('participant_email'), 'CSV export should not include participant emails by default.')
+    assert(!text.includes('demographic_'), 'CSV export should not include demographics when anonymized by default.')
     return `${response.status} ${response.statusText}`
   })
 
@@ -345,6 +346,7 @@ async function main() {
     const { response, text } = await fetchText(pathUrl(`/admin/studies/${simpleStudy.id}/export?anonymize=false`), adminCookie)
     assert(response.ok, `Expected identifiable export 200, got ${response.status}`)
     assert(text.includes('participant_email'), 'Identifiable CSV export does not include participant email header.')
+    assert(text.includes('demographic_age_range'), 'Identifiable CSV export does not include demographic headers.')
     assert(text.includes(QA_PARTICIPANT_EMAIL), 'Identifiable CSV export does not include the QA participant email.')
     return `${response.status} ${response.statusText}`
   })

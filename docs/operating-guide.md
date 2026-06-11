@@ -142,7 +142,7 @@ Use this order:
 
 Keep `Fieldwork data only` as the default view unless you are specifically reviewing pilots.
 
-CSV exports are anonymized by default. Participant names/emails are replaced with stable participant IDs such as `P001`. Turn anonymization off only when you explicitly need direct identifiers for operations like incentive reconciliation or participant follow-up.
+CSV exports are anonymized by default. Participant names/emails are replaced with stable participant IDs such as `P001`, and demographic profile fields are excluded. Turn anonymization off only when you explicitly need direct identifiers, demographics, or operational fields for work like incentive reconciliation or participant follow-up.
 
 ## Destructive Actions
 
