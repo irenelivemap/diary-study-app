@@ -104,22 +104,24 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
 
             <div className="px-5 py-5">
               {isJourneyEntry && nextJourneyPart ? (
-                <div className="rounded-2xl bg-indigo-50 px-4 py-4">
-                  <p className="text-sm font-semibold text-indigo-700">Recommended next</p>
-                  <h2 className="mt-1 text-lg font-bold text-slate-950">{nextJourneyPart.name}</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    Continue this {entry.study.journeyName || 'journey'} when this moment applies.
-                  </p>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">Next available: {nextJourneyPart.name}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                      Return to your dashboard and answer the next stage when that moment applies.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <ButtonLink href="/dashboard" size="md" className="w-full sm:w-auto">
+                      Back to dashboard
+                    </ButtonLink>
                     <ButtonLink
                       href={`/entry/new?studyId=${entry.studyId}&partId=${nextJourneyPart.id}&journeyId=${entry.journeyId}`}
+                      tone="secondary"
                       size="md"
                       className="w-full sm:w-auto"
                     >
-                      Continue to {nextJourneyPart.name}
-                    </ButtonLink>
-                    <ButtonLink href="/dashboard" tone="secondary" size="md" className="w-full sm:w-auto">
-                      Dashboard
+                      Answer next
                     </ButtonLink>
                   </div>
                 </div>

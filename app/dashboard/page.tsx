@@ -79,7 +79,7 @@ export default async function DashboardPage() {
     },
   })
 
-  const pendingToday = countPendingParticipantActions({ participations, today })
+  const readyActionCount = countPendingParticipantActions({ participations, today })
 
   return (
     <div className="min-h-screen bg-[#F7F8FC]">
@@ -91,9 +91,9 @@ export default async function DashboardPage() {
             Good {greeting}, {session.name.split(' ')[0]}
           </h1>
           <p className="text-slate-500 mt-1">
-            {pendingToday > 0
-              ? `You have ${pendingToday} entr${pendingToday === 1 ? 'y' : 'ies'} to complete today.`
-              : "You're all caught up for today."}
+            {readyActionCount > 0
+              ? `You have ${readyActionCount} action${readyActionCount === 1 ? '' : 's'} ready.`
+              : "You're all caught up for now."}
           </p>
         </div>
 
@@ -220,7 +220,7 @@ export default async function DashboardPage() {
                                   className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
                                 >
                                   <EyeIcon />
-                                  <span className="hidden sm:inline">View</span>
+                                  <span>View</span>
                                 </Link>
                               )}
                             </div>
@@ -283,11 +283,11 @@ export default async function DashboardPage() {
                                   size="md"
                                   className="w-full sm:w-auto"
                                 >
-                                  {allowMultipleEntries && todayEntries.length > 0 ? 'Add another entry' : 'Submit entry'}
+                                  {allowMultipleEntries && todayEntries.length > 0 ? 'Add another entry' : 'Answer'}
                                 </ButtonLink>
                               ) : todayEntry ? (
                                 <ButtonLink href={`/entry/${todayEntry.id}`} tone="secondary" size="md" className="w-full sm:w-auto">
-                                  View today&apos;s entry
+                                  View entry
                                 </ButtonLink>
                               ) : null}
                             </div>
@@ -461,10 +461,10 @@ export default async function DashboardPage() {
                                         href={`/entry/${entry.id}`}
                                         aria-label={`View ${stage.name}`}
                                         title={`View ${stage.name}`}
-                                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 sm:w-auto"
+                                        className="inline-flex h-10 w-auto items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
                                       >
                                         <EyeIcon />
-                                        <span className="hidden sm:inline">View</span>
+                                        <span>View</span>
                                       </Link>
                                     )}
                                     {canAnswerStage && (
@@ -588,11 +588,11 @@ export default async function DashboardPage() {
                                 size="md"
                                 className="w-full sm:w-auto"
                               >
-                                {allowMultipleEntries && todayEntries.length > 0 ? 'Add another entry' : 'Submit entry'}
+                                {allowMultipleEntries && todayEntries.length > 0 ? 'Add another entry' : 'Answer'}
                               </ButtonLink>
                             ) : todayEntry ? (
                               <ButtonLink href={`/entry/${todayEntry.id}`} tone="secondary" size="md" className="w-full sm:w-auto">
-                                View today&apos;s entry
+                                View entry
                               </ButtonLink>
                             ) : null}
                           </div>
