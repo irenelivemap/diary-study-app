@@ -85,6 +85,7 @@ Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to 
 
 ## Before launching with real participants
 
+- Follow the full operating checklist in [`docs/operating-guide.md`](docs/operating-guide.md).
 - Use HTTPS in production.
 - Generate a strong `SESSION_SECRET` and never reuse the development placeholder.
 - Verify your email sending domain before relying on reminders.
@@ -122,6 +123,9 @@ This creates two clearly named QA studies, a participant account, and checks the
 If you need to debug a specific layer, run the pieces separately:
 
 ```bash
+npm run qa:env
+npm run qa:actions
+npm run qa:dataset
 npm run qa:seed
 QA_BASE_URL="https://diary-study-app.vercel.app" npm run smoke
 QA_BASE_URL="https://diary-study-app.vercel.app" npm run qa:flow
@@ -143,7 +147,7 @@ npx playwright install chromium
 
 Two workflows keep the app safer:
 
-- `CI` runs automatically on pushes and pull requests. It installs dependencies, runs `npm run typecheck`, and builds the app.
+- `CI` runs automatically on pushes and pull requests. It checks environment basics, participant action rules, answer dataset rules, TypeScript, and production build.
 - `Production QA` is manual. Open GitHub Actions, choose `Production QA`, keep the production URL, and run it after Vercel deploys.
 
 The manual production QA workflow needs these GitHub repository secrets:

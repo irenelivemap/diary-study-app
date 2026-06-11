@@ -230,6 +230,7 @@ export default function StudyForm({
     setLocalError('')
     try {
       const fd = new FormData()
+      fd.append('context', 'study-content')
       fd.append('file', file)
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const data = await res.json()
@@ -357,7 +358,7 @@ export default function StudyForm({
   const pageCount = part ? Math.max(...part.questions.map((q) => q.page), 1) : 1
   const pages = Array.from({ length: pageCount }, (_, i) => i + 1)
   const hasSaveIssue = Boolean(state?.error || localError)
-  const saveBarShouldStick = isDirty || pending || hasSaveIssue || recentlySaved
+  const saveBarShouldStick = isDirty || pending || hasSaveIssue
   const saveStatusTitle = pending
     ? 'Saving setup…'
     : hasSaveIssue

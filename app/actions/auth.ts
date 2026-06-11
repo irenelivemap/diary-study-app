@@ -8,6 +8,7 @@ import { createSession, deleteSession, getSession } from '@/app/lib/session'
 import { isValidEmail, normalizeEmail } from '@/app/lib/validation'
 import { demographicsFromFormData } from '@/app/lib/demographics'
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
+import { REMOVED_INVITE_PREFIX, isRemovedInviteToken } from '@/app/lib/invitation-access'
 
 function splitName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -85,6 +86,7 @@ export async function signup(prevState: { error?: string } | null, formData: For
     where: {
       email,
       acceptedAt: null,
+      token: { not: { startsWith: REMOVED_INVITE_PREFIX } },
       study: { isArchived: false, status: { in: ['PREPARATION', 'ACTIVE'] } },
     },
     select: { id: true, studyId: true, externalParticipantId: true },
@@ -110,7 +112,7 @@ export async function signup(prevState: { error?: string } | null, formData: For
       where: { inviteToken },
       select: { id: true, status: true, isActive: true, isArchived: true },
     })
-    if (study && acceptsParticipantEntries(study) && (!invitation || invitation.email.toLowerCase() === email)) {
+    if (study && acceptsParticipantEntries(study) && (!invitation || (!isRemovedInviteToken(invitation.token) && invitation.email.toLowerCase() === email))) {
       await prisma.studyParticipant.upsert({
         where: { studyId_userId: { studyId: study.id, userId: user.id } },
         update: externalParticipantId || invitation?.externalParticipantId

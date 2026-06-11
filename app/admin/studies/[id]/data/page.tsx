@@ -5,6 +5,7 @@ import DataExplorer from '@/app/components/DataExplorer'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
 import { plainTextFromHtml } from '@/app/lib/sanitize-html'
+import { buildDatasetRows } from '@/app/lib/answer-dataset'
 
 export default async function DataPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -23,7 +24,6 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
         include: {
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
           entries: {
-            where: { isPilot: false },
             include: {
               user: { select: { id: true, name: true, email: true } },
               journey: { select: { id: true, label: true, createdAt: true, completedAt: true } },
@@ -52,29 +52,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
     }))
   )
 
-  const allRows = study.parts.flatMap((p) =>
-    p.entries.map((e) => ({
-      entryId: e.id,
-      partId: p.id,
-      partName: p.name,
-      participantId: e.user.id,
-      participantName: e.user.name,
-      participantEmail: e.user.email,
-      journeyId: e.journey?.id ?? null,
-      journeyLabel: e.journey?.label ?? null,
-      date: e.date,
-      submittedAt: e.submittedAt.toISOString(),
-      timezone: e.timezone,
-      qualityFlags: e.qualityFlags,
-      isPilot: e.isPilot,
-      answers: Object.fromEntries(e.answers.map((a) => [a.questionId, a.value])),
-      answerShown: Object.fromEntries(e.answers.map((a) => [a.questionId, a.wasShown])),
-      answerTags: Object.fromEntries(e.answers.map((a) => [
-        a.questionId,
-        a.tags.map((answerTag) => answerTag.tag.label),
-      ])),
-    }))
-  )
+  const allRows = buildDatasetRows(study.parts)
 
   const parts = study.parts.map((p) => ({ id: p.id, name: p.name }))
 

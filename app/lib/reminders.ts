@@ -9,6 +9,7 @@ import {
   isSequentialPartUnlocked,
   resolveStandardParticipantAction,
 } from '@/app/lib/participant-actions'
+import { reminderDashboardUrl, reminderEntryUrl, reminderTargetUrl } from '@/app/lib/reminder-links'
 
 type ReminderResult = {
   configured: boolean
@@ -107,15 +108,6 @@ function entryKey(partId: string, userId: string) {
 
 function entryDateKey(partId: string, userId: string, date: string) {
   return `${partId}:${userId}:${date}`
-}
-
-function reminderDashboardUrl(appUrl: string) {
-  return `${appUrl.replace(/\/$/, '')}/dashboard`
-}
-
-function reminderEntryUrl(appUrl: string, studyId: string, partId: string, journeyId?: string | null) {
-  const url = `${appUrl.replace(/\/$/, '')}/entry/new?studyId=${studyId}&partId=${partId}`
-  return journeyId ? `${url}&journeyId=${journeyId}` : url
 }
 
 function emailSubject(study: ReminderStudy, part: ReminderPart) {
@@ -289,7 +281,13 @@ export async function sendDueReminders(options: SendDueRemindersOptions = {}): P
 
       if (candidateReminders.length === 0) continue
       const { part, directEntryUrl, opensDashboard } = candidateReminders[0]
-      const entryUrl = opensDashboard ? reminderDashboardUrl(appUrl) : directEntryUrl
+      const entryUrl = reminderTargetUrl({
+        appUrl,
+        studyId: study.id,
+        partId: part.id,
+        opensDashboard,
+        directEntryUrl,
+      })
 
         const existing = await prisma.emailReminderLog.findUnique({
           where: {

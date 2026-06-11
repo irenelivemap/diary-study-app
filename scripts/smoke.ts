@@ -103,6 +103,15 @@ async function main() {
     return `${response.status} ${response.statusText}`
   })
 
+  await record('Upload endpoint requires login', async () => {
+    const formData = new FormData()
+    formData.append('context', 'entry-answer')
+    const { response, text } = await fetchText(pathUrl('/api/upload'), { method: 'POST', body: formData })
+    assert(response.status === 401, `Expected 401, got ${response.status}`)
+    assert(/unauthorized/i.test(text), 'Upload endpoint did not reject unauthenticated requests')
+    return `${response.status} ${response.statusText}`
+  })
+
   if (inviteUrl) {
     await record('Invite link loads', async () => {
       const { response, text } = await fetchText(inviteUrl)

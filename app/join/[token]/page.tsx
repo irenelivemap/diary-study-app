@@ -4,6 +4,7 @@ import { prisma } from '@/app/lib/db'
 import { joinStudyWithInvite } from '@/app/actions/studies'
 import { Button, ButtonLink } from '@/app/components/ui'
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
+import { isRemovedInviteToken } from '@/app/lib/invitation-access'
 
 export default async function JoinStudyPage({
   params,
@@ -25,7 +26,7 @@ export default async function JoinStudyPage({
     where: { inviteToken: token },
     select: { id: true, name: true, description: true, status: true, isActive: true, isArchived: true },
   })
-  if (!study || !acceptsParticipantEntries(study)) notFound()
+  if (!study || !acceptsParticipantEntries(study) || isRemovedInviteToken(invitation?.token)) notFound()
 
   async function join(formData: FormData) {
     'use server'

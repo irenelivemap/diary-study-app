@@ -156,6 +156,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
     setLocalError('')
     try {
       const fd = new FormData()
+      fd.append('context', 'entry-answer')
       fd.append('file', file)
       fd.append('studyId', study.id)
       fd.append('partId', study.partId)

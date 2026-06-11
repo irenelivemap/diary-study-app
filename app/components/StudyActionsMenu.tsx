@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { archiveStudy, deleteStudy, duplicateStudy, restoreStudy } from '@/app/actions/studies'
-import { TrashIcon } from '@/app/components/ui'
+import { Button, TrashIcon } from '@/app/components/ui'
 
 type Props = {
   studyId: string
@@ -51,6 +51,8 @@ function RestoreIcon() {
 
 export default function StudyActionsMenu({ studyId, studyName, archived = false }: Props) {
   const [open, setOpen] = useState(false)
+  const [confirmation, setConfirmation] = useState<null | 'archive' | 'restore' | 'delete'>(null)
+  const [deleteText, setDeleteText] = useState('')
   const [isPending, startTransition] = useTransition()
   const ref = useRef<HTMLDivElement>(null)
 
@@ -64,14 +66,12 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
 
   function handleArchive() {
     setOpen(false)
-    if (!confirm(`Archive "${studyName}"? Responses will be kept, and the study will move to Past studies.`)) return
-    startTransition(() => archiveStudy(studyId))
+    setConfirmation('archive')
   }
 
   function handleRestore() {
     setOpen(false)
-    if (!confirm(`Move "${studyName}" back to current studies?`)) return
-    startTransition(() => restoreStudy(studyId))
+    setConfirmation('restore')
   }
 
   function handleDuplicate() {
@@ -81,8 +81,20 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
 
   function handleDelete() {
     setOpen(false)
-    if (!confirm(`Permanently delete "${studyName}" and all participant responses? This cannot be undone.`)) return
-    startTransition(() => deleteStudy(studyId))
+    setDeleteText('')
+    setConfirmation('delete')
+  }
+
+  function closeConfirmation() {
+    if (isPending) return
+    setConfirmation(null)
+    setDeleteText('')
+  }
+
+  function confirmAction() {
+    if (confirmation === 'archive') startTransition(() => archiveStudy(studyId))
+    if (confirmation === 'restore') startTransition(() => restoreStudy(studyId))
+    if (confirmation === 'delete' && deleteText === 'DELETE') startTransition(() => deleteStudy(studyId))
   }
 
   return (
@@ -152,6 +164,63 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
             </span>
             Delete permanently
           </button>
+        </div>
+      )}
+
+      {confirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-950">
+                  {confirmation === 'archive' && 'Archive study?'}
+                  {confirmation === 'restore' && 'Restore study?'}
+                  {confirmation === 'delete' && 'Delete study permanently?'}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  {confirmation === 'archive' && `"${studyName}" will move to Past studies. Responses and analysis will be kept.`}
+                  {confirmation === 'restore' && `"${studyName}" will return to Current studies as a closed study. Participants will not be able to submit until you make it active.`}
+                  {confirmation === 'delete' && `This will permanently delete "${studyName}" and all participant responses. This cannot be undone.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeConfirmation}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close study action confirmation"
+              >
+                x
+              </button>
+            </div>
+
+            {confirmation === 'delete' && (
+              <label className="mt-5 block">
+                <span className="text-sm font-semibold text-slate-800">Type DELETE to confirm</span>
+                <input
+                  value={deleteText}
+                  onChange={(event) => setDeleteText(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-950 placeholder-red-300 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="DELETE"
+                />
+              </label>
+            )}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" tone="secondary" onClick={closeConfirmation} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                tone={confirmation === 'delete' ? 'danger' : 'primary'}
+                onClick={confirmAction}
+                disabled={isPending || (confirmation === 'delete' && deleteText !== 'DELETE')}
+              >
+                {confirmation === 'archive' && 'Archive study'}
+                {confirmation === 'restore' && 'Restore study'}
+                {confirmation === 'delete' && 'Delete permanently'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
