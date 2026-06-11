@@ -38,4 +38,8 @@ assert.match(uploadFileRoute, /getSession/, 'Private upload file route should re
 assert.match(uploadFileRoute, /session\.role\s*!==\s*['"]ADMIN['"]/, 'Private upload file route should distinguish admin access.')
 assert.match(uploadFileRoute, /session\.userId\s*!==\s*upload\.userId/, 'Private upload file route should restrict participant access to their own uploads.')
 
+const studyActions = readFileSync(join(root, 'app/actions/studies.ts'), 'utf8')
+assert.match(studyActions, /ensureInviteLink[\s\S]*acceptsParticipantEntries/, 'Invite link creation should be blocked for closed or archived studies.')
+assert.match(studyActions, /addParticipant[\s\S]*acceptsParticipantEntries/, 'Participant invitations should be blocked for closed or archived studies.')
+
 console.log('Access audit passed.')

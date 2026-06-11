@@ -524,7 +524,13 @@ export async function duplicateStudy(studyId: string) {
 
 export async function ensureInviteLink(studyId: string) {
   await requireAdmin()
-  const study = await prisma.study.findUnique({ where: { id: studyId }, select: { inviteToken: true } })
+  const study = await prisma.study.findUnique({
+    where: { id: studyId },
+    select: { inviteToken: true, status: true, isActive: true, isArchived: true },
+  })
+  if (!study || !acceptsParticipantEntries(study)) {
+    return { error: 'This study is closed. Reopen it before sharing an invite link.' }
+  }
   if (study?.inviteToken) return { token: study.inviteToken }
   const token = crypto.randomUUID().replaceAll('-', '')
   await prisma.study.update({ where: { id: studyId }, data: { inviteToken: token } })
@@ -652,8 +658,14 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
   if (!email) return { error: 'Email is required.' }
   if (!isValidEmail(email)) return { error: 'Enter a valid email address.' }
 
-  const study = await prisma.study.findUnique({ where: { id: studyId }, select: { id: true, name: true, isArchived: true } })
-  if (!study || study.isArchived) return { error: 'Study not found.' }
+  const study = await prisma.study.findUnique({
+    where: { id: studyId },
+    select: { id: true, name: true, status: true, isActive: true, isArchived: true },
+  })
+  if (!study) return { error: 'Study not found.' }
+  if (!acceptsParticipantEntries(study)) {
+    return { error: 'This study is closed. Reopen it before inviting participants.' }
+  }
 
   const user = await prisma.user.findUnique({ where: { email } })
   try {

@@ -16,14 +16,20 @@ export default function InviteLinkCard({
 }) {
   const [token, setToken] = useState(initialToken ?? '')
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
   const [pending, startTransition] = useTransition()
   const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
   const link = token ? `${normalizedBaseUrl || ''}/join/${token}` : ''
 
   function createLink() {
+    setError('')
     startTransition(async () => {
       const result = await ensureInviteLink(studyId)
-      setToken(result.token)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setToken(result.token ?? '')
     })
   }
 
@@ -44,6 +50,7 @@ export default function InviteLinkCard({
           </>
         )}
         {link && <p className="text-xs text-slate-500 mt-2 break-all bg-slate-50 rounded-lg px-3 py-2">{link}</p>}
+        {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
       </div>
       {token ? (
         <Button type="button" onClick={copyLink} className="shrink-0">
