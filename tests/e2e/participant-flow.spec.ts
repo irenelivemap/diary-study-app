@@ -130,6 +130,75 @@ async function loadJourneyStudy() {
   return { study: study!, journey: study!.journeys[0] }
 }
 
+async function loadQaParticipant() {
+  const db = await requirePrisma()
+  const participant = await db.user.findUnique({ where: { email: QA_PARTICIPANT_EMAIL } })
+  expect(participant, 'Run npm run qa:seed before browser QA.').toBeTruthy()
+  return participant!
+}
+
+async function ensureSimpleAnalysisEntry() {
+  const db = await requirePrisma()
+  const participant = await loadQaParticipant()
+  const study = await loadSimpleStudy()
+  const part = study.parts[0]
+  const question = part.questions[0]
+
+  return db.entry.create({
+    data: {
+      studyId: study.id,
+      partId: part.id,
+      userId: participant.id,
+      date: '2026-06-10',
+      timezone: 'Europe/Zurich',
+      qualityFlags: ['SHORT_TEXT'],
+      answers: {
+        create: [{
+          questionId: question.id,
+          value: 'Browser QA dataset answer',
+        }],
+      },
+    },
+  })
+}
+
+async function ensureJourneyContinuityEntries() {
+  const db = await requirePrisma()
+  const participant = await loadQaParticipant()
+  const { study, journey } = await loadJourneyStudy()
+
+  for (const part of study.parts.slice(0, 2)) {
+    const existing = await db.entry.findFirst({ where: { journeyId: journey.id, partId: part.id } })
+    if (existing) continue
+
+    try {
+      await db.entry.create({
+        data: {
+          studyId: study.id,
+          partId: part.id,
+          userId: participant.id,
+          journeyId: journey.id,
+          date: '2026-06-10',
+          timezone: 'Europe/Zurich',
+          answers: {
+            create: [{
+              questionId: part.questions[0].id,
+              value: `Browser QA answer for ${part.name}`,
+            }],
+          },
+        },
+      })
+    } catch {
+      // The desktop and mobile projects can touch the same QA fixture. If the
+      // other project created this unique journey stage first, the fixture is ready.
+      const createdByOtherProject = await db.entry.findFirst({ where: { journeyId: journey.id, partId: part.id } })
+      if (!createdByOtherProject) throw new Error(`Could not create QA journey entry for ${part.name}.`)
+    }
+  }
+
+  return { study, journey }
+}
+
 test('invite link lets a new participant create an account and join', async ({ page }, testInfo) => {
   const db = await requirePrisma()
   const study = await loadSimpleStudy()
@@ -230,4 +299,53 @@ test('researcher setup page stays readable without horizontal overflow', async (
   await expect(page.getByRole('heading', { name: SIMPLE_STUDY_NAME })).toBeVisible()
   await expect(page.getByLabel('Study name *')).toBeVisible()
   await expectNoHorizontalOverflow(page, 'Researcher setup page')
+})
+
+test('researcher setup save state follows edits', async ({ page }) => {
+  const study = await loadSimpleStudy()
+  await loginAdminByCookie(page)
+
+  await page.goto(`/admin/studies/${study.id}/edit`)
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled()
+
+  await page.getByLabel('Description').fill(`${study.description} Browser QA edit`)
+  await expect(page.getByText('Unsaved changes')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeEnabled()
+  await expectNoHorizontalOverflow(page, 'Researcher setup dirty state')
+})
+
+test('researcher data table exposes safe export controls', async ({ page }) => {
+  const study = await loadSimpleStudy()
+  await ensureSimpleAnalysisEntry()
+  await loginAdminByCookie(page)
+
+  await page.goto(`/admin/studies/${study.id}/data`)
+  await expect(page.getByText('Export columns', { exact: true })).toBeVisible()
+  await expect(page.getByText(/columns selected for CSV export/i)).toBeVisible()
+  await expect(page.getByLabel('Anonymize download')).toBeChecked()
+  await expect(page.getByRole('button', { name: 'Download CSV' })).toBeEnabled()
+
+  const emailColumn = page.getByLabel('Include email in download')
+  if ((await emailColumn.count()) > 0 && await emailColumn.first().isVisible()) {
+    await expect(emailColumn.first()).toBeDisabled()
+  }
+
+  await page.getByRole('button', { name: 'Deselect all' }).click()
+  await expect(page.getByRole('button', { name: 'Download CSV' })).toBeDisabled()
+  await expectNoHorizontalOverflow(page, 'Researcher data table')
+})
+
+test('researcher analysis shows quality and journey continuity summaries', async ({ page }) => {
+  await ensureSimpleAnalysisEntry()
+  const { study } = await ensureJourneyContinuityEntries()
+  await loginAdminByCookie(page)
+
+  await page.goto(`/admin/studies/${study.id}/analysis`)
+  await expect(page.getByText('Entries analyzed')).toBeVisible()
+  await expect(page.getByText('Answer completion')).toBeVisible()
+  await expect(page.getByText('Missing answers')).toBeVisible()
+  await expect(page.getByText('Journey continuity')).toBeVisible()
+  await expect(page.getByText('Stage coverage')).toBeVisible()
+  await expect(page.getByText('Recent journeys')).toBeVisible()
+  await expectNoHorizontalOverflow(page, 'Researcher analysis dashboard')
 })
