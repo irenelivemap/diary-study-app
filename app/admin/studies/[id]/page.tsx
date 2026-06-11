@@ -109,6 +109,8 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   }
   const recentEntries = study.entries.slice(0, 6)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
+  const partNameById = new Map(study.parts.map((part) => [part.id, part.name]))
+  const participantEmailByUserId = new Map(study.participants.map((participant) => [participant.user.id, participant.user.email]))
   const readiness = [
     { label: `Study status: ${studyStatusLabel(study.status)}`, ok: study.status !== 'ARCHIVED', fix: 'Restore the study before running fieldwork.' },
     { label: 'At least one participant is enrolled', ok: study.participants.length > 0, fix: 'Add participants in the Participants tab.' },
@@ -274,6 +276,8 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
                   id: log.id,
                   status: log.status,
                   date: log.date,
+                  partName: partNameById.get(log.partId) ?? 'Unknown part',
+                  recipientEmail: participantEmailByUserId.get(log.userId) ?? 'Unknown participant',
                   sentAt: log.sentAt.toISOString(),
                   error: log.error,
                 }))}

@@ -37,6 +37,7 @@ npm run qa:access
 npm run qa:access-audit
 npm run qa:actions
 npm run qa:reminders
+npm run qa:reminder-delivery
 npm run qa:dataset
 npm run typecheck
 npm run build
@@ -72,6 +73,7 @@ Recommended for real fieldwork:
 - `BLOB_READ_WRITE_TOKEN`: enables image/screenshot uploads.
 
 Screenshot and image uploads are participant data. Only ask for screenshots when the study protocol really needs them, and tell participants not to upload passwords, payment information, private messages, customer data, or confidential work material.
+Participant entry uploads are stored as private Blob files and served through authenticated diARI routes. Researchers can view them in admin screens; participants can view their own submitted files.
 
 Check locally:
 
@@ -113,11 +115,14 @@ Automatic reminders:
 
 - Only run for `Active` studies.
 - Use each participant's timezone.
-- Should open the participant dashboard when the study has multiple available stages.
+- Open the participant dashboard for journey or multi-part studies so participants can choose the right stage.
+- Can deep-link directly to the entry form only when there is a single clear part to answer.
+- Exclude pilot entries when deciding whether someone is due.
 
 Manual test:
 
 - Use `Send test to me` to send a reminder immediately, independent of the scheduled reminder time.
+- Use recent reminder activity in the Overview tab to check recipient, part, date, status, and errors.
 
 Production cron endpoint:
 

@@ -30,4 +30,12 @@ const reminderRoute = readFileSync(join(root, 'app/api/reminders/run/route.ts'),
 assert.match(reminderRoute, /CRON_SECRET/, 'Reminder cron route should check CRON_SECRET.')
 assert.match(reminderRoute, /Unauthorized/, 'Reminder cron route should reject unauthorized requests.')
 
+const uploadRoute = readFileSync(join(root, 'app/api/upload/route.ts'), 'utf8')
+assert.match(uploadRoute, /access\s*=\s*['"]private['"]/, 'Participant entry uploads should use private Blob access.')
+
+const uploadFileRoute = readFileSync(join(root, 'app/api/upload/file/route.ts'), 'utf8')
+assert.match(uploadFileRoute, /getSession/, 'Private upload file route should require a session.')
+assert.match(uploadFileRoute, /session\.role\s*!==\s*['"]ADMIN['"]/, 'Private upload file route should distinguish admin access.')
+assert.match(uploadFileRoute, /session\.userId\s*!==\s*upload\.userId/, 'Private upload file route should restrict participant access to their own uploads.')
+
 console.log('Access audit passed.')

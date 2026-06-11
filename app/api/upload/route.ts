@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   let uploadPath = ''
+  let access: 'public' | 'private' = 'public'
 
   if (context === 'study-content') {
     if (session.role !== 'ADMIN') {
@@ -64,13 +65,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Upload is not allowed for this question.' }, { status: 403 })
     }
     uploadPath = `entries/${studyId}/${partId}/${questionId}/${session.userId}/${Date.now()}_${safeFilename(file.name)}`
+    access = 'private'
   } else {
     return NextResponse.json({ error: 'Upload context is missing.' }, { status: 400 })
   }
 
   const blob = await put(uploadPath, file, {
-    access: 'public',
+    access,
+    contentType: file.type,
   })
 
-  return NextResponse.json({ url: blob.url })
+  return NextResponse.json({
+    url: access === 'private' ? `/api/upload/file?pathname=${encodeURIComponent(blob.pathname)}` : blob.url,
+  })
 }
