@@ -31,7 +31,9 @@ export default async function SignupPage({
           </div>
 
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Create your account</h1>
-          <p className="text-slate-500 text-sm mb-8">Join a diary study as a participant</p>
+          <p className="text-slate-500 text-sm mb-8">
+            {inviteToken ? 'Create an account to join this study.' : 'Join a diary study as a participant.'}
+          </p>
 
           <SignupForm
             invitedEmail={email ?? ''}

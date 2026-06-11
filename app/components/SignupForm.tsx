@@ -15,6 +15,11 @@ export default function SignupForm({
   externalParticipantId?: string
 }) {
   const [state, action, pending] = useActionState(signup, null)
+  const loginHref = inviteToken
+    ? `/login?${new URLSearchParams({
+        next: `/join/${inviteToken}${externalParticipantId ? `?${new URLSearchParams({ external_id: externalParticipantId }).toString()}` : ''}`,
+      }).toString()}`
+    : '/login'
 
   return (
     <form action={action} className="space-y-4">
@@ -74,7 +79,7 @@ export default function SignupForm({
 
       <p className="mt-6 text-sm text-slate-500 text-center">
         Already have an account?{' '}
-        <Link href="/login" className="text-indigo-600 font-medium hover:underline">
+        <Link href={loginHref} className="text-indigo-600 font-medium hover:underline">
           Sign in
         </Link>
       </p>

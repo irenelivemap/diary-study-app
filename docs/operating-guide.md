@@ -160,10 +160,11 @@ Use the least destructive action that solves the problem:
 1. Study has correct lifecycle status.
 2. Invite link works without Vercel login.
 3. Email invite works for at least one external inbox.
-4. Reminder test reaches the right destination.
-5. Participant can submit on mobile.
-6. Researcher can view Data and Analysis.
-7. CSV export includes expected answers, tags, timestamps and data type.
-8. Upload questions work if used.
-9. Archive/close/delete behavior is understood.
-10. Production QA workflow passes in GitHub Actions.
+4. Invite signup/sign-in keeps the participant attached to the study.
+5. Reminder test reaches the right destination.
+6. Participant can submit on mobile.
+7. Researcher can view Data and Analysis.
+8. CSV export includes expected answers, tags, timestamps and data type.
+9. Upload questions work if used.
+10. Archive/close/delete behavior is understood.
+11. Production QA workflow passes in GitHub Actions.
