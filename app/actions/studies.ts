@@ -10,6 +10,7 @@ import { sendParticipantRemovalEmail } from '@/app/lib/participant-removal'
 import { acceptsParticipantEntries, lifecyclePersistence } from '@/app/lib/study-lifecycle'
 import { isValidEmail, isValidReminderTime, normalizeEmail, normalizeTimezone } from '@/app/lib/validation'
 import { REMOVED_INVITE_PREFIX, isRemovedInviteToken } from '@/app/lib/invitation-access'
+import { deleteUploadedAnswerFiles } from '@/app/lib/upload-cleanup'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -387,7 +388,12 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
 
 export async function deleteStudy(studyId: string) {
   await requireAdmin()
+  const uploadAnswers = await prisma.answer.findMany({
+    where: { entry: { studyId }, question: { type: 'SCREENSHOT' } },
+    select: { value: true },
+  })
   await prisma.study.delete({ where: { id: studyId } })
+  await deleteUploadedAnswerFiles(uploadAnswers.map((answer) => answer.value))
   revalidatePath('/admin')
   redirect('/admin')
 }
@@ -715,6 +721,12 @@ export async function removeParticipant(
     },
   })
   const normalizedEmail = participant?.user.email.toLowerCase()
+  const uploadAnswers = options.deleteParticipantData
+    ? await prisma.answer.findMany({
+        where: { entry: { studyId, userId }, question: { type: 'SCREENSHOT' } },
+        select: { value: true },
+      })
+    : []
   await prisma.$transaction([
     ...(options.deleteParticipantData
       ? [
@@ -740,6 +752,9 @@ export async function removeParticipant(
         })]
       : []),
   ])
+  if (options.deleteParticipantData) {
+    await deleteUploadedAnswerFiles(uploadAnswers.map((answer) => answer.value))
+  }
   if (options.notifyParticipant && participant) {
     await sendParticipantRemovalEmail({
       to: participant.user.email,
