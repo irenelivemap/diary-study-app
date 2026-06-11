@@ -18,6 +18,7 @@
     "qa:access-audit": "tsx scripts/access-audit.ts",
     "qa:reminders": "tsx scripts/reminder-links-check.ts",
     "qa:reminder-delivery": "tsx scripts/reminder-delivery-check.ts",
+    "qa:reminder-diagnostics": "tsx scripts/reminder-diagnostics-check.ts",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "create-admin": "tsx scripts/create-admin.ts",
