@@ -95,7 +95,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
     }))
   )
 
-  const parts = study.parts.map((part) => ({ id: part.id, name: part.name }))
+  const parts = study.parts.map((part) => ({ id: part.id, name: part.name, flow: part.flow }))
   const participants = study.participants.map((participant) => ({
     id: participant.user.id,
     name: participant.user.name,
