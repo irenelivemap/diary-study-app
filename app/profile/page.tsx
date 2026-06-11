@@ -24,6 +24,7 @@ export default async function ProfilePage({
   const backHref = safeReturnTo(returnTo) ?? (from === 'dashboard' ? '/dashboard' : session.role === 'ADMIN' ? '/admin' : '/dashboard')
   const profileMode = backHref.startsWith('/dashboard') || from === 'dashboard' ? 'PARTICIPANT' : session.role
   const homeHref = profileMode === 'PARTICIPANT' ? '/dashboard' : '/admin'
+  const backLabel = profileMode === 'PARTICIPANT' ? 'Back to dashboard' : 'Back to admin'
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -46,7 +47,7 @@ export default async function ProfilePage({
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-4">
           <ButtonLink href={backHref} tone="secondary" size="sm">
-            Back
+            {backLabel}
           </ButtonLink>
         </div>
         <ProfileForm

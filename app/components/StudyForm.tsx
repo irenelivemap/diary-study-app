@@ -544,7 +544,7 @@ export default function StudyForm({
               />
             </div>
             <fieldset>
-              <legend className={fieldLabelCls}>Participant access to past entries</legend>
+              <legend className={fieldLabelCls}>Submitted entry visibility</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-100">
                   <div className="flex items-start gap-3">
@@ -556,9 +556,9 @@ export default function StudyForm({
                       className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">Hide past entries</p>
+                      <p className="text-sm font-semibold text-slate-900">Hide previous submissions</p>
                       <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                        Participants only see today&apos;s submission confirmation, not older entries.
+                        Participants see the confirmation after submitting, but not older entries.
                       </p>
                     </div>
                   </div>
@@ -573,9 +573,9 @@ export default function StudyForm({
                       className="mt-1 h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">Show submitted entries as read-only</p>
+                      <p className="text-sm font-semibold text-slate-900">Let participants review read-only submissions</p>
                       <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                        Participants can review previous answers but cannot edit them.
+                        Participants can review what they submitted, but cannot edit it.
                       </p>
                     </div>
                   </div>
