@@ -824,32 +824,6 @@ function PlotSvg({
   )
 }
 
-function ScreenshotSummaryCard({ questions, rows }: { questions: Question[]; rows: Row[] }) {
-  if (!questions.length) return null
-
-  return (
-    <Card>
-      <div className="mb-3">
-        <h3 className="text-base font-semibold text-slate-900">Screenshot uploads</h3>
-        <p className="text-sm text-slate-600">Upload questions are reviewed as files, so they are summarized here instead of plotted.</p>
-      </div>
-      <div className="space-y-2">
-        {questions.map((question) => {
-          const analysis = buildAnalysis(question, rows)
-          return (
-            <div key={question.id} className="grid gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_120px] sm:items-center">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-900" title={question.text}>{question.text}</p>
-                <p className="text-sm text-slate-600">{question.partName}</p>
-              </div>
-              <p className="text-sm font-semibold text-slate-700 sm:text-right">{analysis.answered}/{analysis.eligible} uploaded</p>
-            </div>
-          )
-        })}
-      </div>
-    </Card>
-  )
-}
 
 
 function FreeTextAnswerList({
@@ -1279,27 +1253,12 @@ function QuestionAnalysisCard({
     return `${question.id}:${tagSignature}:${answerSignature}`
   }, [question, textAnswers])
   const filename = `${String(index + 1).padStart(2, '0')}_${slugify(question.text)}`
-  const defaultPlotTitle = ''
-  const defaultPlotSubtitle =
+  const plotSubtitle =
     question.type === 'MULTIPLE_CHOICE'
       ? 'Percent of respondents selecting each option'
       : question.type === 'SINGLE_CHOICE' || question.type === 'RATING' || question.type === 'YES_NO' || question.type === 'DATE_TIME'
         ? 'Percent of answered responses'
         : ''
-  const [plotTitle, setPlotTitle] = useState(defaultPlotTitle)
-  const [plotSubtitle, setPlotSubtitle] = useState(defaultPlotSubtitle)
-  const [isEditingLabels, setIsEditingLabels] = useState(false)
-  const [yAxisMode, setYAxisMode] = useState<'auto' | 'custom'>('auto')
-  const [yAxisMaxInput, setYAxisMaxInput] = useState('100')
-  const [yAxisStepInput, setYAxisStepInput] = useState('10')
-  const yAxisMaxRaw = yAxisMode === 'custom' ? Number(yAxisMaxInput) : null
-  const yAxisStepRaw = yAxisMode === 'custom' ? Number(yAxisStepInput) : null
-  const yAxisMax = yAxisMaxRaw == null || !Number.isFinite(yAxisMaxRaw)
-    ? null
-    : Math.min(100, Math.max(5, yAxisMaxRaw))
-  const yAxisStep = yAxisStepRaw == null || !Number.isFinite(yAxisStepRaw)
-    ? null
-    : Math.min(100, Math.max(1, yAxisStepRaw))
   const barPoints: DataPoint[] = question.type === 'RATING'
     ? (analysis.shouldBin
         ? (analysis.ratingBins ?? []).map((b) => ({ label: b.label, value: b.count }))
@@ -1387,22 +1346,6 @@ function QuestionAnalysisCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {question.type !== 'FREE_TEXT' && (
-            <button
-              type="button"
-              onClick={() => setIsEditingLabels((current) => !current)}
-              aria-label="Edit chart labels"
-              title="Edit chart labels"
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors hover:bg-[var(--bg-sunken)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                isEditingLabels ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] bg-white text-slate-500'
-              }`}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-              </svg>
-            </button>
-          )}
           <ExportMenu
             onPng={question.type === 'FREE_TEXT' ? undefined : () => exportPng(svgRef.current, filename)}
             onSvg={question.type === 'FREE_TEXT' ? undefined : () => exportSvg(svgRef.current, filename)}
@@ -1410,69 +1353,6 @@ function QuestionAnalysisCard({
           />
         </div>
       </div>
-
-      {isEditingLabels && (
-        <div className="mb-4 grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] p-3 sm:grid-cols-2">
-          <label className="space-y-1">
-            <span className="text-sm font-semibold text-slate-700">Plot title</span>
-            <TextInput value={plotTitle} onChange={(event) => setPlotTitle(event.target.value)} placeholder="Optional plot title" className="bg-white" />
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-semibold text-slate-700">Plot subtitle</span>
-            <TextInput value={plotSubtitle} onChange={(event) => setPlotSubtitle(event.target.value)} placeholder={defaultPlotSubtitle} className="bg-white" />
-          </label>
-          {question.type === 'RATING' && (
-            <div className="space-y-1 sm:col-span-2">
-              <span className="text-sm font-semibold text-slate-700">Y-axis</span>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="w-32">
-                  <SelectMenu
-                    value={yAxisMode}
-                    onChange={(next) => setYAxisMode(next as 'auto' | 'custom')}
-                    label=""
-                    options={[
-                      { value: 'auto', label: 'Auto' },
-                      { value: 'custom', label: 'Custom' },
-                    ]}
-                  />
-                </div>
-                <label className="space-y-1">
-                  <span className="block text-xs font-semibold text-slate-600">Maximum</span>
-                  <span className="flex items-center gap-2">
-                    <TextInput
-                      type="number"
-                      min="5"
-                      max="100"
-                      step="5"
-                      value={yAxisMaxInput}
-                      onChange={(event) => setYAxisMaxInput(event.target.value)}
-                      disabled={yAxisMode === 'auto'}
-                      className="w-24 bg-white disabled:opacity-50"
-                    />
-                    <span className="text-sm font-semibold text-slate-600">%</span>
-                  </span>
-                </label>
-                <label className="space-y-1">
-                  <span className="block text-xs font-semibold text-slate-600">Tick interval</span>
-                  <span className="flex items-center gap-2">
-                    <TextInput
-                      type="number"
-                      min="1"
-                      max="100"
-                      step="1"
-                      value={yAxisStepInput}
-                      onChange={(event) => setYAxisStepInput(event.target.value)}
-                      disabled={yAxisMode === 'auto'}
-                      className="w-24 bg-white disabled:opacity-50"
-                    />
-                    <span className="text-sm font-semibold text-slate-600">%</span>
-                  </span>
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {question.type === 'FREE_TEXT' ? (
         <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
@@ -1496,18 +1376,18 @@ function QuestionAnalysisCard({
             question={question}
             analysis={analysis}
             svgRef={svgRef}
-            title={plotTitle || defaultPlotTitle}
-            subtitle={plotSubtitle || defaultPlotSubtitle}
-            yAxisMax={yAxisMax}
-            yAxisStep={yAxisStep}
+            title=""
+            subtitle={plotSubtitle}
+            yAxisMax={null}
+            yAxisStep={null}
           />
         ) : question.type === 'YES_NO' ? (
-          <YesNoPieSvg analysis={analysis} svgRef={svgRef} title={plotTitle || defaultPlotTitle} subtitle={plotSubtitle || defaultPlotSubtitle} />
+          <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
         ) : question.type !== 'FREE_TEXT' ? (
           <PlotSvg
             svgRef={svgRef}
-            title={plotTitle || defaultPlotTitle}
-            subtitle={plotSubtitle || defaultPlotSubtitle}
+            title=""
+            subtitle={plotSubtitle}
             points={analysis.points}
             denominator={analysis.answered}
           />
@@ -1522,11 +1402,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
     () => questions.filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT'),
     [questions]
   )
-  const screenshotQuestions = useMemo(
-    () => questions.filter((question) => question.type === 'SCREENSHOT'),
-    [questions]
-  )
-  const [partId, setPartId] = useState('all')
+const [partId, setPartId] = useState('all')
   const [participantId, setParticipantId] = useState('all')
   const [questionType, setQuestionType] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -1636,11 +1512,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
         </p>
       </div>
 
-{questionType === 'all' && (
-        <ScreenshotSummaryCard questions={screenshotQuestions.filter((question) => partId === 'all' || question.partId === partId)} rows={filteredRows} />
-      )}
-
-      {qualityFlagEntries.length > 0 && (
+{qualityFlagEntries.length > 0 && (
         <Card>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
