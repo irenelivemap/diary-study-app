@@ -1277,10 +1277,12 @@ function StackedBarChart({
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {points.map((point, i) => {
           const color = getColor(i, points.length)
+          const isZero = point.value === 0
           return (
             <div key={`${point.label}-${i}`} className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-xs text-slate-600">{point.label}</span>
+              <span className={`text-xs ${isZero ? 'text-slate-400' : 'text-slate-600'}`}>{point.label}</span>
+              {isZero && <span className="text-xs text-slate-400">0%</span>}
             </div>
           )
         })}
