@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { renameStudy } from '@/app/actions/studies'
 import StudyActionsMenu from '@/app/components/StudyActionsMenu'
 import StudyStatusToggle from '@/app/components/StudyStatusToggle'
-import { ButtonLink } from '@/app/components/ui'
 
 type Props = {
   study: {
@@ -65,7 +64,7 @@ export default function StudyRow({ study }: Props) {
                 onClick={startRename}
                 title="Rename study"
                 aria-label={`Rename ${name}`}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-slate-500 transition-colors hover:bg-[var(--bg-sunken)] hover:text-slate-900"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-slate-500 opacity-0 transition-all group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-[var(--bg-sunken)] hover:text-slate-900"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M12 20h9" />
@@ -84,10 +83,6 @@ export default function StudyRow({ study }: Props) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0 sm:ml-4">
-        <ButtonLink href={`/admin/studies/${study.id}`} size="md">
-          Open
-        </ButtonLink>
-        <div className="h-6 w-px bg-[var(--border)]" aria-hidden="true" />
         <StudyStatusToggle studyId={study.id} initialStatus={study.status === 'ARCHIVED' ? 'CLOSED' : study.status} />
         <StudyActionsMenu studyId={study.id} studyName={name} />
       </div>
