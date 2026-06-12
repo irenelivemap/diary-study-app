@@ -1246,47 +1246,54 @@ function StackedBarChart({
   }
 
   const pcts = points.map((p) => (p.value / total) * 100)
-  const ZERO_SLIVER = 3
+  const ZERO_SLIVER = 6
   const zeroCount = points.filter((p) => p.value === 0).length
   const scale = zeroCount > 0 ? (100 - zeroCount * ZERO_SLIVER) / 100 : 1
   const displayPcts = pcts.map((pct) => pct === 0 ? ZERO_SLIVER : pct * scale)
   const topValue = Math.max(...points.map((p) => p.value))
 
   return (
-    <div className="flex h-16 w-full gap-0.5 overflow-hidden rounded-xl">
-      {points.map((point, i) => {
-        const pct = pcts[i]
-        const displayPct = displayPcts[i]
-        const roundedPct = Math.round(pct)
-        const isTop = topValue > 0 && point.value === topValue
-        const color = getColor(i, points.length)
-        const textColor = readableTextColor(color)
-        const canShowPct = displayPct >= 5
-        const canShowLabel = displayPct >= 9
-        return (
+    <div className="space-y-1">
+      <div className="flex h-12 w-full gap-0.5 overflow-hidden rounded-xl">
+        {points.map((point, i) => {
+          const pct = pcts[i]
+          const displayPct = displayPcts[i]
+          const roundedPct = Math.round(pct)
+          const isTop = topValue > 0 && point.value === topValue
+          const color = getColor(i, points.length)
+          const textColor = readableTextColor(color)
+          return (
+            <div
+              key={`${point.label}-${i}`}
+              style={{
+                width: `${displayPct}%`,
+                backgroundColor: color,
+                boxShadow: isTop ? 'inset 0 0 0 2px rgba(255,255,255,0.55)' : undefined,
+              }}
+              title={`${point.label}: ${roundedPct}% (${point.value})`}
+              className="flex shrink-0 items-center justify-center overflow-hidden"
+            >
+              {displayPct >= 5 && (
+                <span className={`text-xs ${isTop ? 'font-bold' : 'font-medium'}`} style={{ color: textColor }}>
+                  {roundedPct}%
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex w-full gap-0.5">
+        {points.map((point, i) => (
           <div
             key={`${point.label}-${i}`}
-            style={{
-              width: `${displayPct}%`,
-              backgroundColor: color,
-              boxShadow: isTop ? 'inset 0 0 0 2px rgba(255,255,255,0.55)' : undefined,
-            }}
-            title={`${point.label}: ${roundedPct}% (${point.value})`}
-            className="relative flex shrink-0 flex-col items-center justify-center gap-0.5 overflow-hidden px-1"
+            style={{ width: `${displayPcts[i]}%` }}
+            className="flex shrink-0 flex-col items-center overflow-visible"
           >
-            {canShowLabel && (
-              <span className="w-full truncate text-center text-xs leading-tight" style={{ color: textColor, opacity: 0.85 }}>
-                {point.label}
-              </span>
-            )}
-            {canShowPct && (
-              <span className={`text-xs leading-tight ${isTop ? 'font-bold' : 'font-medium'}`} style={{ color: textColor }}>
-                {roundedPct}%
-              </span>
-            )}
+            <div className="h-1 w-px bg-slate-200" />
+            <span className="whitespace-nowrap text-center text-xs text-slate-500">{point.label}</span>
           </div>
-        )
-      })}
+        ))}
+      </div>
     </div>
   )
 }
