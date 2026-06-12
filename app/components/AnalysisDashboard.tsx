@@ -1246,19 +1246,23 @@ function StackedBarChart({
   }
 
   const pcts = points.map((p) => (p.value / total) * 100)
+  const ZERO_SLIVER = 3
+  const zeroCount = points.filter((p) => p.value === 0).length
+  const scale = zeroCount > 0 ? (100 - zeroCount * ZERO_SLIVER) / 100 : 1
+  const displayPcts = pcts.map((pct) => pct === 0 ? ZERO_SLIVER : pct * scale)
 
   return (
     <div className="space-y-3">
       <div className="flex h-9 w-full gap-0.5 overflow-hidden rounded-xl">
         {points.map((point, i) => {
           const pct = pcts[i]
+          const displayPct = displayPcts[i]
           const roundedPct = Math.round(pct)
-          if (roundedPct === 0) return null
           const color = getColor(i, points.length)
           return (
             <div
               key={`${point.label}-${i}`}
-              style={{ width: `${pct}%`, backgroundColor: color }}
+              style={{ width: `${displayPct}%`, backgroundColor: color }}
               title={String(point.value)}
               className="relative flex shrink-0 items-center justify-center overflow-hidden"
             >
@@ -1273,12 +1277,10 @@ function StackedBarChart({
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {points.map((point, i) => {
           const color = getColor(i, points.length)
-          const roundedPct = Math.round(pcts[i])
           return (
             <div key={`${point.label}-${i}`} className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
               <span className="text-xs text-slate-600">{point.label}</span>
-              <span className={`text-xs font-semibold ${roundedPct > 0 ? 'text-slate-900' : 'text-slate-400'}`}>{roundedPct}%</span>
             </div>
           )
         })}
