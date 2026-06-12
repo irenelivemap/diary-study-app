@@ -49,8 +49,7 @@ export default function InviteLinkCard({
             <p className="text-sm text-slate-500 mt-0.5">Share this with participants so they can join the study after signing in.</p>
           </>
         )}
-        {link && <p className="text-xs text-slate-500 mt-2 break-all bg-slate-50 rounded-lg px-3 py-2">{link}</p>}
-        {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
+        {error && <p className="mt-1 text-xs font-medium text-red-600">{error}</p>}
       </div>
       {token ? (
         <Button type="button" onClick={copyLink} className="shrink-0">
