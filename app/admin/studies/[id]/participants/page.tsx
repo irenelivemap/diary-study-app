@@ -132,13 +132,13 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 <p className="text-sm text-slate-500 px-5 py-4">No participants yet.</p>
               ) : (
                 <div className="overflow-x-auto overscroll-x-contain">
-                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${Math.max(720, 555 + study.parts.length * 64)}px` }}>
+                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${Math.max(720, 563 + study.parts.length * 64)}px` }}>
                     <colgroup>
                       <col style={{ width: 270 }} />
                       <col style={{ width: 165 }} />
                       {study.parts.map((part) => <col key={part.id} style={{ width: 64 }} />)}
                       <col style={{ width: 64 }} />
-                      <col style={{ width: 56 }} />
+                      <col style={{ width: 64 }} />
                     </colgroup>
                     <thead>
                       <tr className="border-b border-[var(--border-subtle)]">
