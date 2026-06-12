@@ -927,8 +927,8 @@ function FreeTextAnswerList({
       <div className="rounded-xl bg-[var(--bg-sunken)] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h4 className="text-sm font-semibold text-slate-700">Question tags</h4>
-            <p className="mt-1 text-sm text-slate-600">Create tags for this question, then apply them to answers below.</p>
+            <h4 className="text-sm font-semibold text-[var(--text-secondary)]">Question tags</h4>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">Create tags for this question, then apply them to answers below.</p>
           </div>
           <div className="flex flex-col gap-2 sm:min-w-80">
             <div className="flex gap-2">
@@ -948,29 +948,29 @@ function FreeTextAnswerList({
                 type="color"
                 value={newTagColor}
                 onChange={(event) => setNewTagColor(event.target.value)}
-                className="h-10 w-12 cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
+                className="h-10 w-12 cursor-pointer rounded-xl border border-[var(--border-strong)] bg-white p-1"
                 aria-label="Tag color"
               />
               <button
                 type="button"
                 onClick={() => void createTagDefinition(newTagLabel, newTagColor)}
-                className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                className="h-10 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold whitespace-nowrap text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
               >
                 Add tag
               </button>
             </div>
-            {savingTagId === 'new' && <p className="text-sm text-slate-500">Saving tag...</p>}
+            {savingTagId === 'new' && <p className="text-sm text-[var(--text-tertiary)]">Saving tag...</p>}
           </div>
         </div>
         {tagDefinitions.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {tagDefinitions.map((tag) => (
-              <span key={tag.id} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+              <span key={tag.id} className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-1">
                 <input
                   type="color"
                   value={tag.color}
                   onChange={(event) => void updateTagDefinition(tag, { color: event.target.value })}
-                  className="h-6 w-7 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
+                  className="h-6 w-7 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5"
                   aria-label={`${tag.label} color`}
                 />
                 <input
@@ -980,13 +980,13 @@ function FreeTextAnswerList({
                     setTagDefinitions((current) => current.map((item) => item.id === tag.id ? { ...item, label: nextLabel } : item))
                   }}
                   onBlur={(event) => void updateTagDefinition(tag, { label: event.target.value })}
-                  className="w-28 bg-transparent text-sm font-semibold text-slate-700 outline-none"
+                  className="w-28 bg-transparent text-sm font-semibold text-[var(--text-secondary)] outline-none"
                   aria-label={`${tag.label} label`}
                 />
                 <button
                   type="button"
                   onClick={() => void removeTagDefinition(tag.id)}
-                  className="rounded-full p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  className="rounded-full p-0.5 text-[var(--text-muted)] hover:bg-red-50 hover:text-red-600"
                   aria-label={`Delete ${tag.label}`}
                   title="Delete tag"
                 >
@@ -1002,8 +1002,8 @@ function FreeTextAnswerList({
         <div className="rounded-xl bg-[var(--bg-sunken)] p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h4 className="text-sm font-semibold text-slate-700">Tag summary</h4>
-              <p className="mt-1 text-sm text-slate-600">Tags can overlap, so percentages may add to more than 100%.</p>
+              <h4 className="text-sm font-semibold text-[var(--text-secondary)]">Tag summary</h4>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">Tags can overlap, so percentages may add to more than 100%.</p>
             </div>
             <div className="w-full sm:w-56">
               <SelectMenu
@@ -1019,14 +1019,14 @@ function FreeTextAnswerList({
           </div>
           <div className="mt-4 space-y-3">
             <div className="grid w-full grid-cols-[minmax(120px,180px)_minmax(0,1fr)_48px] items-center gap-3 rounded-xl px-2 py-1 text-left">
-              <span className="truncate text-sm font-semibold text-slate-700">Untagged</span>
-              <span className="h-3 overflow-hidden rounded-full bg-slate-100">
+              <span className="truncate text-sm font-semibold text-[var(--text-secondary)]">Untagged</span>
+              <span className="h-3 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
                 <span
-                  className="block h-full rounded-full bg-slate-400"
+                  className="block h-full rounded-full bg-[var(--text-muted)]"
                   style={{ width: `${answers.length ? Math.max(6, (untaggedCount / answers.length) * 100) : 0}%` }}
                 />
               </span>
-              <span className="text-right text-sm font-bold text-slate-900">{answers.length ? Math.round((untaggedCount / answers.length) * 100) : 0}%</span>
+              <span className="text-right text-sm font-bold text-[var(--text)]">{answers.length ? Math.round((untaggedCount / answers.length) * 100) : 0}%</span>
             </div>
             {tagCounts.map(({ tag, count }) => {
               const pct = answers.length ? Math.round((count / answers.length) * 100) : 0
@@ -1035,19 +1035,19 @@ function FreeTextAnswerList({
                   key={tag.id}
                   type="button"
                   onClick={() => selectTagFilter(tag.id)}
-                  className={`grid w-full grid-cols-[minmax(120px,180px)_minmax(0,1fr)_48px] items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-slate-50 ${tagFilter === tag.id ? 'bg-indigo-50' : ''}`}
+                  className={`grid w-full grid-cols-[minmax(120px,180px)_minmax(0,1fr)_48px] items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-[var(--bg-sunken)] ${tagFilter === tag.id ? 'bg-[var(--accent-subtle)]' : ''}`}
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                    <span className="truncate text-sm font-semibold text-slate-700">{tag.label}</span>
+                    <span className="truncate text-sm font-semibold text-[var(--text-secondary)]">{tag.label}</span>
                   </span>
-                  <span className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <span className="h-3 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
                     <span
-                      className="block h-full rounded-full bg-indigo-600"
+                      className="block h-full rounded-full"
                       style={{ width: `${Math.max(6, (count / maxTagCount) * 100)}%`, backgroundColor: tag.color }}
                     />
                   </span>
-                  <span className="text-right text-sm font-bold text-slate-900">{pct}%</span>
+                  <span className="text-right text-sm font-bold text-[var(--text)]">{pct}%</span>
                 </button>
               )
             })}
@@ -1055,30 +1055,30 @@ function FreeTextAnswerList({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+        <div className="border-b border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-sm font-semibold text-slate-700">{tagFilter === 'all' ? 'All answers' : `Answers tagged "${tagById.get(tagFilter)?.label ?? 'tag'}"`}</h4>
+              <h4 className="text-sm font-semibold text-[var(--text-secondary)]">{tagFilter === 'all' ? 'All answers' : `Answers tagged "${tagById.get(tagFilter)?.label ?? 'tag'}"`}</h4>
               {filteredAnswers.length > 0 && (
-                <p className="mt-0.5 text-sm text-slate-600">
+                <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
                   Showing {Math.min(visibleCount, filteredAnswers.length)} of {filteredAnswers.length}
                 </p>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {filteredAnswers.length > 10 && visibleCount < filteredAnswers.length && (
-                <button type="button" onClick={() => setVisibleCount(filteredAnswers.length)} className="text-sm font-semibold text-indigo-700">
+                <button type="button" onClick={() => setVisibleCount(filteredAnswers.length)} className="text-sm font-semibold text-[var(--text-link)]">
                   Load all
                 </button>
               )}
               {visibleCount > 10 && (
-                <button type="button" onClick={() => setVisibleCount(10)} className="text-sm font-semibold text-slate-700">
+                <button type="button" onClick={() => setVisibleCount(10)} className="text-sm font-semibold text-[var(--text-secondary)]">
                   Hide
                 </button>
               )}
               {tagFilter !== 'all' && (
-                <button type="button" onClick={() => selectTagFilter('all')} className="text-sm font-semibold text-indigo-700">
+                <button type="button" onClick={() => selectTagFilter('all')} className="text-sm font-semibold text-[var(--text-link)]">
                   Clear filter
                 </button>
               )}
@@ -1086,9 +1086,9 @@ function FreeTextAnswerList({
           </div>
         </div>
         {filteredAnswers.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-slate-600">No answers yet.</p>
+          <p className="px-4 py-5 text-sm text-[var(--text-secondary)]">No answers yet.</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-[var(--border-subtle)]">
             {visibleAnswers.map((answer) => {
               const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
               const currentTags = currentTagIds.map((tagId) => tagById.get(tagId)).filter(Boolean) as TagDefinition[]
@@ -1096,12 +1096,12 @@ function FreeTextAnswerList({
               return (
               <article key={`${answer.entryId}-${answer.answer}`} className="space-y-3 px-4 py-4">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="font-semibold text-slate-950">{answer.participantName}</span>
-                  <span className="text-slate-600">{answer.participantEmail}</span>
-                  <span className="text-slate-500">{formatSubmittedAt(answer.submittedAt)}</span>
-                  {savingAnswerId === answer.answerId && <span className="text-slate-500">Saving tags...</span>}
+                  <span className="font-semibold text-[var(--text)]">{answer.participantName}</span>
+                  <span className="text-[var(--text-secondary)]">{answer.participantEmail}</span>
+                  <span className="text-[var(--text-tertiary)]">{formatSubmittedAt(answer.submittedAt)}</span>
+                  {savingAnswerId === answer.answerId && <span className="text-[var(--text-tertiary)]">Saving tags...</span>}
                 </div>
-                <p className="whitespace-pre-wrap rounded-xl bg-slate-50 px-4 py-3 text-base leading-relaxed text-slate-900">
+                <p className="whitespace-pre-wrap rounded-xl bg-[var(--bg-sunken)] px-4 py-3 text-sm leading-relaxed text-[var(--text)]">
                   {answer.answer}
                 </p>
                 <div className="space-y-2">
@@ -1129,7 +1129,7 @@ function FreeTextAnswerList({
                           key={tag.id}
                           type="button"
                           onClick={() => addTag(answer.answerId, tag.id)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                          className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-sm font-medium text-[var(--text-secondary)] hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]"
                         >
                           <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
                           + {tag.label}
@@ -1146,7 +1146,7 @@ function FreeTextAnswerList({
                   <button
                     type="button"
                     onClick={() => setVisibleCount((count) => Math.min(count + 10, filteredAnswers.length))}
-                    className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    className="h-10 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
                   >
                     Load 10 more
                   </button>
@@ -1155,7 +1155,7 @@ function FreeTextAnswerList({
                   <button
                     type="button"
                     onClick={() => setVisibleCount(filteredAnswers.length)}
-                    className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    className="h-10 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
                   >
                     Load all
                   </button>
@@ -1164,7 +1164,7 @@ function FreeTextAnswerList({
                   <button
                     type="button"
                     onClick={() => setVisibleCount(10)}
-                    className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    className="h-10 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
                   >
                     Hide
                   </button>
