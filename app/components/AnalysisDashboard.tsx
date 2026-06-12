@@ -1238,7 +1238,7 @@ function StackedBarChart({
 
   if (points.length === 0 || total === 0) return <p className="text-sm text-slate-500">No answers yet.</p>
 
-  const colorStops = ['#c7d2fe', '#a5b4fc', '#818cf8', '#6366f1', '#4f46e5', '#4338ca', '#3730a3']
+  const colorStops = ['#818cf8', '#6366f1', '#4f46e5', '#4338ca', '#3730a3', '#312e81', '#1e1b4b']
   const getColor = (index: number, n: number) => {
     if (n <= 1) return colorStops[3]
     const pos = (index / (n - 1)) * (colorStops.length - 1)
