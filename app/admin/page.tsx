@@ -45,13 +45,11 @@ export default async function AdminPage() {
       />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="flex items-end justify-between gap-4 mb-5">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-950">Your studies</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {currentStudies.length} current · {pastStudies.length} past
-            </p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-950">Your studies</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {currentStudies.length} current · {pastStudies.length} past
+          </p>
         </div>
 
         {currentStudies.length === 0 && pastStudies.length === 0 ? (
@@ -65,9 +63,9 @@ export default async function AdminPage() {
         ) : (
           <div className="space-y-8">
             <section>
-              <div className="mb-3 flex items-baseline gap-2">
-                <h2 className="text-lg font-bold text-slate-950">Current studies</h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-sm font-medium text-slate-600">{currentStudies.length}</span>
+              <div className="mb-3 flex items-center gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Current studies</h2>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-400">{currentStudies.length}</span>
               </div>
               {currentStudies.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
@@ -85,9 +83,9 @@ export default async function AdminPage() {
 
             {pastStudies.length > 0 && (
               <section>
-                <div className="mb-3 flex items-baseline gap-2">
-                  <h2 className="text-lg font-bold text-slate-950">Past studies</h2>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-sm font-medium text-slate-600">{pastStudies.length}</span>
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Past studies</h2>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-400">{pastStudies.length}</span>
                 </div>
                 <div className="space-y-3">
                   {pastStudies.map((study) => (
