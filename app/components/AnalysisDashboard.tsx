@@ -1511,7 +1511,7 @@ function QuestionAnalysisCard({
               onClick={() => setIsEditingLabels((current) => !current)}
               aria-label="Edit chart labels"
               title="Edit chart labels"
-              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors hover:bg-[var(--bg-sunken)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors hover:bg-[var(--bg-sunken)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                 isEditingLabels ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] bg-white text-slate-500'
               }`}
             >
@@ -1703,6 +1703,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
       <div className="border-b border-[var(--border)] pb-4">
         <div className="flex flex-wrap items-center gap-2">
           <SelectMenu
+            className="w-full sm:w-auto sm:min-w-[140px]"
             value={partId}
             onChange={setPartId}
             options={[
@@ -1711,6 +1712,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             ]}
           />
           <SelectMenu
+            className="w-full sm:w-auto sm:min-w-[160px]"
             value={participantId}
             onChange={setParticipantId}
             options={[
@@ -1719,6 +1721,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             ]}
           />
           <SelectMenu
+            className="w-full sm:w-auto sm:min-w-[130px]"
             value={questionType}
             onChange={setQuestionType}
             options={[
@@ -1726,14 +1729,16 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
               ...questionTypes.map((type) => ({ value: type, label: questionTypeLabel(type) })),
             ]}
           />
-          <TextInput type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-36" />
-          <span className="hidden text-xs text-slate-400 sm:block">–</span>
-          <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-36" />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <TextInput type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="flex-1 sm:w-36 sm:flex-none" />
+            <span className="text-xs text-slate-400">–</span>
+            <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="flex-1 sm:w-36 sm:flex-none" />
+          </div>
           <button
             type="button"
             onClick={() => setIncludePilotData((current) => !current)}
             disabled={pilotRowCount === 0}
-            className="ml-1 flex items-center gap-2 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex w-full items-center gap-2 transition-opacity disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:ml-1"
             aria-pressed={includePilotData}
             title={pilotRowCount === 0 ? 'No pilot data to include yet.' : undefined}
           >
