@@ -8,6 +8,7 @@ import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionT
 import { phaseSoftBadgeClass } from '@/app/lib/phase-colors'
 import { entryQualityLabel } from '@/app/lib/entry-state'
 import { answerValue as normalizedAnswerValue, answerWasShown, parseMultipleChoiceAnswer } from '@/app/lib/answer-dataset'
+import WordCloudChart from '@/app/components/WordCloudChart'
 
 type Question = {
   id: string
@@ -23,7 +24,17 @@ type Question = {
 }
 type Part = { id: string; name: string; flow?: string }
 type Participant = { id: string; name: string; email: string }
-type TagDefinition = { id: string; label: string; color: string }
+export type TagDefinition = { id: string; label: string; color: string }
+export type FreeTextAnswer = {
+  entryId: string
+  participantName: string
+  participantEmail: string
+  date: string
+  submittedAt: string
+  answerId: string
+  answer: string
+  tags: TagDefinition[]
+}
 type AnswerCell = { id: string; value: string; wasShown: boolean; tags: TagDefinition[] }
 type Row = {
   entryId: string
@@ -396,7 +407,7 @@ function buildAnalysis(question: Question, rows: Row[]) {
   return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
 }
 
-function freeTextAnswers(question: Question, rows: Row[]) {
+function freeTextAnswers(question: Question, rows: Row[]): FreeTextAnswer[] {
   return eligibleRowsForQuestion(question, rows)
     .map((row) => ({
       entryId: row.entryId,
@@ -816,7 +827,7 @@ function PlotSvg({
 
 
 
-function FreeTextAnswerList({
+export function FreeTextAnswerList({
   studyId,
   questionId,
   initialTags,
@@ -825,7 +836,7 @@ function FreeTextAnswerList({
   studyId: string
   questionId: string
   initialTags: TagDefinition[]
-  answers: ReturnType<typeof freeTextAnswers>
+  answers: FreeTextAnswer[]
 }) {
   const router = useRouter()
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(initialTags)
@@ -1416,7 +1427,56 @@ function QuestionAnalysisCard({
       </div>
 
       {question.type === 'FREE_TEXT' ? (
-        <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
+        <div className="space-y-4">
+          <WordCloudChart
+            answers={textAnswers.map((a) => a.answer)}
+            questionId={question.id}
+          />
+          {question.tagDefinitions.length > 0 && (() => {
+            const tagCounts = question.tagDefinitions.map((tag) => ({
+              tag,
+              count: textAnswers.filter((a) => a.tags.some((t) => t.id === tag.id)).length,
+            }))
+            const maxCount = Math.max(...tagCounts.map((t) => t.count), 1)
+            return (
+              <div className="rounded-xl bg-[var(--bg-sunken)] p-4">
+                <h4 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">Tag distribution</h4>
+                <div className="space-y-2">
+                  {tagCounts.map(({ tag, count }) => {
+                    const pct = textAnswers.length ? Math.round((count / textAnswers.length) * 100) : 0
+                    return (
+                      <div
+                        key={tag.id}
+                        className="grid items-center gap-3"
+                        style={{ gridTemplateColumns: 'minmax(100px, 160px) 1fr 44px' }}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                          <span className="truncate text-sm text-[var(--text-secondary)]">{tag.label}</span>
+                        </span>
+                        <div className="h-2 overflow-hidden rounded-full bg-white">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.max(4, (count / maxCount) * 100)}%`, backgroundColor: tag.color }}
+                          />
+                        </div>
+                        <span className="text-right text-sm font-bold text-[var(--text)]">{pct}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+          <div className="flex justify-end">
+            <a
+              href={`/admin/studies/${studyId}/analysis/${question.id}/tag`}
+              className="text-sm font-semibold text-[var(--text-link)] hover:underline"
+            >
+              Tag answers →
+            </a>
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
           {question.type === 'RATING' ? (
