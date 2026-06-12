@@ -155,10 +155,10 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
               <button
                 type="button"
                 onClick={() => setConfirmLaunchOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close launch dialog"
               >
-                x
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
 

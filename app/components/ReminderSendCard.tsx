@@ -58,7 +58,7 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, diagn
         {!embedded && (
           <div>
             <h2 className="text-sm font-semibold text-slate-700">Email reminders</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               {enabled
                 ? `Enabled. Automatic runs send after ${reminderTime || '18:00'} in each participant's timezone.`
                 : 'Disabled. Turn this on in Setup when you are ready to send reminders.'}
@@ -188,7 +188,7 @@ export default function ReminderSendCard({ studyId, enabled, reminderTime, diagn
                       {log.recipientEmail} · {log.date}
                     </p>
                   </div>
-                  <span className="shrink-0 text-xs text-slate-400">
+                  <span className="shrink-0 text-xs text-slate-500">
                     {new Date(log.sentAt).toLocaleString()}
                   </span>
                   {log.error && <p className="text-xs text-red-500 sm:col-span-2">{log.error}</p>}

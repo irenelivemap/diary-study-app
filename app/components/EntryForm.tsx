@@ -220,18 +220,15 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
 
       {/* Page indicator */}
       {pageCount > 1 && (
-        <div className="flex items-center gap-2">
-          {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (
-            <div
-              key={p}
-              className={`h-1.5 flex-1 rounded-full transition-colors ${
-                p <= currentPage ? 'bg-indigo-600' : 'bg-slate-200'
-              }`}
-            />
-          ))}
-          <span className="text-xs text-slate-400 ml-1 whitespace-nowrap">
-            {currentPage} / {pageCount}
-          </span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (
+              <div key={p} className={`h-1 flex-1 rounded-full transition-all duration-300 ${p <= currentPage ? 'bg-indigo-500' : 'bg-[#E6E3DD]'}`} />
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 text-right">
+            Page {currentPage} of {pageCount}
+          </p>
         </div>
       )}
 
@@ -245,7 +242,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
 
         if (q.type === 'CONTENT') {
           return (
-            <div key={q.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div key={q.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-sunken)] p-5">
               {q.text && (
                 <div
                   className="prose prose-sm max-w-none text-slate-700"
@@ -261,7 +258,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
         }
 
         return (
-          <div key={q.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6">
+          <div key={q.id} className="bg-white rounded-2xl border border-[#E6E3DD] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-5 sm:p-6">
             <div
               className="mb-4 text-base font-semibold leading-relaxed text-slate-900 sm:text-lg"
               dangerouslySetInnerHTML={{
@@ -276,7 +273,8 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
                 data-page={q.page ?? 1}
                 rows={4}
                 onChange={(e) => setAnswer(q.id, e.target.value)}
-                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full resize-y rounded-xl border border-[#DDD9D2] bg-[#F8F7F5] px-4 py-3 text-base leading-relaxed transition-all duration-150 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 placeholder:text-slate-400"
+                placeholder="Write your answer here…"
               />
             )}
 
@@ -295,55 +293,52 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
 
             {q.type === 'MULTIPLE_CHOICE' && (
               <div className="space-y-2">
-                <p className="text-sm text-slate-600">
-                  Select {q.min ?? (q.required ? 1 : 0)}-{q.max ?? regularOptions.length} option{(q.max ?? regularOptions.length) === 1 ? '' : 's'}.
+                <p className="text-sm text-slate-500 mb-3">
+                  Select {q.min ?? (q.required ? 1 : 0)}–{q.max ?? regularOptions.length} option{(q.max ?? regularOptions.length) === 1 ? '' : 's'}.
                 </p>
-                {regularOptions.map((opt) => (
-                  <label key={opt} className="group -mx-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-3 active:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      name={`question_${q.id}`}
-                      value={opt}
-                      data-page={q.page ?? 1}
-                      checked={selectedValues(q.id).includes(opt)}
-                      onChange={(e) => setMultipleChoice(q, opt, e.target.checked)}
-                      className="w-5 h-5 text-indigo-600 shrink-0"
-                    />
-                    <span className="text-base text-slate-800 group-hover:text-slate-900"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }} />
-                  </label>
-                ))}
+                {regularOptions.map((opt) => {
+                  const checked = selectedValues(q.id).includes(opt)
+                  return (
+                    <label key={opt} className="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 transition-all duration-150 select-none"
+                      style={checked ? { borderColor: '#a5b4fc', backgroundColor: '#eef2ff' } : { borderColor: '#E6E3DD', backgroundColor: '#ffffff' }}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-150 ${checked ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 bg-white'}`}>
+                        {checked && (
+                          <svg className="h-3 w-3 text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1.5 5.5l3 3 6-7" />
+                          </svg>
+                        )}
+                      </span>
+                      <input type="checkbox" name={`question_${q.id}`} value={opt} data-page={q.page ?? 1}
+                        checked={checked} onChange={(e) => setMultipleChoice(q, opt, e.target.checked)} className="sr-only" />
+                      <span className="text-base text-slate-800" dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }} />
+                    </label>
+                  )
+                })}
                 {hasOther && (
                   <div className="space-y-2">
-                    <label className="group -mx-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-3 active:bg-slate-50">
-                      <input
-                        type="checkbox"
-                        name={`question_${q.id}`}
-                        value={`Other: ${otherText[q.id] ?? ''}`}
-                        checked={selectedOther}
-                        data-page={q.page ?? 1}
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 transition-all duration-150 select-none"
+                      style={selectedOther ? { borderColor: '#a5b4fc', backgroundColor: '#eef2ff' } : { borderColor: '#E6E3DD', backgroundColor: '#ffffff' }}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-150 ${selectedOther ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 bg-white'}`}>
+                        {selectedOther && (
+                          <svg className="h-3 w-3 text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1.5 5.5l3 3 6-7" />
+                          </svg>
+                        )}
+                      </span>
+                      <input type="checkbox" name={`question_${q.id}`} value={`Other: ${otherText[q.id] ?? ''}`}
+                        checked={selectedOther} data-page={q.page ?? 1}
                         onChange={(e) => {
                           setSelectedOptions((s) => ({ ...s, [q.id]: e.target.checked ? OTHER_SENTINEL : '' }))
                           setMultipleChoice(q, `Other: ${otherText[q.id] ?? ''}`, e.target.checked)
-                        }}
-                        className="w-5 h-5 text-indigo-600 shrink-0"
-                      />
+                        }} className="sr-only" />
                       <span className="text-base text-slate-800">Other</span>
                     </label>
                     {selectedOther && (
-                      <>
-                        <input
-                          type="text"
-                          placeholder="Please specify…"
-                          value={otherText[q.id] ?? ''}
-                          onChange={(e) => {
-                            setOtherText((t) => ({ ...t, [q.id]: e.target.value }))
-                            setMultipleChoice(q, `Other: ${e.target.value}`, true)
-                          }}
-                          required
-                          className="ml-7 w-[calc(100%-1.75rem)] rounded-xl border border-slate-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </>
+                      <input type="text" placeholder="Please specify…" value={otherText[q.id] ?? ''}
+                        onChange={(e) => { setOtherText((t) => ({ ...t, [q.id]: e.target.value })); setMultipleChoice(q, `Other: ${e.target.value}`, true) }}
+                        required
+                        className="w-full rounded-xl border border-[#DDD9D2] bg-[#F8F7F5] px-4 py-3 text-base transition-all duration-150 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+                      />
                     )}
                   </div>
                 )}
@@ -352,48 +347,41 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
 
             {q.type === 'SINGLE_CHOICE' && (
               <div className="space-y-2">
-                {regularOptions.map((opt) => (
-                  <label key={opt} className="group -mx-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-3 active:bg-slate-50">
-                    <input
-                      type="radio"
-                      name={`question_${q.id}`}
-                      value={opt}
-                      required={q.required && !selectedOther}
-                      data-page={q.page ?? 1}
-                      onChange={() => { setSelectedOptions((s) => ({ ...s, [q.id]: opt })); setAnswer(q.id, opt) }}
-                      className="w-5 h-5 text-indigo-600 shrink-0"
-                    />
-                    <span className="text-base text-slate-800 group-hover:text-slate-900"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }} />
-                  </label>
-                ))}
+                {regularOptions.map((opt) => {
+                  const checked = selectedOptions[q.id] === opt
+                  return (
+                    <label key={opt} className="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 transition-all duration-150 select-none"
+                      style={checked ? { borderColor: '#a5b4fc', backgroundColor: '#eef2ff' } : { borderColor: '#E6E3DD', backgroundColor: '#ffffff' }}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-150 ${checked ? 'border-indigo-500' : 'border-slate-300 bg-white'}`}>
+                        {checked && <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" />}
+                      </span>
+                      <input type="radio" name={`question_${q.id}`} value={opt} required={q.required && !selectedOther}
+                        data-page={q.page ?? 1}
+                        onChange={() => { setSelectedOptions((s) => ({ ...s, [q.id]: opt })); setAnswer(q.id, opt) }}
+                        className="sr-only" />
+                      <span className="text-base text-slate-800" dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }} />
+                    </label>
+                  )
+                })}
                 {hasOther && (
                   <div className="space-y-2">
-                    <label className="group -mx-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-3 active:bg-slate-50">
-                      <input
-                        type="radio"
-                        name={`question_${q.id}`}
-                        value={`Other: ${otherText[q.id] ?? ''}`}
-                        required={q.required && !selectedOptions[q.id]}
-                        checked={selectedOther}
-                        data-page={q.page ?? 1}
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 transition-all duration-150 select-none"
+                      style={selectedOther ? { borderColor: '#a5b4fc', backgroundColor: '#eef2ff' } : { borderColor: '#E6E3DD', backgroundColor: '#ffffff' }}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-150 ${selectedOther ? 'border-indigo-500' : 'border-slate-300 bg-white'}`}>
+                        {selectedOther && <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" />}
+                      </span>
+                      <input type="radio" name={`question_${q.id}`} value={`Other: ${otherText[q.id] ?? ''}`}
+                        required={q.required && !selectedOptions[q.id]} checked={selectedOther} data-page={q.page ?? 1}
                         onChange={() => { setSelectedOptions((s) => ({ ...s, [q.id]: OTHER_SENTINEL })); setAnswer(q.id, `Other: ${otherText[q.id] ?? ''}`) }}
-                        className="w-5 h-5 text-indigo-600 shrink-0"
-                      />
+                        className="sr-only" />
                       <span className="text-base text-slate-800">Other</span>
                     </label>
                     {selectedOther && (
                       <>
-                        <input
-                          type="text"
-                          placeholder="Please specify…"
-                          value={otherText[q.id] ?? ''}
-                          onChange={(e) => {
-                            setOtherText((t) => ({ ...t, [q.id]: e.target.value }))
-                            setAnswer(q.id, `Other: ${e.target.value}`)
-                          }}
+                        <input type="text" placeholder="Please specify…" value={otherText[q.id] ?? ''}
+                          onChange={(e) => { setOtherText((t) => ({ ...t, [q.id]: e.target.value })); setAnswer(q.id, `Other: ${e.target.value}`) }}
                           required
-                          className="ml-7 w-[calc(100%-1.75rem)] rounded-xl border border-slate-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full rounded-xl border border-[#DDD9D2] bg-[#F8F7F5] px-4 py-3 text-base transition-all duration-150 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
                         />
                         <input type="hidden" name={`question_${q.id}`} value={`Other: ${otherText[q.id] ?? ''}`} />
                       </>
@@ -405,20 +393,17 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
 
             {q.type === 'YES_NO' && (
               <div className="grid grid-cols-2 gap-3">
-                {['Yes', 'No'].map((opt) => (
-                  <label key={opt} className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3">
-                    <input
-                      type="radio"
-                      name={`question_${q.id}`}
-                      value={opt}
-                      required={q.required}
-                      data-page={q.page ?? 1}
-                      onChange={() => setAnswer(q.id, opt)}
-                      className="w-5 h-5 text-indigo-600 shrink-0"
-                    />
-                    <span className="text-base font-medium text-slate-800">{opt}</span>
-                  </label>
-                ))}
+                {['Yes', 'No'].map((opt) => {
+                  const checked = answers[q.id] === opt
+                  return (
+                    <label key={opt} className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 transition-all duration-150 select-none"
+                      style={checked ? { borderColor: '#a5b4fc', backgroundColor: '#eef2ff' } : { borderColor: '#E6E3DD', backgroundColor: '#ffffff' }}>
+                      <input type="radio" name={`question_${q.id}`} value={opt} required={q.required}
+                        data-page={q.page ?? 1} onChange={() => setAnswer(q.id, opt)} className="sr-only" />
+                      <span className={`text-base font-semibold transition-colors ${checked ? 'text-indigo-700' : 'text-slate-700'}`}>{opt}</span>
+                    </label>
+                  )
+                })}
               </div>
             )}
 

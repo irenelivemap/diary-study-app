@@ -46,7 +46,7 @@ export default function InviteLinkCard({
         {!embedded && (
           <>
             <h2 className="text-sm font-semibold text-slate-800">Invite link</h2>
-            <p className="text-sm text-slate-400 mt-0.5">Share this with participants so they can join the study after signing in.</p>
+            <p className="text-sm text-slate-500 mt-0.5">Share this with participants so they can join the study after signing in.</p>
           </>
         )}
         {link && <p className="text-xs text-slate-500 mt-2 break-all bg-slate-50 rounded-lg px-3 py-2">{link}</p>}

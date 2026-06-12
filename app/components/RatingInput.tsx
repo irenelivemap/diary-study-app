@@ -55,7 +55,7 @@ export default function RatingInput({ name, min, max, scaleType, labels, require
           return (
             <label key={val} className="cursor-pointer">
               <input type="radio" name={name} value={String(val)} required={required} data-page={dataPage} onChange={(e) => onChange?.(e.target.value)} className="sr-only peer" />
-              <span className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-slate-300 text-sm text-slate-700 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-indigo-600 hover:border-indigo-400 transition-colors cursor-pointer">
+              <span className="inline-flex min-h-[44px] items-center justify-center px-4 py-2 rounded-lg border border-slate-300 text-sm text-slate-700 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-indigo-600 hover:border-indigo-400 transition-colors cursor-pointer">
                 {label}
               </span>
             </label>

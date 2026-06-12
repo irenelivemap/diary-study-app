@@ -6,7 +6,7 @@ function SkeletonBlock({ className = '' }: { className?: string }) {
 
 export default function StudyLoading() {
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name="" role="ADMIN" />
       <div className="border-b border-slate-100 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-8">

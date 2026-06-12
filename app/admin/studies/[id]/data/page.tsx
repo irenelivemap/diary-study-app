@@ -63,11 +63,11 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
   }))
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="responses" studyName={study.name} isActive={study.isActive} status={study.status} />
 
-      <div className="max-w-full px-4 sm:px-6 py-6">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6">
         <DataExplorer
           studyId={id}
           studyName={study.name}

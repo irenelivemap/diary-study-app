@@ -107,21 +107,21 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} status={study.status} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0 space-y-4">
-            <section className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <section className="w-full bg-white rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">
                     Participant progress
                     <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{study.participants.length}</span>
                   </h2>
-                  <p className="text-sm text-slate-400 mt-0.5">Participant status and entry counts by part.</p>
+                  <p className="text-sm text-slate-500 mt-0.5">Participant status and entry counts by part.</p>
                 </div>
                 <ButtonLink href={`/admin/studies/${id}/data`} tone="secondary" size="sm">
                   Open responses
@@ -129,7 +129,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
               </div>
 
               {study.participants.length === 0 ? (
-                <p className="text-sm text-slate-400 px-5 py-4">No participants yet.</p>
+                <p className="text-sm text-slate-500 px-5 py-4">No participants yet.</p>
               ) : (
                 <div className="overflow-x-auto overscroll-x-contain">
                   <table className="w-full table-fixed text-sm" style={{ minWidth: `${Math.max(720, 555 + study.parts.length * 64)}px` }}>
@@ -141,7 +141,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                       <col style={{ width: 56 }} />
                     </colgroup>
                     <thead>
-                      <tr className="border-b border-slate-100">
+                      <tr className="border-b border-[var(--border-subtle)]">
                         <th className="px-5 py-3 text-left text-sm font-semibold text-slate-600">Name</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">Status</th>
                         {study.parts.map((part, pi) => (
@@ -155,7 +155,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                         <th className="px-3 py-3" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-[var(--border-subtle)]">
                       {study.participants.map((participant) => {
                         const { user } = participant
                         const userCounts = entryCountMap[user.id] ?? {}
@@ -171,7 +171,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 </div>
                                 <div className="min-w-0">
                                   <p className="font-medium text-slate-800 text-sm leading-tight truncate group-hover:text-indigo-700">{user.name}</p>
-                                  <p className="text-xs text-slate-400 leading-tight truncate">{user.email}</p>
+                                  <p className="text-xs text-slate-500 leading-tight truncate">{user.email}</p>
                                   {participant?.externalParticipantId && (
                                     <p className="text-xs text-slate-500 leading-tight truncate">ID {participant.externalParticipantId}</p>
                                   )}
@@ -224,7 +224,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
             >
               <div className="p-5 space-y-3">
                 {study.participants.length === 0 ? (
-                  <p className="text-sm text-slate-400">No participants yet.</p>
+                  <p className="text-sm text-slate-500">No participants yet.</p>
                 ) : study.participants.map((participant) => (
                   <div key={participant.user.id} className="space-y-2">
                     <ParticipantOpsForm
@@ -257,10 +257,10 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
           </div>
 
           <aside className="min-w-0 space-y-4 lg:sticky lg:top-4">
-            <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100">
+            <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
                 <h2 className="text-base font-semibold text-slate-800">Invite participant</h2>
-                <p className="text-sm text-slate-400 mt-0.5">Send an email invite. They can sign up after receiving it.</p>
+                <p className="text-sm text-slate-500 mt-0.5">Send an email invite. They can sign up after receiving it.</p>
               </div>
               <div className="p-5">
                 <AddParticipantForm studyId={id} />
@@ -268,10 +268,10 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
             </section>
 
             {pendingInvitations.length > 0 && (
-              <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100">
+              <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
                   <h2 className="text-base font-semibold text-slate-800">Pending invitations</h2>
-                  <p className="text-sm text-slate-400 mt-0.5">Invited but not signed up yet.</p>
+                  <p className="text-sm text-slate-500 mt-0.5">Invited but not signed up yet.</p>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {pendingInvitations.map((invitation) => (
@@ -280,7 +280,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                       {invitation.externalParticipantId && (
                         <p className="text-xs text-slate-500">ID {invitation.externalParticipantId}</p>
                       )}
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500">
                         Sent {invitation.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
                     </div>
@@ -289,10 +289,10 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
               </section>
             )}
 
-            <section className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100">
+            <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
                 <h2 className="text-base font-semibold text-slate-800">Invite link</h2>
-                <p className="text-sm text-slate-400 mt-0.5">Share this so participants can join after signing in.</p>
+                <p className="text-sm text-slate-500 mt-0.5">Share this so participants can join after signing in.</p>
               </div>
               <InviteLinkCard studyId={id} initialToken={study.inviteToken} baseUrl={appBaseUrl()} embedded />
             </section>

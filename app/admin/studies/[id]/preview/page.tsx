@@ -33,7 +33,7 @@ export default async function PreviewPage({
   const today = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="preview" studyName={study.name} isActive={study.isActive} status={study.status} />
 
@@ -67,7 +67,7 @@ export default async function PreviewPage({
               PT {partIndex + 1}
             </span>
             <div>
-              <p className="text-xs text-slate-400">{today}</p>
+              <p className="text-xs text-slate-500">{today}</p>
               <p className="text-sm font-semibold text-slate-900">{part.name}</p>
             </div>
           </div>

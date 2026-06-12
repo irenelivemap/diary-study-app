@@ -399,12 +399,12 @@ export default function StudyForm({
     ? 'Make a change and the save bar will follow you while you work.'
     : 'Add the study details, then create the study.'
 
-  const inputCls = "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
-  const smallInputCls = "w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
+  const inputCls = "w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-4 py-2.5 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-[var(--border-focus)] focus:bg-white transition-colors"
+  const smallInputCls = "w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-[var(--border-focus)] focus:bg-white transition-colors"
   const sectionTitleCls = "text-sm font-semibold text-slate-800"
   const fieldLabelCls = "block text-sm font-medium text-slate-700 mb-2"
   const partsPanel = (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm">
       <div className="flex flex-1 gap-2 overflow-x-auto p-3 lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto">
         {parts.map((p, i) => (
           <div key={p.id}
@@ -457,7 +457,7 @@ export default function StudyForm({
       onChangeCapture={() => { setRecentlySaved(false); setIsDirty(true) }}
     >
       {/* ── Study basics ── */}
-      <div className="h-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <div className="h-full overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm">
         <div className="p-5 space-y-4">
           <div>
             <label htmlFor="study-name" className={fieldLabelCls}>Study name *</label>
@@ -527,14 +527,16 @@ export default function StudyForm({
               </div>
             )}
           </fieldset>
-        <details className="group rounded-2xl border border-slate-200 bg-white">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
+        <details className="group rounded-2xl border border-[var(--border)] bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3">
             <div>
               <p className={sectionTitleCls}>Participant-facing information</p>
             </div>
-            <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
+            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
+            </span>
           </summary>
-          <div className="border-t border-slate-100 p-4 space-y-4">
+          <div className="border-t border-[var(--border-subtle)] p-5 space-y-4">
             <div>
             <label className={fieldLabelCls}>Consent / intro text</label>
             <textarea
@@ -604,16 +606,16 @@ export default function StudyForm({
           </div>
         </details>
 
-        <details className="group rounded-2xl border border-slate-200 bg-white">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
+        <details className="group rounded-2xl border border-[var(--border)] bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3">
             <div>
               <p className={sectionTitleCls}>Email reminders</p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
-            </div>
+            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
+            </span>
           </summary>
-          <div className="border-t border-slate-100 p-4 space-y-4">
+          <div className="border-t border-[var(--border-subtle)] p-5 space-y-4">
           <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <span className="text-sm font-medium text-slate-800">Send automatic reminders</span>
             <span className="flex items-center gap-2.5">
@@ -714,7 +716,7 @@ export default function StudyForm({
             {partsPanel}
             <div className="min-w-0">
             {/* Part settings */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
               {/* Part header */}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
                 <span className={`rounded-lg px-2 py-1 text-xs font-bold ${phaseBadgeClass(activePart)}`}>
@@ -778,10 +780,12 @@ export default function StudyForm({
                     <p className="text-xs text-slate-400 mt-1">Optional deadline</p>
                   </div>
                 </div>
-                <details className="group rounded-xl border border-slate-200 bg-white">
+                <details className="group rounded-xl border border-[var(--border)] bg-white">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
                     <span className="text-sm font-medium text-slate-800">Access and availability</span>
-                    <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
+                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true">
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
+                    </span>
                   </summary>
                   <div className="space-y-4 border-t border-slate-100 p-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -902,7 +906,7 @@ export default function StudyForm({
                           setDraggedQuestion(null)
                         }}
                         className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-colors ${
-                          draggedQuestion?.qId === q.id ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200'
+                          draggedQuestion?.qId === q.id ? 'border-indigo-300 bg-indigo-50/30' : 'border-[var(--border)]'
                         }`}
                       >
                         <div
@@ -916,7 +920,7 @@ export default function StudyForm({
                               toggleQuestionCollapsed(q.id)
                             }
                           }}
-                          className="flex cursor-pointer flex-col gap-3 border-b border-slate-100 bg-slate-50/60 p-4 transition-colors hover:bg-slate-100/70"
+                          className="flex cursor-pointer flex-col gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-sunken)]/60 p-4 transition-colors hover:bg-[var(--bg-sunken)]"
                         >
                           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                             <div className="min-w-0 flex-1">
@@ -925,7 +929,7 @@ export default function StudyForm({
                                   {itemLabel}
                                   {!isContentBlock && q.required !== false && <span className="ml-1 text-red-500">*</span>}
                                 </p>
-                                <span className={`text-sm text-slate-400 transition-transform ${collapsed ? '' : 'rotate-90'}`}>›</span>
+                                <svg viewBox="0 0 16 16" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${collapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
                                 {collapsed && (
                                   <p className="truncate text-sm text-slate-500">
                                     {questionPreview}
@@ -1210,7 +1214,7 @@ export default function StudyForm({
                             return (
                               <details className="group">
                                 <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-lg px-1 py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800">
-                                  <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
+                                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
                                   <span>{conditionSummary ? 'Condition' : '+ Condition'}</span>
                                   {conditionSummary && (
                                     <span className="max-w-[28rem] truncate text-sm font-normal text-slate-500">
@@ -1321,8 +1325,8 @@ export default function StudyForm({
       )}
 
       <div className={saveBarShouldStick
-        ? 'sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-8 sm:px-8'
-        : 'rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm'
+        ? 'sticky bottom-0 z-20 -mx-4 border-t border-[var(--border)] bg-white/95 px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.06)] backdrop-blur sm:-mx-6 sm:px-6'
+        : 'rounded-2xl border border-[var(--border)] bg-white px-5 py-4 shadow-sm'
       }>
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1352,10 +1356,10 @@ export default function StudyForm({
               <button
                 type="button"
                 onClick={() => setPartToDelete(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close remove part dialog"
               >
-                x
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
 

@@ -130,12 +130,12 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   ]
   const readinessIssues = readiness.filter((item) => !item.ok)
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="overview" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        <section className="mb-6 rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
           <div className="mb-4">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Recruitment funnel</h2>
@@ -162,7 +162,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
 
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4">
-            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">Response trend</h2>
@@ -195,7 +195,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
               <h2 className="text-base font-semibold text-slate-900">Parts</h2>
               <div className="mt-4 divide-y divide-slate-100">
                 {study.parts.map((part, index) => (
@@ -216,7 +216,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
               <div className="mb-4">
                 <h2 className="text-base font-semibold text-slate-900">Recent entries</h2>
               </div>

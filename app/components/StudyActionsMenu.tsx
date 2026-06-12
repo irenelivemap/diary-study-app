@@ -106,7 +106,7 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Actions for ${studyName}`}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-slate-600 transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-sunken)] hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <MoreIcon />
       </button>
@@ -186,10 +186,10 @@ export default function StudyActionsMenu({ studyId, studyName, archived = false 
               <button
                 type="button"
                 onClick={closeConfirmation}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close study action confirmation"
               >
-                x
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
 
