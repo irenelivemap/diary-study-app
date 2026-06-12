@@ -1227,6 +1227,63 @@ function InlineBarChart({
   )
 }
 
+function StackedBarChart({
+  points,
+  denominator,
+}: {
+  points: DataPoint[]
+  denominator?: number
+}) {
+  const total = denominator ?? points.reduce((sum, p) => sum + p.value, 0)
+
+  if (points.length === 0 || total === 0) return <p className="text-sm text-slate-500">No answers yet.</p>
+
+  const colorStops = ['#c7d2fe', '#a5b4fc', '#818cf8', '#6366f1', '#4f46e5', '#4338ca', '#3730a3']
+  const getColor = (index: number, n: number) => {
+    if (n <= 1) return colorStops[3]
+    const pos = (index / (n - 1)) * (colorStops.length - 1)
+    return colorStops[Math.round(pos)] ?? colorStops[colorStops.length - 1]
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex h-9 w-full gap-0.5 overflow-hidden rounded-xl">
+        {points.map((point, i) => {
+          const pct = (point.value / total) * 100
+          const roundedPct = Math.round(pct)
+          if (roundedPct === 0) return null
+          const color = getColor(i, points.length)
+          return (
+            <div
+              key={`${point.label}-${i}`}
+              style={{ width: `${pct}%`, backgroundColor: color }}
+              title={String(point.value)}
+              className="relative flex shrink-0 items-center justify-center overflow-hidden"
+            >
+              {pct >= 8 && (
+                <span className="text-xs font-bold" style={{ color: readableTextColor(color) }}>{roundedPct}%</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+        {points.map((point, i) => {
+          const roundedPct = Math.round((point.value / total) * 100)
+          const color = getColor(i, points.length)
+          return (
+            <div key={`${point.label}-${i}`} className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+              <span className="text-xs text-slate-600">{point.label}</span>
+              {roundedPct > 0 && <span className="text-xs font-semibold text-slate-900">{roundedPct}%</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function QuestionAnalysisCard({
   studyId,
   question,
@@ -1355,10 +1412,14 @@ function QuestionAnalysisCard({
         <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
       ) : (
         <div className="space-y-3">
-          <InlineBarChart
-            points={barPoints}
-            denominator={question.type === 'MULTIPLE_CHOICE' ? analysis.answered : undefined}
-          />
+          {question.type === 'RATING' ? (
+            <StackedBarChart points={barPoints} denominator={analysis.answered} />
+          ) : (
+            <InlineBarChart
+              points={barPoints}
+              denominator={question.type === 'MULTIPLE_CHOICE' ? analysis.answered : undefined}
+            />
+          )}
           {question.type === 'RATING' && analysis.answered > 0 && (
             <p className="text-xs text-slate-400">
               Mean {formatNumber(analysis.mean)} · Median {formatNumber(analysis.median)} · Range {question.min ?? 1}–{question.max ?? 7}
