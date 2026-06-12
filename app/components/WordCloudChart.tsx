@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const STOP_WORDS = new Set([
   'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves',
@@ -28,19 +28,59 @@ const STOP_WORDS = new Set([
   'using', 'made', 'makes', 'making', 'getting', 'looking', 'coming', 'taking',
   'let', 'try', 'tried', 'trying', 'keep', 'kept', 'start', 'started',
   'find', 'found', 'help', 'helped', 'different', 'another', 'place', 'since',
-  'although', 'though', 'however', 'that', 'those', 'its',
+  'although', 'though', 'however',
 ])
 
 type POSFilter = 'all' | 'nouns' | 'verbs' | 'adjectives' | 'adverbs'
-interface CloudWord { text: string; count: number; fontSize: number }
+interface CloudWord { text: string; count: number; ratio: number }
+interface Placement { x: number; y: number; r: number }
 
-// 5-tier indigo palette mapped to frequency ratio (0–1)
-function bubbleStyle(ratio: number): { backgroundColor: string; color: string } {
-  if (ratio > 0.8) return { backgroundColor: '#4338ca', color: '#ffffff' }
-  if (ratio > 0.6) return { backgroundColor: '#4f46e5', color: '#ffffff' }
-  if (ratio > 0.4) return { backgroundColor: '#818cf8', color: '#ffffff' }
-  if (ratio > 0.2) return { backgroundColor: '#a5b4fc', color: '#3730a3' }
-  return { backgroundColor: '#c7d2fe', color: '#3730a3' }
+// Greedy tangent-placement packing. Each new circle is placed tangent to an
+// existing circle at the angle that minimises distance from the origin.
+function packCircles(radii: number[], gap = 4): Placement[] {
+  const placed: Placement[] = []
+  if (!radii.length) return placed
+
+  placed.push({ x: 0, y: 0, r: radii[0] })
+
+  for (let i = 1; i < radii.length; i++) {
+    const r = radii[i]
+    let best: { x: number; y: number } | null = null
+    let bestDist = Infinity
+
+    for (const anchor of placed) {
+      const D = r + anchor.r + gap
+      // 72 candidate angles around each anchor circle
+      for (let a = 0; a < 72; a++) {
+        const theta = (a / 72) * 2 * Math.PI
+        const x = anchor.x + D * Math.cos(theta)
+        const y = anchor.y + D * Math.sin(theta)
+
+        const valid = placed.every((q) => {
+          const dx = x - q.x, dy = y - q.y
+          return dx * dx + dy * dy >= (r + q.r + gap) ** 2 - 0.1
+        })
+
+        if (valid) {
+          const dist = x * x + y * y
+          if (dist < bestDist) { bestDist = dist; best = { x, y } }
+        }
+      }
+    }
+
+    placed.push(best ? { ...best, r } : { x: placed[0].r + r + gap, y: 0, r })
+  }
+
+  return placed
+}
+
+// Indigo stroke palette — 5 frequency tiers
+function strokeColor(ratio: number) {
+  if (ratio > 0.8) return '#4338ca'
+  if (ratio > 0.6) return '#4f46e5'
+  if (ratio > 0.4) return '#6366f1'
+  if (ratio > 0.2) return '#818cf8'
+  return '#a5b4fc'
 }
 
 export default function WordCloudChart({
@@ -55,6 +95,7 @@ export default function WordCloudChart({
   const [excludedWords, setExcludedWords] = useState<string[]>([])
   const [words, setWords] = useState<CloudWord[]>([])
   const [loading, setLoading] = useState(true)
+  const [hovered, setHovered] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -66,23 +107,17 @@ export default function WordCloudChart({
   const processWords = useCallback(async () => {
     setLoading(true)
     const { default: nlp } = await import('compromise')
-
     const allTerms: string[] = []
+
     for (const answer of answers) {
       if (!answer.trim()) continue
       const doc = nlp(answer)
       let terms: string[]
-      if (posFilter === 'nouns') {
-        terms = doc.nouns().out('array') as string[]
-      } else if (posFilter === 'verbs') {
-        terms = doc.verbs().out('array') as string[]
-      } else if (posFilter === 'adjectives') {
-        terms = doc.adjectives().out('array') as string[]
-      } else if (posFilter === 'adverbs') {
-        terms = doc.adverbs().out('array') as string[]
-      } else {
-        terms = doc.terms().out('array') as string[]
-      }
+      if (posFilter === 'nouns') terms = doc.nouns().out('array') as string[]
+      else if (posFilter === 'verbs') terms = doc.verbs().out('array') as string[]
+      else if (posFilter === 'adjectives') terms = doc.adjectives().out('array') as string[]
+      else if (posFilter === 'adverbs') terms = doc.adverbs().out('array') as string[]
+      else terms = doc.terms().out('array') as string[]
       allTerms.push(...terms)
     }
 
@@ -90,38 +125,43 @@ export default function WordCloudChart({
     for (const phrase of allTerms) {
       for (const raw of phrase.toLowerCase().split(/\s+/)) {
         const word = raw.replace(/[^a-z]/g, '')
-        if (word.length < 3) continue
-        if (STOP_WORDS.has(word)) continue
-        if (excludedWords.includes(word)) continue
+        if (word.length < 3 || STOP_WORDS.has(word) || excludedWords.includes(word)) continue
         counts.set(word, (counts.get(word) ?? 0) + 1)
       }
     }
 
-    const sorted = Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, topN)
-
-    if (!sorted.length) {
-      setWords([])
-      setLoading(false)
-      return
-    }
+    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, topN)
+    if (!sorted.length) { setWords([]); setLoading(false); return }
 
     const maxCount = sorted[0][1]
     const minCount = sorted[sorted.length - 1][1]
     const range = maxCount - minCount || 1
 
-    setWords(
-      sorted.map(([text, count]) => ({
-        text,
-        count,
-        fontSize: 12 + ((count - minCount) / range) * 24,
-      }))
-    )
+    setWords(sorted.map(([text, count]) => ({
+      text,
+      count,
+      ratio: (count - minCount) / range,
+    })))
     setLoading(false)
   }, [answers, posFilter, topN, excludedWords])
 
   useEffect(() => { void processWords() }, [processWords])
+
+  const placements = useMemo(() => {
+    if (!words.length) return []
+    const radii = words.map((w) => Math.round(22 + w.ratio * 38)) // 22–60 px
+    return packCircles(radii)
+  }, [words])
+
+  const viewBox = useMemo(() => {
+    if (!placements.length) return '0 0 400 300'
+    const pad = 12
+    const minX = Math.min(...placements.map((p) => p.x - p.r)) - pad
+    const maxX = Math.max(...placements.map((p) => p.x + p.r)) + pad
+    const minY = Math.min(...placements.map((p) => p.y - p.r)) - pad
+    const maxY = Math.max(...placements.map((p) => p.y + p.r)) + pad
+    return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`
+  }, [placements])
 
   const excludeWord = (word: string) => {
     const next = [...excludedWords, word]
@@ -137,6 +177,7 @@ export default function WordCloudChart({
 
   return (
     <div className="space-y-3">
+      {/* Controls */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
           {([10, 25, 50] as const).map((n) => (
@@ -172,49 +213,62 @@ export default function WordCloudChart({
         </div>
       </div>
 
-      <div className="min-h-36 rounded-xl border border-[var(--border)] bg-white p-5">
+      {/* Bubble chart */}
+      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
         {loading ? (
-          <div className="flex h-32 items-center justify-center">
+          <div className="flex h-48 items-center justify-center">
             <p className="text-sm text-[var(--text-tertiary)]">Analysing…</p>
           </div>
         ) : words.length === 0 ? (
-          <p className="text-sm text-[var(--text-tertiary)]">No words to display for this filter.</p>
+          <div className="flex h-32 items-center justify-center">
+            <p className="text-sm text-[var(--text-tertiary)]">No words to display for this filter.</p>
+          </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {words.map((word) => {
-              const ratio = (word.fontSize - 12) / 24
-              const size = Math.round(52 + ratio * 64)
-              const charFactor = word.text.length <= 4 ? 0.22 : word.text.length <= 7 ? 0.17 : 0.13
-              const textSize = Math.round(Math.min(15, Math.max(8, size * charFactor)))
+          <svg viewBox={viewBox} className="w-full" style={{ maxHeight: '440px' }}>
+            {words.map((word, i) => {
+              const p = placements[i]
+              if (!p) return null
+              const stroke = strokeColor(word.ratio)
+              const isHovered = hovered === word.text
+              const textSize = Math.min(14, Math.max(8, (p.r * 1.55) / Math.max(3, word.text.length)))
               return (
-                <button
+                <g
                   key={word.text}
-                  type="button"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => excludeWord(word.text)}
-                  title={`${word.count} ${word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove`}
-                  className="shrink-0 overflow-hidden rounded-full font-semibold transition-transform hover:scale-95"
-                  style={{
-                    width: `${size}px`,
-                    height: `${size}px`,
-                    fontSize: `${textSize}px`,
-                    lineHeight: 1.2,
-                    padding: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    overflowWrap: 'break-word',
-                    ...bubbleStyle(ratio),
-                  }}
+                  onMouseEnter={() => setHovered(word.text)}
+                  onMouseLeave={() => setHovered(null)}
                 >
-                  {word.text}
-                </button>
+                  <title>{word.text} · {word.count} {word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove</title>
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={p.r}
+                    fill={isHovered ? '#f5f3ff' : 'white'}
+                    stroke={stroke}
+                    strokeWidth={isHovered ? 2.5 : 1.5}
+                  />
+                  <text
+                    x={p.x}
+                    y={p.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill={stroke}
+                    fontSize={textSize}
+                    fontWeight="500"
+                    fontFamily="inherit"
+                    style={{ userSelect: 'none', pointerEvents: 'none' }}
+                  >
+                    {word.text}
+                  </text>
+                </g>
               )
             })}
-          </div>
+          </svg>
         )}
       </div>
 
+      {/* Excluded words */}
       {excludedWords.length > 0 && (
         <div>
           <p className="mb-1.5 text-xs text-[var(--text-tertiary)]">Excluded — click to restore</p>
