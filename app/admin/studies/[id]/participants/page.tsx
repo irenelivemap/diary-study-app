@@ -152,7 +152,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                           </th>
                         ))}
                         <th className="px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">Total</th>
-                        <th className="px-3 py-3" />
+                        <th className="sticky right-0 bg-white px-3 py-3" style={{ boxShadow: '-1px 0 0 0 var(--border-subtle)' }} />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -205,7 +205,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                                 </span>
                               </Link>
                             </td>
-                            <td className="px-3 py-3 text-right align-middle">
+                            <td className="sticky right-0 bg-white px-3 py-3 text-right align-middle group-hover:bg-slate-50" style={{ boxShadow: '-1px 0 0 0 var(--border-subtle)' }}>
                               <RemoveParticipantForm studyId={id} userId={user.id} participantName={user.name} />
                             </td>
                           </tr>
