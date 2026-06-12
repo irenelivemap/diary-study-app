@@ -830,7 +830,7 @@ function ScreenshotSummaryCard({ questions, rows }: { questions: Question[]; row
   return (
     <Card>
       <div className="mb-3">
-        <h3 className="text-lg font-bold text-slate-950">Screenshot uploads</h3>
+        <h3 className="text-base font-semibold text-slate-900">Screenshot uploads</h3>
         <p className="text-sm text-slate-600">Upload questions are reviewed as files, so they are summarized here instead of plotted.</p>
       </div>
       <div className="space-y-2">
@@ -900,7 +900,7 @@ function JourneySummaryCard({ rows, parts }: { rows: Row[]; parts: Part[] }) {
   return (
     <Card>
       <div className="mb-4">
-        <h3 className="text-lg font-bold text-slate-950">Journey continuity</h3>
+        <h3 className="text-base font-semibold text-slate-900">Journey continuity</h3>
         <p className="text-sm text-slate-600">Use this to see whether stages are being captured together within the same real-world journey.</p>
       </div>
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
@@ -920,7 +920,7 @@ function JourneySummaryCard({ rows, parts }: { rows: Row[]; parts: Part[] }) {
 
       {stageCoverage.length > 0 && (
         <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-          <p className="mb-3 text-sm font-bold text-slate-900">Stage coverage</p>
+          <p className="mb-3 text-xs font-semibold text-slate-500">Stage coverage</p>
           <div className="space-y-3">
             {stageCoverage.map(({ part, index, count, pct }) => (
               <div key={part.id} className="grid gap-2 sm:grid-cols-[minmax(120px,200px)_minmax(0,1fr)_80px] sm:items-center">
@@ -938,7 +938,7 @@ function JourneySummaryCard({ rows, parts }: { rows: Row[]; parts: Part[] }) {
       )}
 
       <div className="space-y-2">
-        <p className="text-sm font-bold text-slate-900">Recent journeys</p>
+        <p className="text-xs font-semibold text-slate-500">Recent journeys</p>
         {latest.map((journey) => (
           <div key={journey.id} className="rounded-xl border border-slate-100 px-3 py-3 text-sm">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1078,10 +1078,10 @@ function FreeTextAnswerList({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-xl bg-[var(--bg-sunken)] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h4 className="font-bold text-slate-950">Question tags</h4>
+            <h4 className="text-sm font-semibold text-slate-700">Question tags</h4>
             <p className="mt-1 text-sm text-slate-600">Create tags for this question, then apply them to answers below.</p>
           </div>
           <div className="flex flex-col gap-2 sm:min-w-80">
@@ -1140,11 +1140,11 @@ function FreeTextAnswerList({
                 <button
                   type="button"
                   onClick={() => void removeTagDefinition(tag.id)}
-                  className="rounded-full px-1 text-sm font-semibold text-slate-500 hover:bg-red-50 hover:text-red-700"
+                  className="rounded-full p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
                   aria-label={`Delete ${tag.label}`}
                   title="Delete tag"
                 >
-                  x
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
                 </button>
               </span>
             ))}
@@ -1153,10 +1153,10 @@ function FreeTextAnswerList({
       </div>
 
       {tagDefinitions.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl bg-[var(--bg-sunken)] p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h4 className="font-bold text-slate-950">Tag summary</h4>
+              <h4 className="text-sm font-semibold text-slate-700">Tag summary</h4>
               <p className="mt-1 text-sm text-slate-600">Tags can overlap, so percentages may add to more than 100%.</p>
             </div>
             <div className="w-full sm:w-56">
@@ -1213,7 +1213,7 @@ function FreeTextAnswerList({
         <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="font-bold text-slate-950">{tagFilter === 'all' ? 'All answers' : `Answers tagged "${tagById.get(tagFilter)?.label ?? 'tag'}"`}</h4>
+              <h4 className="text-sm font-semibold text-slate-700">{tagFilter === 'all' ? 'All answers' : `Answers tagged "${tagById.get(tagFilter)?.label ?? 'tag'}"`}</h4>
               {filteredAnswers.length > 0 && (
                 <p className="mt-0.5 text-sm text-slate-600">
                   Showing {Math.min(visibleCount, filteredAnswers.length)} of {filteredAnswers.length}
@@ -1271,7 +1271,7 @@ function FreeTextAnswerList({
                         title="Remove tag"
                       >
                         {tag.label}
-                        <span aria-hidden="true">x</span>
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
                       </button>
                       ))}
                     </div>
@@ -1479,11 +1479,11 @@ function QuestionAnalysisCard({
             </svg>
           </span>
           <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium ${phaseSoftBadgeClass(partIndex)}`}>
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${phaseSoftBadgeClass(partIndex)}`}>
               {question.partName}
             </span>
-            <Badge tone="neutral">{questionTypeLabel(question.type, question.scaleType)}</Badge>
+            <Badge tone="neutral" className="text-xs">{questionTypeLabel(question.type, question.scaleType)}</Badge>
           </div>
           <h3 className="text-lg font-bold leading-snug text-slate-950">{question.text}</h3>
           </div>
@@ -1756,13 +1756,6 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-950">Analysis</h2>
-        <p className="mt-1 text-base text-slate-600">
-          Question-by-question summaries with exportable plots. Use Data for the full spreadsheet.
-        </p>
-      </div>
-
       <Card>
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_150px_150px]">
           <SelectMenu
@@ -1801,50 +1794,40 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           </label>
         </div>
-        <div className="mt-4 border-t border-slate-100 pt-4">
+        <div className="mt-4 flex items-center gap-3 border-t border-slate-100 pt-4">
           <button
             type="button"
             onClick={() => setIncludePilotData((current) => !current)}
             disabled={pilotRowCount === 0}
-            className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[320px]"
+            className="flex items-center gap-2.5 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
             aria-pressed={includePilotData}
             title={pilotRowCount === 0 ? 'No pilot data to include yet.' : undefined}
           >
-            <span>
-              <span className="block text-sm font-semibold text-slate-900">
-                {pilotRowCount === 0
-                  ? 'Fieldwork data only'
-                  : includePilotData
-                    ? 'Including pilot data'
-                    : 'Fieldwork data only'}
-              </span>
-              <span className="mt-0.5 block text-sm text-slate-500">
-                {pilotRowCount > 0
-                  ? `${pilotRowCount} pilot entr${pilotRowCount === 1 ? 'y is' : 'ies are'} kept for analysis when included.`
-                  : 'No pilot data to include yet.'}
-              </span>
-            </span>
             <SwitchVisual checked={includePilotData} />
+            <span className="text-sm font-medium text-slate-700">Include pilot data</span>
           </button>
+          {pilotRowCount > 0 && (
+            <span className="text-sm text-slate-500">{pilotRowCount} {pilotRowCount === 1 ? 'entry' : 'entries'}</span>
+          )}
         </div>
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <p className="text-3xl font-bold text-slate-950">{filteredRows.length}</p>
+          <p className="text-2xl font-bold text-slate-950">{filteredRows.length}</p>
           <p className="text-sm text-slate-600">Entries analyzed</p>
         </Card>
         <Card>
-          <p className="text-3xl font-bold text-slate-950">{new Set(filteredRows.map((row) => row.participantId)).size}</p>
+          <p className="text-2xl font-bold text-slate-950">{new Set(filteredRows.map((row) => row.participantId)).size}</p>
           <p className="text-sm text-slate-600">Participants represented</p>
         </Card>
         <Card>
-          <p className="text-3xl font-bold text-slate-950">{coverage}%</p>
+          <p className="text-2xl font-bold text-slate-950">{coverage}%</p>
           <p className="text-sm text-slate-600">Answer completion</p>
           <p className="mt-1 text-xs text-slate-500">{answeredValues} of {possibleValues} expected answers</p>
         </Card>
         <Card>
-          <p className="text-3xl font-bold text-slate-950">{coverageTotals.missing}</p>
+          <p className="text-2xl font-bold text-slate-950">{coverageTotals.missing}</p>
           <p className="text-sm text-slate-600">Missing answers</p>
           <p className="mt-1 text-xs text-slate-500">{coverageTotals.notShown} hidden by conditions</p>
         </Card>
@@ -1854,7 +1837,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
         <Card>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-base font-bold text-slate-950">Data quality notes</h3>
+              <h3 className="text-base font-semibold text-slate-900">Data quality notes</h3>
               <p className="mt-1 text-sm text-slate-600">
                 These entries are included in analysis, but should be reviewed before reporting.
               </p>
