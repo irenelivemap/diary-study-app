@@ -1417,8 +1417,6 @@ function QuestionAnalysisCard({
 
       {question.type === 'FREE_TEXT' ? (
         <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
-      ) : question.type === 'YES_NO' ? (
-        <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
       ) : (
         <div className="space-y-3">
           {question.type === 'RATING' ? (
@@ -1448,7 +1446,9 @@ function QuestionAnalysisCard({
             yAxisMax={null}
             yAxisStep={null}
           />
-        ) : question.type !== 'FREE_TEXT' && question.type !== 'YES_NO' ? (
+        ) : question.type === 'YES_NO' ? (
+          <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
+        ) : question.type !== 'FREE_TEXT' ? (
           <PlotSvg
             svgRef={svgRef}
             title=""
