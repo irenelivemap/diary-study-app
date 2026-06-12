@@ -851,124 +851,6 @@ function ScreenshotSummaryCard({ questions, rows }: { questions: Question[]; row
   )
 }
 
-function JourneySummaryCard({ rows, parts }: { rows: Row[]; parts: Part[] }) {
-  const journeyRows = rows.filter((row) => row.journeyId)
-  const stageParts = parts.filter((part) => part.flow === 'JOURNEY_STAGE')
-  const fallbackStageParts = stageParts.length
-    ? stageParts
-    : parts.filter((part) => journeyRows.some((row) => row.partId === part.id))
-  const journeys = Array.from(
-    journeyRows.reduce((map, row) => {
-      if (!row.journeyId) return map
-      const current = map.get(row.journeyId) ?? {
-        id: row.journeyId,
-        label: row.journeyLabel || 'Journey',
-        participantName: row.participantName,
-        completedAt: row.journeyCompletedAt,
-        submittedParts: new Set<string>(),
-        entryCountByPart: new Map<string, number>(),
-        latestSubmittedAt: row.submittedAt,
-      }
-      current.submittedParts.add(row.partId)
-      current.entryCountByPart.set(row.partId, (current.entryCountByPart.get(row.partId) ?? 0) + 1)
-      if (row.submittedAt > current.latestSubmittedAt) current.latestSubmittedAt = row.submittedAt
-      if (row.journeyCompletedAt) current.completedAt = row.journeyCompletedAt
-      map.set(row.journeyId, current)
-      return map
-    }, new Map<string, { id: string; label: string; participantName: string; completedAt?: string | null; submittedParts: Set<string>; entryCountByPart: Map<string, number>; latestSubmittedAt: string }>())
-      .values()
-  ).map((journey) => ({
-    ...journey,
-    stageCount: journey.submittedParts.size,
-  }))
-
-  if (!journeys.length) return null
-
-  const expectedStageCount = Math.max(fallbackStageParts.length, ...journeys.map((journey) => journey.stageCount), 1)
-  const completed = journeys.filter((journey) => journey.stageCount >= expectedStageCount).length
-  const averageStages = journeys.reduce((sum, journey) => sum + journey.stageCount, 0) / journeys.length
-  const stageCoverage = fallbackStageParts.map((part, index) => {
-    const count = journeys.filter((journey) => journey.submittedParts.has(part.id)).length
-    const pct = journeys.length ? Math.round((count / journeys.length) * 100) : 0
-    return { part, index, count, pct }
-  })
-  const latest = journeys
-    .slice()
-    .sort((a, b) => b.latestSubmittedAt.localeCompare(a.latestSubmittedAt))
-    .slice(0, 5)
-
-  return (
-    <Card>
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-slate-900">Journey continuity</h3>
-        <p className="text-sm text-slate-600">Use this to see whether stages are being captured together within the same real-world journey.</p>
-      </div>
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-2xl font-bold text-slate-950">{journeys.length}</p>
-          <p className="text-sm text-slate-600">Journeys started</p>
-        </div>
-        <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-2xl font-bold text-slate-950">{completed}</p>
-          <p className="text-sm text-slate-600">All stages submitted</p>
-        </div>
-        <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-2xl font-bold text-slate-950">{formatNumber(averageStages)} / {expectedStageCount}</p>
-          <p className="text-sm text-slate-600">Avg. stages per journey</p>
-        </div>
-      </div>
-
-      {stageCoverage.length > 0 && (
-        <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-          <p className="mb-3 text-xs font-semibold text-slate-500">Stage coverage</p>
-          <div className="space-y-3">
-            {stageCoverage.map(({ part, index, count, pct }) => (
-              <div key={part.id} className="grid gap-2 sm:grid-cols-[minmax(120px,200px)_minmax(0,1fr)_80px] sm:items-center">
-                <span className={`w-fit rounded-full px-2.5 py-1 text-sm font-semibold ${phaseSoftBadgeClass(index)}`}>
-                  {part.name}
-                </span>
-                <span className="h-3 overflow-hidden rounded-full bg-white">
-                  <span className="block h-full rounded-full bg-indigo-600" style={{ width: `${Math.max(4, pct)}%` }} />
-                </span>
-                <span className="text-sm font-semibold text-slate-700 sm:text-right">{count}/{journeys.length} · {pct}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-slate-500">Recent journeys</p>
-        {latest.map((journey) => (
-          <div key={journey.id} className="rounded-xl border border-slate-100 px-3 py-3 text-sm">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="font-semibold text-slate-800">{journey.label}</span>
-              <span className="text-slate-600">{journey.participantName} · {journey.stageCount}/{expectedStageCount} stages</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {fallbackStageParts.map((part, index) => {
-                const submitted = journey.submittedParts.has(part.id)
-                const entriesForStage = journey.entryCountByPart.get(part.id) ?? 0
-                return (
-                  <span
-                    key={part.id}
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      submitted ? phaseSoftBadgeClass(index) : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {submitted ? '✓ ' : '○ '}
-                    {part.name}
-                    {entriesForStage > 1 ? ` · ${entriesForStage}` : ''}
-                  </span>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
 
 function FreeTextAnswerList({
   studyId,
@@ -1754,11 +1636,7 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
         </p>
       </div>
 
-      <JourneySummaryCard
-        rows={filteredRows}
-        parts={parts.filter((part) => partId === 'all' || part.id === partId)}
-      />
-      {questionType === 'all' && (
+{questionType === 'all' && (
         <ScreenshotSummaryCard questions={screenshotQuestions.filter((question) => partId === 'all' || question.partId === partId)} rows={filteredRows} />
       )}
 
