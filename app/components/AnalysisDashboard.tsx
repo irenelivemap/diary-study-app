@@ -1238,13 +1238,6 @@ function StackedBarChart({
 
   if (points.length === 0 || total === 0) return <p className="text-sm text-slate-500">No answers yet.</p>
 
-  const colorStops = ['#818cf8', '#6366f1', '#4f46e5', '#4338ca', '#3730a3', '#312e81', '#1e1b4b']
-  const getColor = (index: number, n: number) => {
-    if (n <= 1) return colorStops[3]
-    const pos = (index / (n - 1)) * (colorStops.length - 1)
-    return colorStops[Math.round(pos)] ?? colorStops[colorStops.length - 1]
-  }
-
   const pcts = points.map((p) => (p.value / total) * 100)
   const ZERO_SLIVER = 6
   const zeroCount = points.filter((p) => p.value === 0).length
@@ -1260,21 +1253,16 @@ function StackedBarChart({
           const displayPct = displayPcts[i]
           const roundedPct = Math.round(pct)
           const isTop = topValue > 0 && point.value === topValue
-          const color = getColor(i, points.length)
-          const textColor = readableTextColor(color)
+          const bgColor = isTop ? '#0f766e' : '#818cf8'
           return (
             <div
               key={`${point.label}-${i}`}
-              style={{
-                width: `${displayPct}%`,
-                backgroundColor: color,
-                boxShadow: isTop ? 'inset 0 0 0 2px rgba(255,255,255,0.55)' : undefined,
-              }}
+              style={{ width: `${displayPct}%`, backgroundColor: bgColor }}
               title={`${point.label}: ${roundedPct}% (${point.value})`}
               className="flex shrink-0 items-center justify-center overflow-hidden"
             >
               {displayPct >= 5 && (
-                <span className={`text-xs ${isTop ? 'font-bold' : 'font-medium'}`} style={{ color: textColor }}>
+                <span className={`text-xs text-white ${isTop ? 'font-bold' : 'font-medium'}`}>
                   {roundedPct}%
                 </span>
               )}
@@ -1283,16 +1271,21 @@ function StackedBarChart({
         })}
       </div>
       <div className="flex w-full gap-0.5">
-        {points.map((point, i) => (
-          <div
-            key={`${point.label}-${i}`}
-            style={{ width: `${displayPcts[i]}%` }}
-            className="flex shrink-0 flex-col items-center overflow-visible"
-          >
-            <div className="h-1 w-px bg-slate-200" />
-            <span className="whitespace-nowrap text-center text-xs text-slate-500">{point.label}</span>
-          </div>
-        ))}
+        {points.map((point, i) => {
+          const isTop = topValue > 0 && points[i].value === topValue
+          return (
+            <div
+              key={`${point.label}-${i}`}
+              style={{ width: `${displayPcts[i]}%` }}
+              className="flex shrink-0 flex-col items-center overflow-visible"
+            >
+              <div className={`h-1 w-px ${isTop ? 'bg-teal-600' : 'bg-slate-200'}`} />
+              <span className={`whitespace-nowrap text-center text-xs ${isTop ? 'font-semibold text-teal-700' : 'text-slate-400'}`}>
+                {point.label}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
