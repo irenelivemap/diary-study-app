@@ -29,12 +29,12 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
   const [pendingHref, setPendingHref] = useState<string | null>(null)
 
   return (
-    <div className="bg-white border-b border-slate-100">
+    <div className="bg-white border-b border-[var(--border)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="pt-5 pb-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="pt-5 pb-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <Link href="/admin" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900">
-              <span aria-hidden="true">←</span>
+            <Link href="/admin" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5" /></svg>
               All studies
             </Link>
             <h1 className="text-2xl font-bold leading-tight text-slate-950 mt-2 truncate">{studyName}</h1>
@@ -46,7 +46,7 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
             <ButtonLink
               href={`/admin/studies/${studyId}/preview`}
               tone={active === 'preview' ? 'primary' : 'secondary'}
-              size="sm"
+              size="md"
               className="shrink-0"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -66,7 +66,7 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
               prefetch
               onClick={() => setPendingHref(tab.href(studyId))}
               aria-current={active === tab.id ? 'page' : undefined}
-              className={`relative px-4 py-3 text-base font-medium border-b-2 transition-colors -mb-px ${
+              className={`relative px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 active === tab.id || (pendingHref === tab.href(studyId) && pathname !== pendingHref)
                   ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'

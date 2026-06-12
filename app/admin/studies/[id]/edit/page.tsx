@@ -33,10 +33,10 @@ export default async function EditStudyPage({
   const action = updateStudy.bind(null, id)
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="setup" studyName={study.name} isActive={study.isActive} status={study.status} />
-      <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {study._count.entries > 0 && (
           <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
             <h2 className="text-sm font-semibold text-amber-900">Editing after data collection has started</h2>

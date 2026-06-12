@@ -75,7 +75,7 @@ function Dropdown({ label, badge, children }: { label: string; badge?: number; c
         </svg>
       </Button>
       {open && (
-        <div className="absolute left-0 top-full mt-1.5 z-30 bg-white rounded-2xl border border-slate-100 shadow-lg p-4 min-w-[200px]">
+        <div className="absolute left-0 top-full mt-1.5 z-30 bg-white rounded-2xl border border-[var(--border)] shadow-[var(--shadow-lg)] p-4 min-w-[200px]">
           {children}
         </div>
       )}
@@ -354,8 +354,8 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
             <SwitchVisual checked={includePilotData} />
           </button>
 
-          <span className="text-sm text-slate-400 pl-1">
-            <span className="font-semibold text-slate-600">{filteredRows.length}</span> entries
+          <span className="tabular text-sm text-[var(--text-tertiary)] pl-1">
+            <span className="font-semibold text-[var(--text-secondary)]">{filteredRows.length}</span> entries
           </span>
         </div>
 
@@ -378,12 +378,12 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
 
       {/* ── Table ── */}
       {filteredRows.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
-          <p className="text-slate-400 text-sm">No entries match the current filters.</p>
+        <div className="bg-white rounded-2xl border border-[var(--border)] shadow-sm p-12 text-center">
+          <p className="text-slate-500 text-sm">No entries match the current filters.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="bg-white rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-800">Export columns</p>
               <p className="text-sm text-slate-500">
@@ -418,174 +418,151 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="px-4 py-2 bg-slate-50 sticky left-0 z-10 border-r border-slate-100 min-w-[130px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('entryId')}
-                      onChange={() => toggleBaseColumn('entryId')}
-                      aria-label="Include entry ID in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  <th className="px-4 py-2 bg-slate-50 min-w-[110px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('dataType')}
-                      onChange={() => toggleBaseColumn('dataType')}
-                      aria-label="Include data type in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  <th className="px-4 py-2 bg-slate-50 min-w-[130px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('participant')}
-                      onChange={() => toggleBaseColumn('participant')}
-                      aria-label="Include participant in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  <th className="px-4 py-2 bg-slate-50 hidden md:table-cell min-w-[160px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('email') && !anonymize}
-                      onChange={() => toggleBaseColumn('email')}
-                      disabled={anonymize}
-                      aria-label="Include email in download"
-                      title={anonymize ? 'Email is excluded from anonymized downloads.' : 'Include email in download'}
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
-                    />
-                  </th>
-                  {showJourney && (
-                    <th className="px-4 py-2 bg-slate-50 min-w-[140px]">
+                <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-sunken)]">
+                  <th className="text-left px-4 py-3 bg-[var(--bg-sunken)] sticky left-0 z-10 border-r border-[var(--border-subtle)] min-w-[130px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={baseColumnSelected('journey')}
-                        onChange={() => toggleBaseColumn('journey')}
-                        aria-label="Include journey in download"
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                        checked={baseColumnSelected('entryId')}
+                        onChange={() => toggleBaseColumn('entryId')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
                       />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('entryId') ? '' : 'opacity-45'}`}>Entry ID</span>
+                    </label>
+                  </th>
+                  <th className="text-left px-4 py-3 min-w-[110px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('dataType')}
+                        onChange={() => toggleBaseColumn('dataType')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('dataType') ? '' : 'opacity-45'}`}>Data type</span>
+                    </label>
+                  </th>
+                  <th className="text-left px-4 py-3 min-w-[130px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('participant')}
+                        onChange={() => toggleBaseColumn('participant')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('participant') ? '' : 'opacity-45'}`}>Participant</span>
+                    </label>
+                  </th>
+                  <th className="text-left px-4 py-3 hidden md:table-cell min-w-[160px]">
+                    <label className={`flex items-center gap-2 whitespace-nowrap ${anonymize ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      title={anonymize ? 'Email is excluded from anonymized downloads.' : undefined}>
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('email') && !anonymize}
+                        onChange={() => toggleBaseColumn('email')}
+                        disabled={anonymize}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnExported('email') ? '' : 'opacity-45'}`}>Email</span>
+                    </label>
+                  </th>
+                  {showJourney && (
+                    <th className="text-left px-4 py-3 min-w-[140px]">
+                      <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={baseColumnSelected('journey')}
+                          onChange={() => toggleBaseColumn('journey')}
+                          className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                        />
+                        <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('journey') ? '' : 'opacity-45'}`}>Journey</span>
+                      </label>
                     </th>
                   )}
                   {parts.length > 1 && (
-                    <th className="px-4 py-2 bg-slate-50 min-w-[120px]">
+                    <th className="text-left px-4 py-3 min-w-[120px]">
+                      <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={baseColumnSelected('part')}
+                          onChange={() => toggleBaseColumn('part')}
+                          className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                        />
+                        <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('part') ? '' : 'opacity-45'}`}>Part</span>
+                      </label>
+                    </th>
+                  )}
+                  <th className="text-left px-4 py-3 min-w-[100px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={baseColumnSelected('part')}
-                        onChange={() => toggleBaseColumn('part')}
-                        aria-label="Include part in download"
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                        checked={baseColumnSelected('date')}
+                        onChange={() => toggleBaseColumn('date')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
                       />
-                    </th>
-                  )}
-                  <th className="px-4 py-2 bg-slate-50 min-w-[100px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('date')}
-                      onChange={() => toggleBaseColumn('date')}
-                      aria-label="Include date in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('date') ? '' : 'opacity-45'}`}>Date</span>
+                    </label>
                   </th>
-                  <th className="px-4 py-2 bg-slate-50 min-w-[120px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('submittedAt')}
-                      onChange={() => toggleBaseColumn('submittedAt')}
-                      aria-label="Include submitted time in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  <th className="px-4 py-2 bg-slate-50 min-w-[140px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('timezone')}
-                      onChange={() => toggleBaseColumn('timezone')}
-                      aria-label="Include timezone in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  <th className="px-4 py-2 bg-slate-50 min-w-[160px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('qualityFlags')}
-                      onChange={() => toggleBaseColumn('qualityFlags')}
-                      aria-label="Include quality flags in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  <th className="px-4 py-2 bg-slate-50 min-w-[120px]">
-                    <input
-                      type="checkbox"
-                      checked={baseColumnSelected('studyVersion')}
-                      onChange={() => toggleBaseColumn('studyVersion')}
-                      aria-label="Include study version in download"
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </th>
-                  {answerQuestions.map((q) => (
-                    <th key={q.id} className="px-4 py-2 bg-slate-50 min-w-[160px] max-w-[220px] text-left">
+                  <th className="text-left px-4 py-3 min-w-[120px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={selectedQuestionCols.has(q.id)}
-                        onChange={() => setSelectedQuestionCols(toggle(selectedQuestionCols, q.id))}
-                        aria-label={`Include ${q.text} in download`}
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                        checked={baseColumnSelected('submittedAt')}
+                        onChange={() => toggleBaseColumn('submittedAt')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
                       />
-                    </th>
-                  ))}
-                  <th className="px-4 py-2 bg-slate-50 min-w-[72px]" />
-                </tr>
-                <tr className="border-b-2 border-slate-100">
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap sticky left-0 z-10 border-r border-slate-100 min-w-[130px]">
-                    <span className={`${baseColumnSelected('entryId') ? '' : 'opacity-45'}`}>Entry ID</span>
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('submittedAt') ? '' : 'opacity-45'}`}>Submitted time</span>
+                    </label>
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[110px]">
-                    <span className={`${baseColumnSelected('dataType') ? '' : 'opacity-45'}`}>Data type</span>
+                  <th className="text-left px-4 py-3 min-w-[140px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('timezone')}
+                        onChange={() => toggleBaseColumn('timezone')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('timezone') ? '' : 'opacity-45'}`}>Timezone</span>
+                    </label>
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[130px]">
-                    <span className={`${baseColumnSelected('participant') ? '' : 'opacity-45'}`}>Participant</span>
+                  <th className="text-left px-4 py-3 min-w-[160px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('qualityFlags')}
+                        onChange={() => toggleBaseColumn('qualityFlags')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('qualityFlags') ? '' : 'opacity-45'}`}>Quality flags</span>
+                    </label>
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap hidden md:table-cell min-w-[160px]">
-                    <span className={`${baseColumnExported('email') ? '' : 'opacity-45'}`}>Email</span>
-                  </th>
-                  {showJourney && (
-                    <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[140px]">
-                      <span className={`${baseColumnSelected('journey') ? '' : 'opacity-45'}`}>Journey</span>
-                    </th>
-                  )}
-                  {parts.length > 1 && (
-                    <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[120px]">
-                      <span className={`${baseColumnSelected('part') ? '' : 'opacity-45'}`}>Part</span>
-                    </th>
-                  )}
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[100px]">
-                    <span className={`${baseColumnSelected('date') ? '' : 'opacity-45'}`}>Date</span>
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[120px]">
-                    <span className={`${baseColumnSelected('submittedAt') ? '' : 'opacity-45'}`}>Submitted time</span>
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[140px]">
-                    <span className={`${baseColumnSelected('timezone') ? '' : 'opacity-45'}`}>Timezone</span>
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[160px]">
-                    <span className={`${baseColumnSelected('qualityFlags') ? '' : 'opacity-45'}`}>Quality flags</span>
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[120px]">
-                    <span className={`${baseColumnSelected('studyVersion') ? '' : 'opacity-45'}`}>Study version</span>
+                  <th className="text-left px-4 py-3 min-w-[120px]">
+                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={baseColumnSelected('studyVersion')}
+                        onChange={() => toggleBaseColumn('studyVersion')}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className={`text-xs font-semibold text-slate-500 ${baseColumnSelected('studyVersion') ? '' : 'opacity-45'}`}>Study version</span>
+                    </label>
                   </th>
                   {answerQuestions.map((q) => (
-                    <th key={q.id}
-                      className="text-left px-4 py-3 bg-white min-w-[160px] max-w-[220px]"
-                    >
-                      <div className={`${selectedQuestionCols.has(q.id) ? '' : 'opacity-45'}`}>
-                        <div className="text-xs font-semibold text-slate-500 line-clamp-2 leading-snug">{q.text}</div>
-                        <div className="text-xs text-slate-400 mt-0.5 font-normal">{q.type.toLowerCase().replace('_', ' ')}</div>
-                      </div>
+                    <th key={q.id} className="text-left px-4 py-3 min-w-[160px] max-w-[220px]">
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedQuestionCols.has(q.id)}
+                          onChange={() => setSelectedQuestionCols(toggle(selectedQuestionCols, q.id))}
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                        />
+                        <div className={selectedQuestionCols.has(q.id) ? '' : 'opacity-45'}>
+                          <div className="text-xs font-semibold text-slate-500 line-clamp-2 leading-snug">{q.text}</div>
+                          <div className="text-xs text-slate-400 mt-0.5 font-normal">{q.type.toLowerCase().replace('_', ' ')}</div>
+                        </div>
+                      </label>
                     </th>
                   ))}
-                  <th className="text-right text-xs font-semibold text-slate-500 px-4 py-3 bg-white whitespace-nowrap min-w-[72px]">
+                  <th className="text-right text-xs font-semibold text-slate-500 px-4 py-3 whitespace-nowrap min-w-[72px]">
                     Actions
                   </th>
                 </tr>
@@ -709,10 +686,10 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
               <button
                 type="button"
                 onClick={() => setEntryToDelete(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close delete entry dialog"
               >
-                x
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
 

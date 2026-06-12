@@ -1,8 +1,8 @@
+import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
-import { ButtonLink } from '@/app/components/ui'
 
 function formatAnswerValue(value: string, type: string) {
   if (type !== 'MULTIPLE_CHOICE') return value
@@ -59,16 +59,17 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
   const completedCount = journey.study.parts.filter((part) => entriesByPart.has(part.id)).length
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
-      <header className="sticky top-0 z-10 border-b border-slate-100 bg-white">
-        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-6">
+    <div className="min-h-screen bg-[var(--bg-page)]">
+      <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4 gap-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <ButtonLink href={backHref} tone="ghost" size="sm" className="-ml-3 shrink-0">
+            <Link href={backHref} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5" /></svg>
               {isOwnJourney ? 'Dashboard' : 'Participant'}
-            </ButtonLink>
-            <div className="min-w-0">
+            </Link>
+            <div className="min-w-0 border-l border-[var(--border-subtle)] pl-3">
               <p className="truncate text-sm font-semibold text-slate-900">{journey.label ?? journey.study.journeyName ?? journey.study.name}</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {completedCount}/{journey.study.parts.length} stages submitted
               </p>
             </div>
@@ -94,7 +95,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           const entry = entriesByPart.get(part.id)
           return (
             <section key={part.id} className={`rounded-2xl border p-5 shadow-sm ${
-              entry ? 'border-emerald-100 bg-white' : 'border-slate-100 bg-slate-50'
+              entry ? 'border-[var(--border)] bg-white' : 'border-[var(--border-subtle)] bg-[var(--bg-sunken)]/60'
             }`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -126,7 +127,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={answer.value} alt="Uploaded answer" className="mt-3 max-h-64 rounded-xl border border-slate-100 object-contain" />
                           ) : (
-                            <p className="mt-2 text-sm text-slate-400">No screenshot provided</p>
+                            <p className="mt-2 text-sm text-slate-500">No screenshot provided</p>
                           )
                         ) : (
                           <p className="mt-2 text-sm leading-relaxed text-slate-900">

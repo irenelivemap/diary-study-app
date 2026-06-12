@@ -33,7 +33,7 @@ export default async function ProfilePage({
   if (!user) redirect('/login')
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar
         name={session.name}
         role={profileMode}

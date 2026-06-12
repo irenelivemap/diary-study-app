@@ -39,7 +39,7 @@ export default function StudyRow({ study }: Props) {
   }
 
   return (
-    <div className={`flex flex-col gap-4 bg-white rounded-2xl border px-5 py-5 shadow-sm transition-all group sm:flex-row sm:items-center sm:justify-between ${isPending ? 'opacity-60' : 'border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
+    <div className={`flex flex-col gap-4 bg-white rounded-2xl border px-5 py-5 shadow-sm transition-all group sm:flex-row sm:items-center sm:justify-between ${isPending ? 'opacity-60' : 'border-[var(--border)] hover:border-indigo-200 hover:shadow-md'}`}>
       <div className="flex items-start gap-4 min-w-0 flex-1">
         <div className="min-w-0 flex-1">
           {isRenaming ? (
@@ -65,7 +65,7 @@ export default function StudyRow({ study }: Props) {
                 onClick={startRename}
                 title="Rename study"
                 aria-label={`Rename ${name}`}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-slate-500 transition-colors hover:bg-[var(--bg-sunken)] hover:text-slate-900"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M12 20h9" />
@@ -77,16 +77,17 @@ export default function StudyRow({ study }: Props) {
           {study.description && (
             <p className="text-sm text-slate-500 mt-1 line-clamp-2 max-w-2xl">{study.description}</p>
           )}
-          <p className="text-sm text-slate-500 mt-2">
+          <p className="tabular text-sm text-slate-500 mt-2">
             {study._count.participants} participant{study._count.participants === 1 ? '' : 's'} · {study._count.entries} entr{study._count.entries === 1 ? 'y' : 'ies'}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0 sm:ml-4">
+      <div className="flex items-center gap-2 shrink-0 sm:ml-4">
         <ButtonLink href={`/admin/studies/${study.id}`} size="md">
-          Open study
+          Open
         </ButtonLink>
+        <div className="h-6 w-px bg-[var(--border)]" aria-hidden="true" />
         <StudyStatusToggle studyId={study.id} initialStatus={study.status === 'ARCHIVED' ? 'CLOSED' : study.status} />
         <StudyActionsMenu studyId={study.id} studyName={name} />
       </div>

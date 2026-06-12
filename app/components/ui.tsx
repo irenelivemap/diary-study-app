@@ -5,11 +5,11 @@ type ButtonTone = 'primary' | 'secondary' | 'ghost' | 'danger' | 'trash'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 const BUTTON_TONES: Record<ButtonTone, string> = {
-  primary: 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 hover:border-indigo-700 shadow-sm',
-  secondary: 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400',
-  ghost: 'bg-transparent text-slate-600 border-transparent hover:bg-slate-100 hover:text-slate-900',
+  primary: 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500 hover:border-indigo-500 shadow-sm active:bg-indigo-700',
+  secondary: 'bg-white text-slate-700 border-[#DDD9D2] hover:bg-[#F4F2EF] hover:border-slate-400 active:bg-slate-100',
+  ghost: 'bg-transparent text-slate-600 border-transparent hover:bg-[#EAE8E3] hover:text-slate-900 active:bg-slate-200',
   danger: 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100 hover:border-red-200',
-  trash: 'bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200',
+  trash: 'bg-white text-slate-600 border-[#DDD9D2] hover:bg-red-50 hover:text-red-700 hover:border-red-200',
 }
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
@@ -28,7 +28,7 @@ export function Button({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
     >
       {children}
     </button>
@@ -51,7 +51,7 @@ export function ButtonLink({
   return (
     <Link
       href={href}
-      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-colors ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-all duration-150 ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
     >
       {children}
     </Link>
@@ -164,7 +164,7 @@ export function TextInput({ className = '', ...props }: InputHTMLAttributes<HTML
   return (
     <input
       {...props}
-      className={`w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-500 transition-colors focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${className}`}
+      className={`w-full rounded-xl border border-[#DDD9D2] bg-[#F4F2EF] px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-all duration-150 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 ${className}`}
     />
   )
 }
@@ -265,7 +265,7 @@ export function Card({ children, className = '', padded = true }: {
   padded?: boolean
 }) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm ${padded ? 'p-5' : ''} ${className}`}>
+    <div className={`bg-white rounded-2xl border border-[#E6E3DD] shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ${padded ? 'p-5' : ''} ${className}`}>
       {children}
     </div>
   )

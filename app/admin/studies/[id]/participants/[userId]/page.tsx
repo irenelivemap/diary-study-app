@@ -196,7 +196,7 @@ export default async function ParticipantEntriesPage({
   }))
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs
         studyId={id}
@@ -210,7 +210,8 @@ export default async function ParticipantEntriesPage({
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <ButtonLink href={`/admin/studies/${id}/participants`} tone="secondary" size="sm">
-              ← Participants
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5" /></svg>
+              Participants
             </ButtonLink>
             <h2 className="mt-3 text-2xl font-bold text-slate-950">{participation.user.name}</h2>
             <p className="mt-1 text-base text-slate-600">{participation.user.email}</p>
@@ -339,7 +340,7 @@ export default async function ParticipantEntriesPage({
                                   {emptyOptionalAnswers.map((answer) => (
                                     <div key={answer.id} className="rounded-lg bg-white px-3 py-2">
                                       <p className="text-sm font-medium text-slate-700">{shortQuestionLabel(answer.question.text)}</p>
-                                      <p className="text-sm text-slate-400">No answer</p>
+                                      <p className="text-sm text-slate-500">No answer</p>
                                     </div>
                                   ))}
                                 </div>

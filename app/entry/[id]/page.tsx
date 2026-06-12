@@ -66,20 +66,28 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   const isJourneyEntry = !!entry.journeyId && isJourneyStage(entry.part)
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {!isOwnEntry && (
-              <Link href={backHref} aria-label="Back to study" className="text-slate-400 hover:text-slate-600 transition-colors text-sm">←</Link>
+    <div className="min-h-screen bg-[var(--bg-page)]">
+      <header className="bg-white/90 backdrop-blur-md border-b border-[var(--border)] sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {isOwnEntry ? (
+              <Link href="/dashboard" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5" /></svg>
+                Dashboard
+              </Link>
+            ) : (
+              <Link href={backHref} aria-label="Back" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)]">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5" /></svg>
+                Back
+              </Link>
             )}
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{entry.study.name}</p>
-              <p className="text-xs text-slate-400">{entry.date}{session.role === 'ADMIN' && ` · ${entry.user.name}`}</p>
+            <div className="min-w-0 border-l border-[var(--border-subtle)] pl-3">
+              <p className="truncate text-sm font-semibold text-slate-900">{entry.study.name}</p>
+              <p className="text-xs text-slate-500">{entry.date}{session.role === 'ADMIN' && ` · ${entry.user.name}`}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 bg-emerald-400 rounded-full" />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
             <span className="text-xs text-slate-500">Submitted</span>
           </div>
         </div>
@@ -154,7 +162,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={answer.value} alt="Screenshot" className="rounded-xl max-h-64 object-contain border border-slate-100" />
                   )
-                : <p className="text-sm text-slate-400">No screenshot provided</p>
+                : <p className="text-sm text-slate-500">No screenshot provided</p>
             ) : (
               <p className="text-slate-800 text-sm leading-relaxed">
                 {formatAnswerValue(answer.value, answer.question.type) || <span className="text-slate-300">-</span>}

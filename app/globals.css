@@ -1,78 +1,238 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   All primitive values live here. Components reference tokens,
+   not raw values. See DESIGN.md for the full system spec.
+   ════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #F7F8FC;
-  --foreground: #0F172A;
+  /* ── Backgrounds ─────────────────────────────────────────── */
+  --bg-page:        #F8F7F5;   /* warm off-white page canvas     */
+  --bg-surface:     #FFFFFF;   /* card / panel surface           */
+  --bg-sunken:      #F4F2EF;   /* input bg, inset zones          */
+  --bg-overlay:     rgba(15,23,42,0.45); /* modal scrim         */
+
+  /* ── Borders ─────────────────────────────────────────────── */
+  --border:         #E6E3DD;   /* default border                 */
+  --border-subtle:  #EDEAE5;   /* dividers, section separators   */
+  --border-strong:  #DDD9D2;   /* input borders, interactive     */
+  --border-focus:   #818CF8;   /* indigo-400 — focused inputs    */
+
+  /* ── Text ────────────────────────────────────────────────── */
+  --text:           #0F172A;   /* slate-950 — primary text       */
+  --text-secondary: #475569;   /* slate-600                      */
+  --text-tertiary:  #64748B;   /* slate-500                      */
+  --text-muted:     #94A3B8;   /* slate-400 — captions, meta     */
+  --text-on-accent: #FFFFFF;   /* text on filled primary surface */
+  --text-link:      #4F46E5;   /* link / interactive text        */
+
+  /* ── Brand / Primary action ──────────────────────────────── */
+  --accent:         #4F46E5;   /* indigo-600                     */
+  --accent-hover:   #4338CA;   /* indigo-700                     */
+  --accent-active:  #3730A3;   /* indigo-800                     */
+  --accent-subtle:  #EEF2FF;   /* indigo-50                      */
+  --accent-muted:   #C7D2FE;   /* indigo-200                     */
+  --accent-ring:    rgba(79,70,229,0.25);
+
+  /* ── Semantic: Success ───────────────────────────────────── */
+  --success-bg:     #ECFDF5;   /* emerald-50                     */
+  --success-border: #A7F3D0;   /* emerald-200                    */
+  --success-text:   #065F46;   /* emerald-800                    */
+  --success-dot:    #10B981;   /* emerald-500                    */
+
+  /* ── Semantic: Warning ───────────────────────────────────── */
+  --warning-bg:     #FFFBEB;   /* amber-50                       */
+  --warning-border: #FDE68A;   /* amber-200                      */
+  --warning-text:   #92400E;   /* amber-800                      */
+  --warning-dot:    #F59E0B;   /* amber-500                      */
+
+  /* ── Semantic: Danger ────────────────────────────────────── */
+  --danger-bg:      #FEF2F2;   /* red-50                         */
+  --danger-border:  #FECACA;   /* red-200                        */
+  --danger-text:    #991B1B;   /* red-800                        */
+  --danger-dot:     #EF4444;   /* red-500                        */
+
+  /* ── Semantic: Info ──────────────────────────────────────── */
+  --info-bg:        #EEF2FF;   /* indigo-50                      */
+  --info-border:    #C7D2FE;   /* indigo-200                     */
+  --info-text:      #3730A3;   /* indigo-800                     */
+
+  /* ── Radius ──────────────────────────────────────────────── */
+  --radius-sm:    0.375rem;    /* 6px  — chips, small pills      */
+  --radius-md:    0.5rem;      /* 8px  — small inputs, badges    */
+  --radius-lg:    0.75rem;     /* 12px — buttons sm, tags        */
+  --radius-xl:    0.875rem;    /* 14px — buttons md/lg, inputs   */
+  --radius-2xl:   1rem;        /* 16px — cards, panels           */
+  --radius-3xl:   1.25rem;     /* 20px — modals, large cards     */
+  --radius-full:  9999px;      /* pills, dots, avatars           */
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-sm:   0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:   0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg:   0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-xl:   0 8px 24px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
+
+  /* ── Typography ──────────────────────────────────────────── */
+  --font-sans:  var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: var(--font-lora), Georgia, "Times New Roman", serif;
+  --font-mono:  "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Size scale */
+  --text-2xs:   0.6875rem;   /* 11px */
+  --text-xs:    0.8125rem;   /* 13px */
+  --text-sm:    0.9375rem;   /* 15px */
+  --text-base:  1rem;        /* 16px */
+  --text-lg:    1.125rem;    /* 18px */
+  --text-xl:    1.25rem;     /* 20px */
+  --text-2xl:   1.5rem;      /* 24px */
+  --text-3xl:   1.875rem;    /* 30px */
+
+  /* Line heights */
+  --leading-tight:    1.25;
+  --leading-snug:     1.375;
+  --leading-normal:   1.5;
+  --leading-relaxed:  1.625;
+  --leading-loose:    1.8;
+
+  /* ── Legacy aliases (kept for Tailwind @theme compat) ───── */
+  --background: var(--bg-page);
+  --foreground: var(--text);
+  --surface:    var(--bg-surface);
+  --border-color: var(--border);
 }
 
+/* ── Tailwind theme bridge ──────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --color-background: var(--bg-page);
+  --color-foreground: var(--text);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 }
+
+/* ════════════════════════════════════════════════════════════
+   BASE STYLES
+   ════════════════════════════════════════════════════════════ */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 16px;
-  line-height: 1.55;
+  background: var(--bg-page);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Keep dense operational screens readable without making tables explode. */
-.text-xs {
-  font-size: 0.8125rem;
-  line-height: 1.2rem;
+/* Tabular numbers for metrics, counts, and dates */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ════════════════════════════════════════════════════════════
+   TYPE SCALE  (override Tailwind's defaults for our size spec)
+   ════════════════════════════════════════════════════════════ */
+
+.text-2xs { font-size: var(--text-2xs); line-height: 1rem; }
+.text-xs  { font-size: var(--text-xs);  line-height: 1.2rem; }
+.text-sm  { font-size: var(--text-sm);  line-height: 1.4rem; }
+
+/* ════════════════════════════════════════════════════════════
+   SEMANTIC TYPE CLASSES
+   ════════════════════════════════════════════════════════════ */
+
+/* Eyebrow: ALL CAPS label above a section or card */
+.eyebrow {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.eyebrow-tight {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.eyebrow-wide {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
-.text-sm {
-  font-size: 0.9375rem;
-  line-height: 1.4rem;
+/* Fine: secondary body copy — captions, helper text */
+.fine {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  line-height: var(--leading-relaxed);
 }
 
-/* Contrast pass: Tailwind's light slate utilities were too faint for dense UXR screens. */
-.text-slate-400 {
-  color: #64748B;
+/* Editorial: serif display text for hero moments */
+.editorial {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+.editorial em {
+  font-style: italic;
+  color: var(--accent);
 }
 
-.text-slate-300 {
-  color: #7C8CA3;
+/* Metric: large stat values */
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.stat-caption {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
-.text-slate-200 {
-  color: #94A3B8;
-}
+/* ════════════════════════════════════════════════════════════
+   PROSE  (rich-text content blocks)
+   ════════════════════════════════════════════════════════════ */
+
+.prose-sm p              { margin-bottom: 0.5em; }
+.prose-sm p:last-child   { margin-bottom: 0; }
+.prose-sm strong         { font-weight: 600; }
+.prose-sm a              { color: var(--accent); text-decoration: underline; }
+.prose-sm ul             { padding-left: 1.25em; list-style: disc; }
+.prose-sm li             { margin-bottom: 0.25em; }
+
+/* ════════════════════════════════════════════════════════════
+   TAILWIND OVERRIDES  (warm-toned neutral palette)
+   These override Tailwind's cold-blue slate where we need
+   warm-neutral equivalents. Only touch what we intentionally
+   warm up — don't reset the full scale.
+   ════════════════════════════════════════════════════════════ */
+
+.text-slate-400          { color: var(--text-tertiary); }
+.text-slate-300          { color: #7C8CA3; }
+.text-slate-200          { color: var(--text-muted); }
 
 .placeholder-slate-400::placeholder,
-.empty\:before\:text-slate-400:empty::before {
-  color: #64748B;
-}
+.empty\:before\:text-slate-400:empty::before { color: var(--text-tertiary); }
 
-.border-slate-100 {
-  border-color: #DDE5F0;
-}
+.border-slate-100        { border-color: var(--border); }
+.border-slate-200        { border-color: var(--border-strong); }
+.divide-slate-50 > :not(:last-child) { border-color: var(--border-subtle); }
 
-.divide-slate-50 > :not(:last-child) {
-  border-color: #E7EDF5;
-}
+.bg-slate-50             { background-color: var(--bg-sunken); }
+.bg-slate-100            { background-color: #EAE8E3; }
 
-.bg-slate-50 {
-  background-color: #F2F5F9;
-}
+.disabled\:bg-slate-200:disabled   { background-color: #D4CFC8; }
+.disabled\:text-slate-400:disabled { color: var(--text-secondary); }
 
-.bg-slate-100 {
-  background-color: #E6ECF5;
-}
-
-.disabled\:bg-slate-200:disabled {
-  background-color: #CBD5E1;
-}
-
-.disabled\:text-slate-400:disabled {
-  color: #475569;
-}
+/* ════════════════════════════════════════════════════════════
+   FOCUS RINGS
+   ════════════════════════════════════════════════════════════ */
 
 button:focus-visible,
 a:focus-visible,
@@ -80,49 +240,53 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 3px solid #4338CA;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Prevent iOS zoom on input focus */
-input, textarea, select {
-  font-size: max(16px, 1em);
-}
+/* ════════════════════════════════════════════════════════════
+   FORM ELEMENTS
+   ════════════════════════════════════════════════════════════ */
 
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
-}
+/* Prevent iOS zoom on focus */
+input, textarea, select { font-size: max(16px, 1em); }
 
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #4F46E5;
-  cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-}
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 3px;
-  background: #E2E8F0;
-}
+/* Range / slider */
 input[type="range"] {
   -webkit-appearance: none;
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
+  height: 5px;
+  border-radius: var(--radius-full);
   background: #E2E8F0;
   outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: #E2E8F0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18), 0 0 0 1px var(--accent-ring);
+  margin-top: -9px;
 }
 
-.scrollbar-hidden {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
+/* ════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ════════════════════════════════════════════════════════════ */
 
-.scrollbar-hidden::-webkit-scrollbar {
-  display: none;
-}
+.scrollbar-hidden                    { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hidden::-webkit-scrollbar { display: none; }
+
+/* ════════════════════════════════════════════════════════════
+   MISC
+   ════════════════════════════════════════════════════════════ */
+
+html { scroll-behavior: smooth; }

@@ -103,11 +103,11 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   }))
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC]">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <NavBar name={session.name} role="ADMIN" canSwitchModes />
       <StudyTabs studyId={id} active="analysis" studyName={study.name} isActive={study.isActive} status={study.status} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <AnalysisDashboard
           studyId={id}
           studyName={study.name}
