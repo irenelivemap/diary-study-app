@@ -1211,7 +1211,7 @@ function InlineBarChart({
           <div
             key={`${point.label}-${i}`}
             className="grid items-center gap-3"
-            style={{ gridTemplateColumns: 'minmax(80px, 220px) 1fr 44px' }}
+            style={{ gridTemplateColumns: 'minmax(80px, 220px) 1fr 52px' }}
           >
             <span className={`truncate text-sm ${isTop ? 'font-semibold text-slate-900' : 'text-slate-600'}`} title={point.label}>
               {point.label}
@@ -1222,9 +1222,10 @@ function InlineBarChart({
                 style={{ width: `${Math.max(barWidth, point.value > 0 ? 1 : 0)}%` }}
               />
             </div>
-            <span className={`text-right text-sm tabular-nums ${isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>
-              {pct}%
-            </span>
+            <div className="text-right tabular-nums">
+              <div className={`text-sm ${isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>{pct}%</div>
+              <div className="text-xs text-slate-400">{point.value}</div>
+            </div>
           </div>
         )
       })}
