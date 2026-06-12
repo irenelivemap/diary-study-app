@@ -677,18 +677,8 @@ function YesNoPieSvg({
       {total === 0 && (
         <text x={cx} y={cy + 5} textAnchor="middle" fill="#64748b" fontSize="13" fontWeight="700">No data</text>
       )}
-      {total > 0 && yes > 0 && (
-        <>
-          {labelBadge(yesLabel.x, yesLabel.y, `${yesPct}%`)}
-          <title>{`${yes}`}</title>
-        </>
-      )}
-      {total > 0 && no > 0 && (
-        <>
-          {labelBadge(noLabel.x, noLabel.y, `${noPct}%`)}
-          <title>{`${no}`}</title>
-        </>
-      )}
+      {total > 0 && yes > 0 && labelBadge(yesLabel.x, yesLabel.y, `${yesPct}%`)}
+      {total > 0 && no > 0 && labelBadge(noLabel.x, noLabel.y, `${noPct}%`)}
 
       <g transform="translate(270 104)">
         <circle cx="0" cy="0" r="7" fill="#4f46e5" />
@@ -1216,15 +1206,19 @@ function InlineBarChart({
             <span className={`truncate text-sm ${isTop ? 'font-semibold text-slate-900' : 'text-slate-600'}`} title={point.label}>
               {point.label}
             </span>
-            <div className="relative h-5 overflow-hidden rounded bg-[var(--bg-sunken)]">
+            <div
+              className="relative h-5 overflow-hidden rounded bg-[var(--bg-sunken)]"
+              title={point.value > 0 ? String(point.value) : undefined}
+            >
               <div
                 className={`absolute inset-y-0 left-0 rounded transition-all ${isTop ? 'bg-indigo-600' : 'bg-indigo-200'}`}
                 style={{ width: `${Math.max(barWidth, point.value > 0 ? 1 : 0)}%` }}
               />
             </div>
             <div className="text-right tabular-nums">
-              <div className={`text-sm ${isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>{pct}%</div>
-              <div className="text-xs text-slate-400">{point.value}</div>
+              {pct > 0 && (
+                <div className={`text-sm ${isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>{pct}%</div>
+              )}
             </div>
           </div>
         )
@@ -1357,6 +1351,8 @@ function QuestionAnalysisCard({
 
       {question.type === 'FREE_TEXT' ? (
         <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
+      ) : question.type === 'YES_NO' ? (
+        <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
       ) : (
         <div className="space-y-3">
           <InlineBarChart
@@ -1382,9 +1378,7 @@ function QuestionAnalysisCard({
             yAxisMax={null}
             yAxisStep={null}
           />
-        ) : question.type === 'YES_NO' ? (
-          <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
-        ) : question.type !== 'FREE_TEXT' ? (
+        ) : question.type !== 'FREE_TEXT' && question.type !== 'YES_NO' ? (
           <PlotSvg
             svgRef={svgRef}
             title=""
