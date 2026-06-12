@@ -34,6 +34,15 @@ const STOP_WORDS = new Set([
 type POSFilter = 'all' | 'nouns' | 'verbs' | 'adjectives' | 'adverbs'
 interface CloudWord { text: string; count: number; fontSize: number }
 
+// 5-tier indigo palette mapped to frequency ratio (0–1)
+function bubbleStyle(ratio: number): { backgroundColor: string; color: string } {
+  if (ratio > 0.8) return { backgroundColor: '#4338ca', color: '#ffffff' }
+  if (ratio > 0.6) return { backgroundColor: '#4f46e5', color: '#ffffff' }
+  if (ratio > 0.4) return { backgroundColor: '#818cf8', color: '#ffffff' }
+  if (ratio > 0.2) return { backgroundColor: '#a5b4fc', color: '#3730a3' }
+  return { backgroundColor: '#c7d2fe', color: '#3730a3' }
+}
+
 export default function WordCloudChart({
   answers,
   questionId,
@@ -171,23 +180,37 @@ export default function WordCloudChart({
         ) : words.length === 0 ? (
           <p className="text-sm text-[var(--text-tertiary)]">No words to display for this filter.</p>
         ) : (
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 leading-loose">
-            {words.map((word) => (
-              <button
-                key={word.text}
-                type="button"
-                onClick={() => excludeWord(word.text)}
-                title={`${word.count} ${word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove`}
-                className="font-semibold transition-opacity hover:opacity-50"
-                style={{
-                  fontSize: `${word.fontSize}px`,
-                  color: 'var(--accent)',
-                  opacity: 0.35 + ((word.fontSize - 12) / 24) * 0.65,
-                }}
-              >
-                {word.text}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {words.map((word) => {
+              const ratio = (word.fontSize - 12) / 24
+              const size = Math.round(52 + ratio * 64)
+              const charFactor = word.text.length <= 4 ? 0.22 : word.text.length <= 7 ? 0.17 : 0.13
+              const textSize = Math.round(Math.min(15, Math.max(8, size * charFactor)))
+              return (
+                <button
+                  key={word.text}
+                  type="button"
+                  onClick={() => excludeWord(word.text)}
+                  title={`${word.count} ${word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove`}
+                  className="shrink-0 overflow-hidden rounded-full font-semibold transition-transform hover:scale-95"
+                  style={{
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    fontSize: `${textSize}px`,
+                    lineHeight: 1.2,
+                    padding: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    overflowWrap: 'break-word',
+                    ...bubbleStyle(ratio),
+                  }}
+                >
+                  {word.text}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
