@@ -56,6 +56,7 @@ type Props = {
 type DataPoint = { label: string; value: number }
 type ScalePoint = { score: number; label: string; count: number }
 type ScaleBin = { label: string; start: number; end: number; count: number }
+type CrossFilter = { questionId: string; questionText: string; label: string; matchValue: string; isMultiple: boolean }
 type AnalysisResult = ReturnType<typeof buildAnalysis>
 
 function ExportMenu({
@@ -1191,40 +1192,71 @@ function FreeTextAnswerList({
 function InlineBarChart({
   points,
   denominator,
+  activeMatchValue,
+  onBarClick,
+  getMatchValue,
 }: {
   points: DataPoint[]
   denominator?: number
+  activeMatchValue?: string
+  onBarClick?: (label: string, matchValue: string) => void
+  getMatchValue?: (label: string, index: number) => string
 }) {
   const total = denominator ?? points.reduce((sum, p) => sum + p.value, 0)
   const maxCount = Math.max(...points.map((p) => p.value), 1)
   const topCount = Math.max(...points.map((p) => p.value), 0)
+  const isFilterable = !!onBarClick
+  const hasActive = activeMatchValue != null
 
   if (points.length === 0) return <p className="text-sm text-slate-500">No answers yet.</p>
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {points.map((point, i) => {
+        const matchValue = getMatchValue ? getMatchValue(point.label, i) : point.label
+        const isActive = hasActive && activeMatchValue === matchValue
+        const isDimmed = hasActive && !isActive
+        const isTop = !hasActive && topCount > 0 && point.value === topCount
         const pct = total ? Math.round((point.value / total) * 100) : 0
         const barWidth = maxCount ? (point.value / maxCount) * 100 : 0
-        const isTop = topCount > 0 && point.value === topCount
-        return (
-          <div
-            key={`${point.label}-${i}`}
-            className="grid items-center gap-3"
-            style={{ gridTemplateColumns: 'minmax(80px, 220px) 1fr 44px' }}
-          >
-            <span className={`truncate text-sm ${isTop ? 'font-semibold text-slate-900' : 'text-slate-600'}`} title={point.label}>
+        const gridClass = 'grid w-full items-center gap-3'
+        const gridStyle = { gridTemplateColumns: 'minmax(80px, 220px) 1fr 44px' }
+        const children = (
+          <>
+            <span
+              className={`truncate text-sm transition-colors ${isActive ? 'font-semibold text-indigo-700' : isTop ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
+              title={point.label}
+            >
               {point.label}
             </span>
-            <div className="relative h-5 overflow-hidden rounded bg-slate-100">
+            <div className={`relative h-5 overflow-hidden rounded bg-[var(--bg-sunken)] transition-opacity ${isDimmed ? 'opacity-30' : ''}`}>
               <div
-                className={`absolute inset-y-0 left-0 rounded transition-all ${isTop ? 'bg-indigo-600' : 'bg-indigo-200'}`}
+                className={`absolute inset-y-0 left-0 rounded transition-all ${isActive ? 'bg-indigo-600' : isTop ? 'bg-indigo-600' : 'bg-indigo-200'}`}
                 style={{ width: `${Math.max(barWidth, point.value > 0 ? 1 : 0)}%` }}
               />
             </div>
-            <span className={`text-right text-sm tabular-nums ${isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>
+            <span className={`text-right text-sm tabular-nums transition-opacity ${isDimmed ? 'opacity-30' : ''} ${isActive || isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>
               {pct}%
             </span>
+          </>
+        )
+        if (isFilterable) {
+          return (
+            <button
+              key={`${point.label}-${i}`}
+              type="button"
+              onClick={() => onBarClick(point.label, matchValue)}
+              aria-pressed={isActive}
+              className={`${gridClass} rounded-lg px-1 py-0.5 -mx-1 transition-colors ${isActive ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
+              style={gridStyle}
+            >
+              {children}
+            </button>
+          )
+        }
+        return (
+          <div key={`${point.label}-${i}`} className={`${gridClass} py-0.5`} style={gridStyle}>
+            {children}
           </div>
         )
       })}
@@ -1237,11 +1269,15 @@ function QuestionAnalysisCard({
   question,
   rows,
   index,
+  crossFilter,
+  onCrossFilter,
 }: {
   studyId: string
   question: Question
   rows: Row[]
   index: number
+  crossFilter: CrossFilter | null
+  onCrossFilter: (filter: CrossFilter | null) => void
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
@@ -1361,6 +1397,23 @@ function QuestionAnalysisCard({
           <InlineBarChart
             points={barPoints}
             denominator={question.type === 'MULTIPLE_CHOICE' ? analysis.answered : undefined}
+            activeMatchValue={crossFilter?.questionId === question.id ? crossFilter.matchValue : undefined}
+            onBarClick={
+              question.type === 'FREE_TEXT' || question.type === 'DATE_TIME' || (question.type === 'RATING' && analysis.shouldBin)
+                ? undefined
+                : (label, matchValue) => {
+                    if (crossFilter?.questionId === question.id && crossFilter.matchValue === matchValue) {
+                      onCrossFilter(null)
+                    } else {
+                      onCrossFilter({ questionId: question.id, questionText: question.text, label, matchValue, isMultiple: question.type === 'MULTIPLE_CHOICE' })
+                    }
+                  }
+            }
+            getMatchValue={
+              question.type === 'RATING' && !analysis.shouldBin
+                ? (_label, i) => String((analysis.scalePoints ?? [])[i]?.score ?? i)
+                : undefined
+            }
           />
           {question.type === 'RATING' && analysis.answered > 0 && (
             <p className="text-xs text-slate-400">
@@ -1408,6 +1461,7 @@ const [partId, setPartId] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [includePilotData, setIncludePilotData] = useState(false)
+  const [crossFilter, setCrossFilter] = useState<CrossFilter | null>(null)
 
   const questionTypes = Array.from(new Set(answerQuestions.map((question) => question.type)))
   const pilotRowCount = useMemo(() => rows.filter((row) => row.isPilot).length, [rows])
@@ -1417,8 +1471,16 @@ const [partId, setPartId] = useState('all')
     if (participantId !== 'all' && row.participantId !== participantId) return false
     if (dateFrom && row.date < dateFrom) return false
     if (dateTo && row.date > dateTo) return false
+    if (crossFilter) {
+      const cell = row.answers[crossFilter.questionId]
+      if (crossFilter.isMultiple) {
+        if (!parseMultipleChoiceAnswer(cell?.value).includes(crossFilter.matchValue)) return false
+      } else {
+        if (normalizedAnswerValue(cell) !== crossFilter.matchValue) return false
+      }
+    }
     return true
-  }), [rows, includePilotData, partId, participantId, dateFrom, dateTo])
+  }), [rows, includePilotData, partId, participantId, dateFrom, dateTo, crossFilter])
 
   const filteredQuestions = useMemo(() => answerQuestions.filter((question) => {
     if (partId !== 'all' && question.partId !== partId) return false
@@ -1506,6 +1568,26 @@ const [partId, setPartId] = useState('all')
             </span>
           </button>
         </div>
+        {crossFilter && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs text-slate-500">Filtered by:</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 pl-3 pr-1.5 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200">
+              <span className="max-w-[160px] truncate" title={`${crossFilter.questionText} = ${crossFilter.label}`}>
+                {crossFilter.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCrossFilter(null)}
+                aria-label="Clear filter"
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-indigo-200 transition-colors"
+              >
+                <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            </span>
+          </div>
+        )}
         <p className="mt-3 text-sm text-slate-500">
           {filteredRows.length} entries · {new Set(filteredRows.map((r) => r.participantId)).size} participants · {coverage}% completion
           {coverageTotals.missing > 0 && ` · ${coverageTotals.missing} missing`}
@@ -1548,6 +1630,8 @@ const [partId, setPartId] = useState('all')
                   question={question}
                   rows={filteredRows}
                   index={index}
+                  crossFilter={crossFilter}
+                  onCrossFilter={setCrossFilter}
                 />
               ))}
             </div>
