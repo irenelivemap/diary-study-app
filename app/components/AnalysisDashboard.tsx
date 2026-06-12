@@ -1227,6 +1227,8 @@ function InlineBarChart({
   )
 }
 
+const STACKED_LABEL_THRESHOLD = 10
+
 function StackedBarChart({
   points,
   denominator,
@@ -1245,11 +1247,15 @@ function StackedBarChart({
     return colorStops[Math.round(pos)] ?? colorStops[colorStops.length - 1]
   }
 
+  const pcts = points.map((p) => (p.value / total) * 100)
+  const smallItems = points.filter((p, i) => p.value === 0 || pcts[i] < STACKED_LABEL_THRESHOLD)
+  const hasSmallItems = smallItems.length > 0
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-0">
       <div className="flex h-9 w-full gap-0.5 overflow-hidden rounded-xl">
         {points.map((point, i) => {
-          const pct = (point.value / total) * 100
+          const pct = pcts[i]
           const roundedPct = Math.round(pct)
           if (roundedPct === 0) return null
           const color = getColor(i, points.length)
@@ -1267,19 +1273,48 @@ function StackedBarChart({
           )
         })}
       </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+
+      <div className="flex w-full gap-0.5">
         {points.map((point, i) => {
-          const roundedPct = Math.round((point.value / total) * 100)
-          const color = getColor(i, points.length)
+          const pct = pcts[i]
+          const roundedPct = Math.round(pct)
+          if (roundedPct === 0) return null
+          const showLabel = pct >= STACKED_LABEL_THRESHOLD
           return (
-            <div key={`${point.label}-${i}`} className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-xs text-slate-600">{point.label}</span>
-              {roundedPct > 0 && <span className="text-xs font-semibold text-slate-900">{roundedPct}%</span>}
+            <div
+              key={`${point.label}-${i}`}
+              style={{ width: `${pct}%` }}
+              className="flex shrink-0 flex-col items-center"
+            >
+              {showLabel && (
+                <>
+                  <div className="mt-1 h-1.5 w-px bg-slate-300" />
+                  <span className="mt-0.5 w-full truncate text-center text-xs text-slate-500" title={point.label}>
+                    {point.label}
+                  </span>
+                </>
+              )}
             </div>
           )
         })}
       </div>
+
+      {hasSmallItems && (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          {smallItems.map((point) => {
+            const i = points.indexOf(point)
+            const color = getColor(i, points.length)
+            const roundedPct = Math.round(pcts[i])
+            return (
+              <div key={`${point.label}-${i}`} className="flex items-center gap-1.5">
+                <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                <span className="text-xs text-slate-500">{point.label}</span>
+                {roundedPct > 0 && <span className="text-xs font-semibold text-slate-700">{roundedPct}%</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
