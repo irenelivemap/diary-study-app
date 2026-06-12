@@ -1332,18 +1332,60 @@ function FreeTextAnswerList({
   )
 }
 
+function InlineBarChart({
+  points,
+  denominator,
+}: {
+  points: DataPoint[]
+  denominator?: number
+}) {
+  const total = denominator ?? points.reduce((sum, p) => sum + p.value, 0)
+  const maxCount = Math.max(...points.map((p) => p.value), 1)
+  const topCount = Math.max(...points.map((p) => p.value), 0)
+
+  if (points.length === 0) return <p className="text-sm text-slate-500">No answers yet.</p>
+
+  return (
+    <div className="space-y-2">
+      {points.map((point, i) => {
+        const pct = total ? Math.round((point.value / total) * 100) : 0
+        const barWidth = maxCount ? (point.value / maxCount) * 100 : 0
+        const isTop = topCount > 0 && point.value === topCount
+        return (
+          <div
+            key={`${point.label}-${i}`}
+            className="grid items-center gap-3"
+            style={{ gridTemplateColumns: 'minmax(80px, 220px) 1fr 44px' }}
+          >
+            <span className={`truncate text-sm ${isTop ? 'font-semibold text-slate-900' : 'text-slate-600'}`} title={point.label}>
+              {point.label}
+            </span>
+            <div className="relative h-5 overflow-hidden rounded bg-slate-100">
+              <div
+                className={`absolute inset-y-0 left-0 rounded transition-all ${isTop ? 'bg-indigo-600' : 'bg-indigo-200'}`}
+                style={{ width: `${Math.max(barWidth, point.value > 0 ? 1 : 0)}%` }}
+              />
+            </div>
+            <span className={`text-right text-sm tabular-nums ${isTop ? 'font-bold text-slate-900' : 'text-slate-500'}`}>
+              {pct}%
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function QuestionAnalysisCard({
   studyId,
   question,
   rows,
   index,
-  partIndex,
 }: {
   studyId: string
   question: Question
   rows: Row[]
   index: number
-  partIndex: number
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
@@ -1354,14 +1396,6 @@ function QuestionAnalysisCard({
     const answerSignature = textAnswers.map((answer) => `${answer.answerId}:${answer.tags.map((tag) => tag.id).join('.')}`).join('|')
     return `${question.id}:${tagSignature}:${answerSignature}`
   }, [question, textAnswers])
-  const choiceStats = useMemo(
-    () => question.type === 'MULTIPLE_CHOICE' ? multipleChoiceStats(question, analysis.points, analysis.answered) : null,
-    [question, analysis.points, analysis.answered]
-  )
-  const singleStats = useMemo(
-    () => question.type === 'SINGLE_CHOICE' ? singleChoiceStats(analysis.points) : null,
-    [question, analysis.points]
-  )
   const filename = `${String(index + 1).padStart(2, '0')}_${slugify(question.text)}`
   const defaultPlotTitle = ''
   const defaultPlotSubtitle =
@@ -1376,7 +1410,6 @@ function QuestionAnalysisCard({
   const [yAxisMode, setYAxisMode] = useState<'auto' | 'custom'>('auto')
   const [yAxisMaxInput, setYAxisMaxInput] = useState('100')
   const [yAxisStepInput, setYAxisStepInput] = useState('10')
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const yAxisMaxRaw = yAxisMode === 'custom' ? Number(yAxisMaxInput) : null
   const yAxisStepRaw = yAxisMode === 'custom' ? Number(yAxisStepInput) : null
   const yAxisMax = yAxisMaxRaw == null || !Number.isFinite(yAxisMaxRaw)
@@ -1385,7 +1418,11 @@ function QuestionAnalysisCard({
   const yAxisStep = yAxisStepRaw == null || !Number.isFinite(yAxisStepRaw)
     ? null
     : Math.min(100, Math.max(1, yAxisStepRaw))
-  const hasSidePanel = question.type !== 'FREE_TEXT' && question.type !== 'RATING' && question.type !== 'YES_NO' && analysis.examples.length > 0
+  const barPoints: DataPoint[] = question.type === 'RATING'
+    ? (analysis.shouldBin
+        ? (analysis.ratingBins ?? []).map((b) => ({ label: b.label, value: b.count }))
+        : (analysis.scalePoints ?? []).map((p) => ({ label: p.label, value: p.count }))) as DataPoint[]
+    : analysis.points
 
   function exportCsv() {
     const metadataHeader = ['study_exported_at', 'question_id', 'part', 'eligible_n', 'answered_n', 'missing_n', 'not_shown_n']
@@ -1458,48 +1495,27 @@ function QuestionAnalysisCard({
   }
 
   return (
-    <Card className="overflow-hidden" padded={false}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setIsCollapsed((current) => !current)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            setIsCollapsed((current) => !current)
-          }
-        }}
-        className={`flex cursor-pointer flex-col gap-4 p-5 transition-colors hover:bg-slate-50/60 lg:flex-row lg:items-start lg:justify-between ${isCollapsed ? '' : 'border-b border-slate-100'}`}
-        aria-expanded={!isCollapsed}
-      >
-        <div className="flex min-w-0 gap-3">
-          <span className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} aria-hidden="true">
-              <polyline points="9 6 15 12 9 18" />
-            </svg>
-          </span>
-          <div className="min-w-0">
-          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${phaseSoftBadgeClass(partIndex)}`}>
-              {question.partName}
-            </span>
-            <Badge tone="neutral" className="text-xs">{questionTypeLabel(question.type, question.scaleType)}</Badge>
-          </div>
-          <h3 className="text-lg font-bold leading-snug text-slate-950">{question.text}</h3>
-          </div>
+    <div className="border-t border-[var(--border)] py-6">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold leading-snug text-slate-900">{question.text}</h3>
+          <p className="mt-1 text-xs text-slate-400">
+            {analysis.answered} answered · {analysis.eligible} eligible
+            {analysis.missing > 0 && ` · ${analysis.missing} missing`}
+          </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+        <div className="flex shrink-0 items-center gap-2">
           {question.type !== 'FREE_TEXT' && (
             <button
               type="button"
-              aria-label="Edit plot title and subtitle"
-              title="Edit plot title and subtitle"
               onClick={() => setIsEditingLabels((current) => !current)}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                isEditingLabels ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-300 bg-white'
+              aria-label="Edit chart labels"
+              title="Edit chart labels"
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors hover:bg-[var(--bg-sunken)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                isEditingLabels ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] bg-white text-slate-500'
               }`}
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
               </svg>
@@ -1513,165 +1529,99 @@ function QuestionAnalysisCard({
         </div>
       </div>
 
-      {!isCollapsed && <div className={`grid gap-5 p-5 ${hasSidePanel ? 'lg:grid-cols-[minmax(0,1fr)_220px]' : ''}`}>
-        {isEditingLabels && (
-          <div className={`${question.type === 'RATING' || question.type === 'YES_NO' ? '' : 'lg:col-span-2'} grid gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2`}>
-            <label className="space-y-1">
-              <span className="text-sm font-semibold text-slate-700">Plot title</span>
-              <TextInput value={plotTitle} onChange={(event) => setPlotTitle(event.target.value)} placeholder="Optional plot title" className="bg-white" />
-            </label>
-            <label className="space-y-1">
-              <span className="text-sm font-semibold text-slate-700">Plot subtitle</span>
-              <TextInput value={plotSubtitle} onChange={(event) => setPlotSubtitle(event.target.value)} placeholder={defaultPlotSubtitle} className="bg-white" />
-            </label>
-            {question.type === 'RATING' && (
-              <div className="space-y-1 sm:col-span-2">
-                <span className="text-sm font-semibold text-slate-700">Y-axis</span>
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="w-32">
-                    <SelectMenu
-                      value={yAxisMode}
-                      onChange={(next) => setYAxisMode(next as 'auto' | 'custom')}
-                      label=""
-                      options={[
-                        { value: 'auto', label: 'Auto' },
-                        { value: 'custom', label: 'Custom' },
-                      ]}
-                    />
-                  </div>
-                  <label className="space-y-1">
-                    <span className="block text-xs font-semibold text-slate-600">Maximum</span>
-                    <span className="flex items-center gap-2">
-                      <TextInput
-                        type="number"
-                        min="5"
-                        max="100"
-                        step="5"
-                        value={yAxisMaxInput}
-                        onChange={(event) => setYAxisMaxInput(event.target.value)}
-                        disabled={yAxisMode === 'auto'}
-                        className="w-24 bg-white disabled:opacity-50"
-                      />
-                      <span className="text-sm font-semibold text-slate-600">%</span>
-                    </span>
-                  </label>
-                  <label className="space-y-1">
-                    <span className="block text-xs font-semibold text-slate-600">Tick interval</span>
-                    <span className="flex items-center gap-2">
-                      <TextInput
-                        type="number"
-                        min="1"
-                        max="100"
-                        step="1"
-                        value={yAxisStepInput}
-                        onChange={(event) => setYAxisStepInput(event.target.value)}
-                        disabled={yAxisMode === 'auto'}
-                        className="w-24 bg-white disabled:opacity-50"
-                      />
-                      <span className="text-sm font-semibold text-slate-600">%</span>
-                    </span>
-                  </label>
+      {isEditingLabels && (
+        <div className="mb-4 grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] p-3 sm:grid-cols-2">
+          <label className="space-y-1">
+            <span className="text-sm font-semibold text-slate-700">Plot title</span>
+            <TextInput value={plotTitle} onChange={(event) => setPlotTitle(event.target.value)} placeholder="Optional plot title" className="bg-white" />
+          </label>
+          <label className="space-y-1">
+            <span className="text-sm font-semibold text-slate-700">Plot subtitle</span>
+            <TextInput value={plotSubtitle} onChange={(event) => setPlotSubtitle(event.target.value)} placeholder={defaultPlotSubtitle} className="bg-white" />
+          </label>
+          {question.type === 'RATING' && (
+            <div className="space-y-1 sm:col-span-2">
+              <span className="text-sm font-semibold text-slate-700">Y-axis</span>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-32">
+                  <SelectMenu
+                    value={yAxisMode}
+                    onChange={(next) => setYAxisMode(next as 'auto' | 'custom')}
+                    label=""
+                    options={[
+                      { value: 'auto', label: 'Auto' },
+                      { value: 'custom', label: 'Custom' },
+                    ]}
+                  />
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {question.type === 'FREE_TEXT' ? (
-          <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
-        ) : question.type === 'RATING' ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-2xl font-bold text-slate-950">{formatNumber(analysis.mean)}</p>
-                <p className="text-sm text-slate-600">Average</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-2xl font-bold text-slate-950">{formatNumber(analysis.median)}</p>
-                <p className="text-sm text-slate-600">Median</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-2xl font-bold text-slate-950">{formatNumber(analysis.q1)}-{formatNumber(analysis.q3)}</p>
-                <p className="text-sm text-slate-600">Middle 50%</p>
+                <label className="space-y-1">
+                  <span className="block text-xs font-semibold text-slate-600">Maximum</span>
+                  <span className="flex items-center gap-2">
+                    <TextInput
+                      type="number"
+                      min="5"
+                      max="100"
+                      step="5"
+                      value={yAxisMaxInput}
+                      onChange={(event) => setYAxisMaxInput(event.target.value)}
+                      disabled={yAxisMode === 'auto'}
+                      className="w-24 bg-white disabled:opacity-50"
+                    />
+                    <span className="text-sm font-semibold text-slate-600">%</span>
+                  </span>
+                </label>
+                <label className="space-y-1">
+                  <span className="block text-xs font-semibold text-slate-600">Tick interval</span>
+                  <span className="flex items-center gap-2">
+                    <TextInput
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={yAxisStepInput}
+                      onChange={(event) => setYAxisStepInput(event.target.value)}
+                      disabled={yAxisMode === 'auto'}
+                      className="w-24 bg-white disabled:opacity-50"
+                    />
+                    <span className="text-sm font-semibold text-slate-600">%</span>
+                  </span>
+                </label>
               </div>
             </div>
-            <RatingScaleSvg
-              question={question}
-              analysis={analysis}
-              svgRef={svgRef}
-              title={plotTitle || defaultPlotTitle}
-              subtitle={plotSubtitle || defaultPlotSubtitle}
-              yAxisMax={yAxisMax}
-              yAxisStep={yAxisStep}
-            />
-          </div>
+          )}
+        </div>
+      )}
+
+      {question.type === 'FREE_TEXT' ? (
+        <FreeTextAnswerList key={freeTextStateKey} studyId={studyId} questionId={question.id} initialTags={question.tagDefinitions ?? []} answers={textAnswers} />
+      ) : (
+        <div className="space-y-3">
+          <InlineBarChart
+            points={barPoints}
+            denominator={question.type === 'MULTIPLE_CHOICE' ? analysis.answered : undefined}
+          />
+          {question.type === 'RATING' && analysis.answered > 0 && (
+            <p className="text-xs text-slate-400">
+              Mean {formatNumber(analysis.mean)} · Median {formatNumber(analysis.median)} · Range {question.min ?? 1}–{question.max ?? 7}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div hidden>
+        {question.type === 'RATING' ? (
+          <RatingScaleSvg
+            question={question}
+            analysis={analysis}
+            svgRef={svgRef}
+            title={plotTitle || defaultPlotTitle}
+            subtitle={plotSubtitle || defaultPlotSubtitle}
+            yAxisMax={yAxisMax}
+            yAxisStep={yAxisStep}
+          />
         ) : question.type === 'YES_NO' ? (
           <YesNoPieSvg analysis={analysis} svgRef={svgRef} title={plotTitle || defaultPlotTitle} subtitle={plotSubtitle || defaultPlotSubtitle} />
-        ) : question.type === 'SINGLE_CHOICE' ? (
-          <div className="space-y-4">
-            {singleStats && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="truncate text-xl font-bold text-slate-950" title={singleStats.topLabel}>
-                    {singleStats.topLabel}
-                  </p>
-                  <p className="text-sm text-slate-600">Most selected · {singleStats.topPct}%</p>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-2xl font-bold text-slate-950">
-                    {singleStats.hasTie ? 'Tie' : singleStats.hasRunnerUp ? `${singleStats.gapPct} pts` : '-'}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    {singleStats.hasTie
-                      ? `${singleStats.tiedTopCount} options share the lead`
-                      : singleStats.hasRunnerUp
-                        ? 'Gap to next option'
-                        : 'No second option selected'}
-                  </p>
-                </div>
-              </div>
-            )}
-            <PlotSvg
-              svgRef={svgRef}
-              title={plotTitle || defaultPlotTitle}
-              subtitle={plotSubtitle || defaultPlotSubtitle}
-              points={analysis.points}
-              denominator={analysis.answered}
-            />
-          </div>
-        ) : question.type === 'MULTIPLE_CHOICE' ? (
-          <div className="space-y-4">
-            {choiceStats && (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="truncate text-xl font-bold text-slate-950" title={choiceStats.topLabel}>
-                    {choiceStats.topLabel}
-                  </p>
-                  <p className="text-sm text-slate-600">Top option · {choiceStats.topPct}%</p>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-2xl font-bold text-slate-950">
-                    {choiceStats.hasTie ? 'Tie' : `${choiceStats.gapPct} pts`}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    {choiceStats.hasTie ? `${choiceStats.tiedTopCount} options share the lead` : 'Gap to runner-up'}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-2xl font-bold text-slate-950">{choiceStats.usedOptions}/{choiceStats.optionCount}</p>
-                  <p className="text-sm text-slate-600">Options used</p>
-                </div>
-              </div>
-            )}
-            <PlotSvg
-              svgRef={svgRef}
-              title={plotTitle || defaultPlotTitle}
-              subtitle={plotSubtitle || defaultPlotSubtitle}
-              points={analysis.points}
-              denominator={analysis.answered}
-            />
-          </div>
-        ) : (
+        ) : question.type !== 'FREE_TEXT' ? (
           <PlotSvg
             svgRef={svgRef}
             title={plotTitle || defaultPlotTitle}
@@ -1679,27 +1629,9 @@ function QuestionAnalysisCard({
             points={analysis.points}
             denominator={analysis.answered}
           />
-        )}
-        {hasSidePanel && <div className="space-y-3">
-          {question.type === 'RATING' && (
-            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-              <p><span className="font-semibold">Median:</span> {analysis.median == null ? '-' : analysis.median.toFixed(1)}</p>
-              <p><span className="font-semibold">Range:</span> {question.min ?? '-'} to {question.max ?? '-'}</p>
-            </div>
-          )}
-          {analysis.examples.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-slate-700">Example answers</p>
-              {analysis.examples.map((example, exampleIndex) => (
-                <p key={exampleIndex} className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
-                  {shortText(example)}
-                </p>
-              ))}
-            </div>
-          )}
-        </div>}
-      </div>}
-    </Card>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -1754,12 +1686,23 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
   }, new Map<string, number>())
   const qualityFlagEntries = Array.from(qualityFlagCounts.entries()).sort((a, b) => b[1] - a[1])
 
+  const questionGroups = useMemo(() => {
+    let globalIndex = 0
+    return parts
+      .map((part) => {
+        const partQuestions = filteredQuestions
+          .filter((q) => q.partId === part.id)
+          .map((question) => ({ question, index: globalIndex++ }))
+        return { part, partQuestions }
+      })
+      .filter((group) => group.partQuestions.length > 0)
+  }, [parts, filteredQuestions])
+
   return (
     <div className="space-y-5">
-      <Card>
-        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_150px_150px]">
+      <div className="border-b border-[var(--border)] pb-4">
+        <div className="flex flex-wrap items-center gap-2">
           <SelectMenu
-            label="Part"
             value={partId}
             onChange={setPartId}
             options={[
@@ -1768,7 +1711,6 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             ]}
           />
           <SelectMenu
-            label="Participant"
             value={participantId}
             onChange={setParticipantId}
             options={[
@@ -1777,7 +1719,6 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
             ]}
           />
           <SelectMenu
-            label="Question type"
             value={questionType}
             onChange={setQuestionType}
             options={[
@@ -1785,53 +1726,36 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
               ...questionTypes.map((type) => ({ value: type, label: questionTypeLabel(type) })),
             ]}
           />
-          <label className="space-y-1">
-            <span className="text-sm font-semibold text-slate-700">From</span>
-            <TextInput type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-semibold text-slate-700">To</span>
-            <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
-          </label>
-        </div>
-        <div className="mt-4 flex items-center gap-3 border-t border-slate-100 pt-4">
+          <TextInput type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-36" />
+          <span className="hidden text-xs text-slate-400 sm:block">–</span>
+          <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-36" />
           <button
             type="button"
             onClick={() => setIncludePilotData((current) => !current)}
             disabled={pilotRowCount === 0}
-            className="flex items-center gap-2.5 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            className="ml-1 flex items-center gap-2 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
             aria-pressed={includePilotData}
             title={pilotRowCount === 0 ? 'No pilot data to include yet.' : undefined}
           >
             <SwitchVisual checked={includePilotData} />
-            <span className="text-sm font-medium text-slate-700">Include pilot data</span>
+            <span className="text-sm text-slate-600">
+              Pilot{pilotRowCount > 0 && <span className="ml-1 text-slate-400">({pilotRowCount})</span>}
+            </span>
           </button>
-          {pilotRowCount > 0 && (
-            <span className="text-sm text-slate-500">{pilotRowCount} {pilotRowCount === 1 ? 'entry' : 'entries'}</span>
-          )}
         </div>
-      </Card>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <p className="text-2xl font-bold text-slate-950">{filteredRows.length}</p>
-          <p className="text-sm text-slate-600">Entries analyzed</p>
-        </Card>
-        <Card>
-          <p className="text-2xl font-bold text-slate-950">{new Set(filteredRows.map((row) => row.participantId)).size}</p>
-          <p className="text-sm text-slate-600">Participants represented</p>
-        </Card>
-        <Card>
-          <p className="text-2xl font-bold text-slate-950">{coverage}%</p>
-          <p className="text-sm text-slate-600">Answer completion</p>
-          <p className="mt-1 text-xs text-slate-500">{answeredValues} of {possibleValues} expected answers</p>
-        </Card>
-        <Card>
-          <p className="text-2xl font-bold text-slate-950">{coverageTotals.missing}</p>
-          <p className="text-sm text-slate-600">Missing answers</p>
-          <p className="mt-1 text-xs text-slate-500">{coverageTotals.notShown} hidden by conditions</p>
-        </Card>
+        <p className="mt-3 text-sm text-slate-500">
+          {filteredRows.length} entries · {new Set(filteredRows.map((r) => r.participantId)).size} participants · {coverage}% completion
+          {coverageTotals.missing > 0 && ` · ${coverageTotals.missing} missing`}
+        </p>
       </div>
+
+      <JourneySummaryCard
+        rows={filteredRows}
+        parts={parts.filter((part) => partId === 'all' || part.id === partId)}
+      />
+      {questionType === 'all' && (
+        <ScreenshotSummaryCard questions={screenshotQuestions.filter((question) => partId === 'all' || question.partId === partId)} rows={filteredRows} />
+      )}
 
       {qualityFlagEntries.length > 0 && (
         <Card>
@@ -1853,31 +1777,28 @@ export default function AnalysisDashboard({ studyId, parts, participants, questi
         </Card>
       )}
 
-      <JourneySummaryCard
-        rows={filteredRows}
-        parts={parts.filter((part) => partId === 'all' || part.id === partId)}
-      />
-      {questionType === 'all' && (
-        <ScreenshotSummaryCard questions={screenshotQuestions.filter((question) => partId === 'all' || question.partId === partId)} rows={filteredRows} />
+      {questionGroups.length === 0 ? (
+        <p className="py-6 text-sm text-slate-500">No questions match these filters.</p>
+      ) : (
+        <div>
+          {questionGroups.map(({ part, partQuestions }) => (
+            <div key={part.id}>
+              {parts.length > 1 && partId === 'all' && (
+                <p className="pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-400">{part.name}</p>
+              )}
+              {partQuestions.map(({ question, index }) => (
+                <QuestionAnalysisCard
+                  key={question.id}
+                  studyId={studyId}
+                  question={question}
+                  rows={filteredRows}
+                  index={index}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       )}
-
-      <div className="space-y-4">
-        {filteredQuestions.map((question, index) => (
-          <QuestionAnalysisCard
-            key={question.id}
-            studyId={studyId}
-            question={question}
-            rows={filteredRows}
-            index={index}
-            partIndex={Math.max(0, parts.findIndex((part) => part.id === question.partId))}
-          />
-        ))}
-        {filteredQuestions.length === 0 && (
-          <Card>
-            <p className="text-base font-semibold text-slate-700">No questions match these filters.</p>
-          </Card>
-        )}
-      </div>
     </div>
   )
 }
