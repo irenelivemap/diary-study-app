@@ -1195,7 +1195,7 @@ function InlineBarChart({
     <div className="space-y-2">
       {points.map((point, i) => {
         const pct = total ? Math.round((point.value / total) * 100) : 0
-        const barWidth = maxCount ? (point.value / maxCount) * 100 : 0
+        const barWidth = pct
         const isTop = topCount > 0 && point.value === topCount
         return (
           <div
