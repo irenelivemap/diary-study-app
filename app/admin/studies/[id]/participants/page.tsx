@@ -206,7 +206,9 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                               </Link>
                             </td>
                             <td className="sticky right-0 bg-white px-3 py-3 text-right align-middle group-hover:bg-slate-50" style={{ boxShadow: '-1px 0 0 0 var(--border-subtle)' }}>
-                              <RemoveParticipantForm studyId={id} userId={user.id} participantName={user.name} />
+                              <div className="opacity-40 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                                <RemoveParticipantForm studyId={id} userId={user.id} participantName={user.name} />
+                              </div>
                             </td>
                           </tr>
                         )
