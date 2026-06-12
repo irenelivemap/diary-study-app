@@ -1253,11 +1253,10 @@ function StackedBarChart({
           const displayPct = displayPcts[i]
           const roundedPct = Math.round(pct)
           const isTop = topValue > 0 && point.value === topValue
-          const bgColor = isTop ? '#0f766e' : '#818cf8'
           return (
             <div
               key={`${point.label}-${i}`}
-              style={{ width: `${displayPct}%`, backgroundColor: bgColor }}
+              style={{ width: `${displayPct}%`, backgroundColor: isTop ? '#4f46e5' : '#818cf8' }}
               title={`${point.label}: ${roundedPct}% (${point.value})`}
               className="flex shrink-0 items-center justify-center overflow-hidden"
             >
@@ -1279,8 +1278,11 @@ function StackedBarChart({
               style={{ width: `${displayPcts[i]}%` }}
               className="flex shrink-0 flex-col items-center overflow-visible"
             >
-              <div className={`h-1 w-px ${isTop ? 'bg-teal-600' : 'bg-slate-200'}`} />
-              <span className={`whitespace-nowrap text-center text-xs ${isTop ? 'font-semibold text-teal-700' : 'text-slate-400'}`}>
+              <div className="h-1 w-px bg-[var(--border)]" />
+              <span
+                className="whitespace-nowrap text-center text-xs"
+                style={{ color: isTop ? 'var(--text)' : 'var(--text-tertiary)', fontWeight: isTop ? 600 : 400 }}
+              >
                 {point.label}
               </span>
             </div>
