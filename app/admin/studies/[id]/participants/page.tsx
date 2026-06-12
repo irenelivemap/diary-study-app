@@ -112,7 +112,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
       <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} status={study.status} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_256px]">
           <div className="min-w-0 space-y-4">
             <section className="w-full bg-white rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -132,13 +132,13 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 <p className="text-sm text-slate-500 px-5 py-4">No participants yet.</p>
               ) : (
                 <div className="overflow-x-auto overscroll-x-contain">
-                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${Math.max(720, 563 + study.parts.length * 64)}px` }}>
+                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${480 + study.parts.length * 60}px` }}>
                     <colgroup>
-                      <col style={{ width: 270 }} />
-                      <col style={{ width: 165 }} />
-                      {study.parts.map((part) => <col key={part.id} style={{ width: 64 }} />)}
-                      <col style={{ width: 64 }} />
-                      <col style={{ width: 64 }} />
+                      <col style={{ width: 220 }} />
+                      <col style={{ width: 150 }} />
+                      {study.parts.map((part) => <col key={part.id} style={{ width: 60 }} />)}
+                      <col style={{ width: 56 }} />
+                      <col style={{ width: 54 }} />
                     </colgroup>
                     <thead>
                       <tr className="border-b border-[var(--border-subtle)]">
@@ -260,20 +260,18 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
 
           <aside className="min-w-0 space-y-4 lg:sticky lg:top-4">
             <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
-                <h2 className="text-base font-semibold text-slate-800">Invite participant</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Send an email invite. They can sign up after receiving it.</p>
+              <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+                <h2 className="text-sm font-semibold text-slate-800">Invite participant</h2>
               </div>
-              <div className="p-5">
+              <div className="p-4">
                 <AddParticipantForm studyId={id} />
               </div>
             </section>
 
             {pendingInvitations.length > 0 && (
               <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
-                  <h2 className="text-base font-semibold text-slate-800">Pending invitations</h2>
-                  <p className="text-sm text-slate-500 mt-0.5">Invited but not signed up yet.</p>
+                <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+                  <h2 className="text-sm font-semibold text-slate-800">Pending invitations</h2>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {pendingInvitations.map((invitation) => (
@@ -292,9 +290,8 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
             )}
 
             <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
-                <h2 className="text-base font-semibold text-slate-800">Invite link</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Share this so participants can join after signing in.</p>
+              <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+                <h2 className="text-sm font-semibold text-slate-800">Invite link</h2>
               </div>
               <InviteLinkCard studyId={id} initialToken={study.inviteToken} baseUrl={appBaseUrl()} embedded />
             </section>
