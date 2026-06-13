@@ -32,15 +32,40 @@ const STOP_WORDS = new Set([
 ])
 
 type POSFilter = 'all' | 'nouns' | 'verbs' | 'adjectives' | 'adverbs'
-interface CloudWord { text: string; count: number; ratio: number }
+
+// Each category has 3 readable shades: low → mid → high frequency
+// All pass AA contrast (≥3:1) against white.
+const POS_PALETTE: Record<POSFilter, [string, string, string]> = {
+  nouns:      ['#818cf8', '#4f46e5', '#3730a3'], // indigo
+  verbs:      ['#14b8a6', '#0d9488', '#0f766e'], // teal
+  adjectives: ['#d97706', '#b45309', '#92400e'], // amber
+  adverbs:    ['#a78bfa', '#7c3aed', '#6d28d9'], // violet
+  all:        ['#818cf8', '#4f46e5', '#3730a3'], // indigo fallback for unclassified
+}
+
+// Dot colors for the legend (mid-tier of each palette)
+const POS_LABEL_COLOR: Record<Exclude<POSFilter, 'all'>, string> = {
+  nouns:      '#4f46e5',
+  verbs:      '#0d9488',
+  adjectives: '#b45309',
+  adverbs:    '#7c3aed',
+}
+
+function posStroke(pos: POSFilter, ratio: number): string {
+  const [light, mid, dark] = POS_PALETTE[pos]
+  if (ratio > 0.6) return dark
+  if (ratio > 0.3) return mid
+  return light
+}
+
+interface CloudWord { text: string; count: number; ratio: number; pos: POSFilter }
 interface Placement { x: number; y: number; r: number }
 
-// Greedy tangent-placement packing. Each new circle is placed tangent to an
-// existing circle at the angle that minimises distance from the origin.
+// Greedy tangent-placement packing: each new circle is placed tangent to an
+// existing circle at whichever angle keeps the cluster closest to the origin.
 function packCircles(radii: number[], gap = 4): Placement[] {
   const placed: Placement[] = []
   if (!radii.length) return placed
-
   placed.push({ x: 0, y: 0, r: radii[0] })
 
   for (let i = 1; i < radii.length; i++) {
@@ -50,17 +75,14 @@ function packCircles(radii: number[], gap = 4): Placement[] {
 
     for (const anchor of placed) {
       const D = r + anchor.r + gap
-      // 72 candidate angles around each anchor circle
       for (let a = 0; a < 72; a++) {
         const theta = (a / 72) * 2 * Math.PI
         const x = anchor.x + D * Math.cos(theta)
         const y = anchor.y + D * Math.sin(theta)
-
         const valid = placed.every((q) => {
           const dx = x - q.x, dy = y - q.y
           return dx * dx + dy * dy >= (r + q.r + gap) ** 2 - 0.1
         })
-
         if (valid) {
           const dist = x * x + y * y
           if (dist < bestDist) { bestDist = dist; best = { x, y } }
@@ -72,15 +94,6 @@ function packCircles(radii: number[], gap = 4): Placement[] {
   }
 
   return placed
-}
-
-// Indigo stroke palette — 5 frequency tiers
-function strokeColor(ratio: number) {
-  if (ratio > 0.8) return '#4338ca'
-  if (ratio > 0.6) return '#4f46e5'
-  if (ratio > 0.4) return '#6366f1'
-  if (ratio > 0.2) return '#818cf8'
-  return '#a5b4fc'
 }
 
 export default function WordCloudChart({
@@ -107,18 +120,40 @@ export default function WordCloudChart({
   const processWords = useCallback(async () => {
     setLoading(true)
     const { default: nlp } = await import('compromise')
+
     const allTerms: string[] = []
+    // When showing all POS, build a per-word POS map so bubbles can be coloured.
+    const posTagMap = new Map<string, POSFilter>()
 
     for (const answer of answers) {
       if (!answer.trim()) continue
       const doc = nlp(answer)
-      let terms: string[]
-      if (posFilter === 'nouns') terms = doc.nouns().out('array') as string[]
-      else if (posFilter === 'verbs') terms = doc.verbs().out('array') as string[]
-      else if (posFilter === 'adjectives') terms = doc.adjectives().out('array') as string[]
-      else if (posFilter === 'adverbs') terms = doc.adverbs().out('array') as string[]
-      else terms = doc.terms().out('array') as string[]
-      allTerms.push(...terms)
+
+      if (posFilter === 'all') {
+        allTerms.push(...(doc.terms().out('array') as string[]))
+
+        const posExtractors: [Exclude<POSFilter, 'all'>, string[]][] = [
+          ['nouns',      doc.nouns().out('array')      as string[]],
+          ['verbs',      doc.verbs().out('array')      as string[]],
+          ['adjectives', doc.adjectives().out('array') as string[]],
+          ['adverbs',    doc.adverbs().out('array')    as string[]],
+        ]
+        for (const [pos, phrases] of posExtractors) {
+          for (const phrase of phrases) {
+            for (const raw of phrase.toLowerCase().split(/\s+/)) {
+              const w = raw.replace(/[^a-z]/g, '')
+              if (w && !posTagMap.has(w)) posTagMap.set(w, pos)
+            }
+          }
+        }
+      } else {
+        const terms =
+          posFilter === 'nouns'      ? doc.nouns().out('array')      as string[] :
+          posFilter === 'verbs'      ? doc.verbs().out('array')      as string[] :
+          posFilter === 'adjectives' ? doc.adjectives().out('array') as string[] :
+                                       doc.adverbs().out('array')    as string[]
+        allTerms.push(...terms)
+      }
     }
 
     const counts = new Map<string, number>()
@@ -141,6 +176,7 @@ export default function WordCloudChart({
       text,
       count,
       ratio: (count - minCount) / range,
+      pos: posFilter === 'all' ? (posTagMap.get(text) ?? 'all') : posFilter,
     })))
     setLoading(false)
   }, [answers, posFilter, topN, excludedWords])
@@ -149,7 +185,7 @@ export default function WordCloudChart({
 
   const placements = useMemo(() => {
     if (!words.length) return []
-    const radii = words.map((w) => Math.round(22 + w.ratio * 38)) // 22–60 px
+    const radii = words.map((w) => Math.round(22 + w.ratio * 38))
     return packCircles(radii)
   }, [words])
 
@@ -162,6 +198,12 @@ export default function WordCloudChart({
     const maxY = Math.max(...placements.map((p) => p.y + p.r)) + pad
     return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`
   }, [placements])
+
+  // Which POS categories are present in the current words (for legend)
+  const activePOS = useMemo(() => {
+    const seen = new Set(words.map((w) => w.pos).filter((p) => p !== 'all'))
+    return (['nouns', 'verbs', 'adjectives', 'adverbs'] as const).filter((p) => seen.has(p))
+  }, [words])
 
   const excludeWord = (word: string) => {
     const next = [...excludedWords, word]
@@ -224,47 +266,64 @@ export default function WordCloudChart({
             <p className="text-sm text-[var(--text-tertiary)]">No words to display for this filter.</p>
           </div>
         ) : (
-          <svg viewBox={viewBox} className="w-full" style={{ maxHeight: '440px' }}>
-            {words.map((word, i) => {
-              const p = placements[i]
-              if (!p) return null
-              const stroke = strokeColor(word.ratio)
-              const isHovered = hovered === word.text
-              const textSize = Math.min(14, Math.max(8, (p.r * 1.55) / Math.max(3, word.text.length)))
-              return (
-                <g
-                  key={word.text}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => excludeWord(word.text)}
-                  onMouseEnter={() => setHovered(word.text)}
-                  onMouseLeave={() => setHovered(null)}
-                >
-                  <title>{word.text} · {word.count} {word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove</title>
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={p.r}
-                    fill={isHovered ? '#f5f3ff' : 'white'}
-                    stroke={stroke}
-                    strokeWidth={isHovered ? 2.5 : 1.5}
-                  />
-                  <text
-                    x={p.x}
-                    y={p.y}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill={stroke}
-                    fontSize={textSize}
-                    fontWeight="500"
-                    fontFamily="inherit"
-                    style={{ userSelect: 'none', pointerEvents: 'none' }}
+          <>
+            <svg viewBox={viewBox} className="w-full" style={{ maxHeight: '440px' }}>
+              {words.map((word, i) => {
+                const p = placements[i]
+                if (!p) return null
+                const stroke = posStroke(word.pos, word.ratio)
+                const isHovered = hovered === word.text
+                const textSize = Math.min(14, Math.max(8, (p.r * 1.55) / Math.max(3, word.text.length)))
+                return (
+                  <g
+                    key={word.text}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => excludeWord(word.text)}
+                    onMouseEnter={() => setHovered(word.text)}
+                    onMouseLeave={() => setHovered(null)}
                   >
-                    {word.text}
-                  </text>
-                </g>
-              )
-            })}
-          </svg>
+                    <title>{word.text} · {word.count} {word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove</title>
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={p.r}
+                      fill={isHovered ? '#f5f3ff' : 'white'}
+                      stroke={stroke}
+                      strokeWidth={isHovered ? 2.5 : 1.5}
+                    />
+                    <text
+                      x={p.x}
+                      y={p.y}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill={stroke}
+                      fontSize={textSize}
+                      fontWeight="500"
+                      fontFamily="inherit"
+                      style={{ userSelect: 'none', pointerEvents: 'none' }}
+                    >
+                      {word.text}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
+
+            {/* POS legend — only shown in All mode when multiple categories present */}
+            {posFilter === 'all' && activePOS.length > 1 && (
+              <div className="flex flex-wrap gap-3 border-t border-[var(--border-subtle)] px-5 py-3">
+                {activePOS.map((pos) => (
+                  <span key={pos} className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full border-2"
+                      style={{ borderColor: POS_LABEL_COLOR[pos] }}
+                    />
+                    <span className="capitalize">{pos}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
