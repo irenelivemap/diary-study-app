@@ -29,15 +29,15 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
   const [pendingHref, setPendingHref] = useState<string | null>(null)
 
   return (
-    <div className="bg-white border-b border-[var(--border)]">
+    <div className="border-b border-[var(--border)] bg-[var(--bg-surface)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="pt-5 pb-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 pb-3 pt-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <Link href="/admin" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]">
+            <Link href="/admin" className="interactive-press inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--border)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]">
               <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5" /></svg>
               All studies
             </Link>
-            <h1 className="text-2xl font-bold leading-tight text-slate-950 mt-2 truncate">{studyName}</h1>
+            <h1 className="mt-2 truncate text-2xl font-bold leading-tight text-slate-950">{studyName}</h1>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {status !== 'ARCHIVED' && (
@@ -66,15 +66,15 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
               prefetch
               onClick={() => setPendingHref(tab.href(studyId))}
               aria-current={active === tab.id ? 'page' : undefined}
-              className={`relative px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`relative -mb-px min-h-11 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
                 active === tab.id || (pendingHref === tab.href(studyId) && pathname !== pendingHref)
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                  ? 'border-[var(--accent)] text-[var(--accent)]'
+                  : 'border-transparent text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text)]'
               }`}
             >
               {tab.label}
               {pendingHref === tab.href(studyId) && pathname !== pendingHref && (
-                <span className="absolute bottom-0 left-4 right-4 h-0.5 animate-pulse rounded-full bg-indigo-300" />
+                <span className="absolute bottom-0 left-4 right-4 h-0.5 animate-pulse rounded-full bg-[var(--accent-muted)]" />
               )}
             </Link>
           ))}
