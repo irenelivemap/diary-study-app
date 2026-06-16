@@ -201,7 +201,7 @@ function SegmentedControl<T extends string>({
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+          className={`whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors ${
             value === opt.value
               ? 'bg-[var(--accent)] text-[var(--text-on-accent)]'
               : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
@@ -605,20 +605,24 @@ function ListView({
   return (
     <div className="space-y-3">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          options={filterOptions}
-          value={tagFilter}
-          onChange={(v) => { setTagFilter(v); setVisibleCount(15) }}
-        />
-        {untaggedCount > 0 && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-800">
-            {untaggedCount} untagged
+      <div className="space-y-2">
+        <div className="overflow-x-auto pb-1">
+          <SegmentedControl
+            options={filterOptions}
+            value={tagFilter}
+            onChange={(v) => { setTagFilter(v); setVisibleCount(15) }}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {untaggedCount > 0 && (
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-800">
+              {untaggedCount} untagged
+            </span>
+          )}
+          <span className="text-sm text-[var(--text-tertiary)]">
+            {filtered.length} {filtered.length === 1 ? 'answer' : 'answers'}
           </span>
-        )}
-        <span className="text-sm text-[var(--text-tertiary)]">
-          {filtered.length} {filtered.length === 1 ? 'answer' : 'answers'}
-        </span>
+        </div>
       </div>
 
       {/* Answer list */}
@@ -808,13 +812,14 @@ function ManageTab({
           value={newColor}
           onChange={(e) => setNewColor(e.target.value)}
           aria-label="Tag color"
-          className="h-9 w-10 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
+          className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
         />
         <Button
           tone="primary"
           size="sm"
           onClick={() => void handleCreate()}
           disabled={!newLabel.trim() || savingTagId === 'new'}
+          className="shrink-0 whitespace-nowrap"
         >
           {savingTagId === 'new' ? 'Adding…' : 'Add tag'}
         </Button>
@@ -826,6 +831,40 @@ function ManageTab({
           <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No tags yet. Create one above.</p>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
+            {/* Select-all header */}
+            <div className="flex items-center gap-3 px-4 py-2.5">
+              <input
+                type="checkbox"
+                checked={selectedIds.size === tagDefinitions.length && tagDefinitions.length > 0}
+                ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < tagDefinitions.length }}
+                onChange={() => {
+                  if (selectedIds.size === tagDefinitions.length) {
+                    setSelectedIds(new Set())
+                  } else {
+                    setSelectedIds(new Set(tagDefinitions.map((t) => t.id)))
+                  }
+                }}
+                aria-label="Select all tags"
+                className="h-4 w-4 rounded accent-[var(--accent)]"
+              />
+              <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${tagDefinitions.length} tags`}
+              </span>
+              {selectedIds.size > 0 && (
+                <Button
+                  tone="danger"
+                  size="sm"
+                  onClick={() => {
+                    const ids = [...selectedIds]
+                    ids.forEach((id) => void onDelete(id))
+                    setSelectedIds(new Set())
+                    setConfirmDeleteId(null)
+                  }}
+                >
+                  Delete {selectedIds.size} {selectedIds.size === 1 ? 'tag' : 'tags'}
+                </Button>
+              )}
+            </div>
             {tagDefinitions.map((tag) => {
               const count = tagCounts.get(tag.id) ?? 0
               const isRenaming = renamingId === tag.id
@@ -841,7 +880,7 @@ function ManageTab({
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelect(tag.id)}
-                    aria-label={`Select ${tag.label} for merge`}
+                    aria-label={`Select ${tag.label}`}
                     className="h-4 w-4 rounded accent-[var(--accent)]"
                   />
                   <input
