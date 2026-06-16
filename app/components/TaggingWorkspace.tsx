@@ -403,42 +403,70 @@ function CodeTab({
               <button
                 type="button"
                 onClick={() => setSuggestMode((m) => !m)}
-                title="Highlight tags that might match this answer"
+                title="Find tags that may match this answer"
                 className={`h-9 shrink-0 rounded-lg border px-3 text-sm font-semibold transition-colors ${
                   suggestMode
                     ? 'border-[var(--accent)] bg-[var(--accent-subtle)] text-[var(--accent)]'
                     : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
                 }`}
               >
-                Suggest
+                {suggestMode && suggestions.size > 0 ? `Suggest (${suggestions.size})` : 'Suggest'}
               </button>
             </div>
 
-            {/* Available tags — quick apply */}
+            {/* Suggest panel */}
+            {suggestMode && (
+              <div className="rounded-lg border border-[var(--accent-muted)] bg-[var(--accent-subtle)] p-3">
+                <p className="mb-2 text-xs font-semibold text-[var(--accent)]">Suggested tags</p>
+                {suggestions.size === 0 ? (
+                  <p className="text-xs text-[var(--text-tertiary)]">No tags matched the text of this answer. Try typing a tag name above.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {tagDefinitions.filter((t) => suggestions.has(t.id)).map((tag) => {
+                      const isApplied = currentTagIds.includes(tag.id)
+                      return isApplied ? (
+                        <span
+                          key={tag.id}
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold opacity-50"
+                          style={{ backgroundColor: tag.color, color: readableTextColor(tag.color) }}
+                        >
+                          {tag.label}
+                          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="currentColor" aria-hidden><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </span>
+                      ) : (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => onApply(current.answerId, tag.id)}
+                          className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--accent)] bg-white px-3 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--text-on-accent)]"
+                        >
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                          + {tag.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Available tags — quick apply (non-suggested) */}
             {(() => {
-              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id))
+              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id) && !suggestions.has(t.id))
               if (!available.length) return null
               return (
                 <div className="flex flex-wrap gap-2">
-                  {available.map((tag) => {
-                    const isSuggested = suggestions.has(tag.id)
-                    return (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => onApply(current.answerId, tag.id)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                          isSuggested
-                            ? 'border-[var(--accent)] bg-[var(--accent-subtle)] text-[var(--text-link)]'
-                            : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]'
-                        }`}
-                      >
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                        {tag.label}
-                        {isSuggested && <span className="text-[10px] opacity-60">✦</span>}
-                      </button>
-                    )
-                  })}
+                  {available.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => onApply(current.answerId, tag.id)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]"
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                      {tag.label}
+                    </button>
+                  ))}
                 </div>
               )
             })()}
