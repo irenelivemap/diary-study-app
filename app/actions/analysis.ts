@@ -186,17 +186,18 @@ export async function suggestTagsWithAI(
 ) {
   await requireAdmin()
 
-  const client = new Anthropic()
+  try {
+    const client = new Anthropic()
 
-  const existingTagList = existingTags.length
-    ? existingTags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')
-    : '(none yet)'
+    const existingTagList = existingTags.length
+      ? existingTags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')
+      : '(none yet)'
 
-  const exploreInstruction = mode === 'explore'
-    ? 'You may also suggest up to 3 brand-new tag names that do not exist yet if the answer contains themes not covered by existing tags. Return these under "new_tags" as plain label strings.'
-    : 'Only suggest from the existing tags list. Do not invent new tag names.'
+    const exploreInstruction = mode === 'explore'
+      ? 'You may also suggest up to 3 brand-new tag names that do not exist yet if the answer contains themes not covered by existing tags. Return these under "new_tags" as plain label strings.'
+      : 'Only suggest from the existing tags list. Do not invent new tag names.'
 
-  const prompt = `You are a qualitative research assistant helping a researcher code diary study responses.
+    const prompt = `You are a qualitative research assistant helping a researcher code diary study responses.
 
 Existing tags:
 ${existingTagList}
@@ -208,34 +209,33 @@ ${answerText}
 
 Task: Identify which existing tags are relevant to this answer. ${exploreInstruction}
 
-Respond with JSON only, no explanation:
-{
-  "apply": ["id-of-tag", "id-of-tag"],
-  "new_tags": ["New tag label", "Another label"]
-}
+Respond with JSON only, no markdown, no explanation:
+{"apply":["id-of-tag"],"new_tags":["New tag label"]}
 
 Rules:
 - "apply" must only contain IDs from the existing tags list above
 - "new_tags" should be short (1–4 words), specific, and in the same language as the answer
-- If nothing applies, return empty arrays
-- Return valid JSON only`
+- If nothing applies, return {"apply":[],"new_tags":[]}
+- Return raw JSON only — no code fences, no extra text`
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 256,
-    messages: [{ role: 'user', content: prompt }],
-  })
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      messages: [{ role: 'user', content: prompt }],
+    })
 
-  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+    const raw = (message.content[0].type === 'text' ? message.content[0].text : '').trim()
+    // Strip markdown code fences if the model wrapped the JSON anyway
+    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
 
-  try {
-    const parsed = JSON.parse(raw) as { apply?: string[]; new_tags?: string[] }
+    const parsed = JSON.parse(json) as { apply?: string[]; new_tags?: string[] }
     const validIds = new Set(existingTags.map((t) => t.id))
     return {
       apply: (parsed.apply ?? []).filter((id) => validIds.has(id)),
       new_tags: mode === 'explore' ? (parsed.new_tags ?? []).map((l) => String(l).trim()).filter(Boolean).slice(0, 3) : [],
     }
-  } catch {
-    return { apply: [], new_tags: [] }
+  } catch (err) {
+    console.error('[suggestTagsWithAI]', err)
+    return { apply: [], new_tags: [], error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
