@@ -182,7 +182,7 @@ function CodeTab({
   const [cardIndex, setCardIndex] = useState(0)
   const [aiMode, setAiMode] = useState<'apply' | 'explore'>('apply')
   const [suggesting, setSuggesting] = useState(false)
-  const [aiResult, setAiResult] = useState<{ apply: string[]; new_tags: string[] } | null>(null)
+  const [aiResult, setAiResult] = useState<{ apply: string[]; new_tags: string[]; error?: string } | null>(null)
   const lastSuggestedAnswerId = useRef<string | null>(null)
 
   const participants = useMemo(() => {
@@ -239,12 +239,16 @@ function CodeTab({
     setSuggesting(true)
     setAiResult(null)
     lastSuggestedAnswerId.current = current.answerId
-    const result = await suggestTagsWithAI(
-      current.answer,
-      tagDefinitions.map((t) => ({ id: t.id, label: t.label })),
-      aiMode,
-    )
-    setAiResult(result)
+    try {
+      const result = await suggestTagsWithAI(
+        current.answer,
+        tagDefinitions.map((t) => ({ id: t.id, label: t.label })),
+        aiMode,
+      )
+      setAiResult(result)
+    } catch (e) {
+      setAiResult({ apply: [], new_tags: [], error: e instanceof Error ? e.message : 'Unknown error' })
+    }
     setSuggesting(false)
   }
 
@@ -440,7 +444,9 @@ function CodeTab({
                   AI suggestions · {aiMode === 'explore' ? 'Explore mode' : 'Apply mode'}
                 </p>
 
-                {aiResult.apply.length === 0 && aiResult.new_tags.length === 0 ? (
+                {aiResult.error ? (
+                  <p className="text-xs text-red-600">Error: {aiResult.error}</p>
+                ) : aiResult.apply.length === 0 && aiResult.new_tags.length === 0 ? (
                   <p className="text-xs text-[var(--text-tertiary)]">No relevant tags found for this answer.</p>
                 ) : null}
 

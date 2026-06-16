@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<StudyStatusValue, string> = {
   CLOSED: 'Closed',
 }
 const STATUS_HELP: Record<StudyStatusValue, string> = {
-  PREPARATION: 'Design and pilot testing. Entries are test data until launch.',
+  PREPARATION: 'Design and pilot testing. Entries stay separate from fieldwork data until launch.',
   ACTIVE: 'Real fieldwork is running. Participants can join and submit entries.',
   CLOSED: 'Fieldwork is stopped. Data, analysis and exports stay available.',
 }
@@ -103,8 +103,8 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
           disabled={pending}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`inline-flex h-10 min-w-[138px] items-center justify-between gap-2 rounded-xl border bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed ${
-            open ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200'
+          className={`interactive-press inline-flex h-10 min-w-[138px] items-center justify-between gap-2 rounded-xl border bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text)] shadow-[var(--shadow-sm)] disabled:cursor-not-allowed ${
+            open ? 'border-[var(--accent)] ring-2 ring-[var(--accent-ring)]' : 'border-[var(--border-strong)] hover:bg-[var(--bg-sunken)]'
           }`}
         >
           <span className="inline-flex min-w-0 items-center gap-2">
@@ -117,7 +117,7 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
         </button>
 
         {open && (
-          <div role="listbox" className="absolute right-0 top-full z-40 mt-1 min-w-52 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <div role="listbox" className="control-menu absolute right-0 top-full z-40 mt-1 min-w-56 p-1">
             {STATUSES.map((option) => (
               <button
                 key={option}
@@ -127,15 +127,15 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
                 onClick={() => handleChange(option)}
                 className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                   option === status
-                    ? 'bg-indigo-50 font-semibold text-indigo-700'
-                    : 'text-slate-700 hover:bg-slate-50'
+                    ? 'bg-[var(--accent-subtle)] font-semibold text-[var(--accent-active)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'
                 }`}
               >
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ring-4 ${STATUS_DOT_CLASSES[option]}`} />
                   <span className="truncate">{STATUS_LABELS[option]}</span>
                 </span>
-                {option === status && <span className="text-indigo-600">✓</span>}
+                {option === status && <span className="text-[var(--accent)]">✓</span>}
               </button>
             ))}
           </div>
@@ -144,7 +144,7 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
 
       {confirmLaunchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+          <div className="surface-card w-full max-w-lg p-5 shadow-[var(--shadow-xl)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-950">Launch this study?</h3>
@@ -155,7 +155,7 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
               <button
                 type="button"
                 onClick={() => setConfirmLaunchOpen(false)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                className="interactive-press inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close launch dialog"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -169,7 +169,7 @@ export default function StudyStatusToggle({ studyId, initialStatus }: Props) {
                 'Automatic reminders can run only while the study is active.',
                 'Participants will not see any pilot or preparation language.',
               ].map((item) => (
-                <div key={item} className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div key={item} className="flex gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] p-3">
                   <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">✓</span>
                   <p className="text-sm leading-snug text-slate-700">{item}</p>
                 </div>

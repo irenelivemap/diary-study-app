@@ -53,7 +53,7 @@ export default async function AdminPage() {
         </div>
 
         {currentStudies.length === 0 && pastStudies.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-16 text-center">
+          <div className="surface-card border-dashed p-16 text-center">
             <h3 className="font-semibold text-slate-800 mb-1">No studies yet</h3>
             <p className="text-slate-500 text-sm mb-4">Create your first study to get started.</p>
             <ButtonLink href="/admin/studies/new">
@@ -64,11 +64,11 @@ export default async function AdminPage() {
           <div className="space-y-8">
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Current studies</h2>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-400">{currentStudies.length}</span>
+                <h2 className="text-sm font-bold text-slate-950">Current studies</h2>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-semibold text-[var(--text-tertiary)] tabular">{currentStudies.length}</span>
               </div>
               {currentStudies.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                <div className="surface-card border-dashed p-8 text-center">
                   <p className="text-sm font-medium text-slate-700">No current studies.</p>
                   <p className="mt-1 text-sm text-slate-500">Restore a past study or create a new one.</p>
                 </div>
@@ -84,8 +84,8 @@ export default async function AdminPage() {
             {pastStudies.length > 0 && (
               <section>
                 <div className="mb-3 flex items-center gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Past studies</h2>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-400">{pastStudies.length}</span>
+                  <h2 className="text-sm font-bold text-slate-950">Past studies</h2>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-semibold text-[var(--text-tertiary)] tabular">{pastStudies.length}</span>
                 </div>
                 <div className="space-y-3">
                   {pastStudies.map((study) => (

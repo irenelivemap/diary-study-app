@@ -187,7 +187,9 @@ export async function suggestTagsWithAI(
   await requireAdmin()
 
   try {
-    const client = new Anthropic()
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) return { apply: [], new_tags: [], error: 'ANTHROPIC_API_KEY is not set in environment variables.' }
+    const client = new Anthropic({ apiKey })
 
     const existingTagList = existingTags.length
       ? existingTags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')

@@ -5,11 +5,11 @@ type ButtonTone = 'primary' | 'secondary' | 'ghost' | 'danger' | 'trash'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 const BUTTON_TONES: Record<ButtonTone, string> = {
-  primary: 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500 hover:border-indigo-500 shadow-sm active:bg-indigo-700',
-  secondary: 'bg-white text-slate-700 border-[#DDD9D2] hover:bg-[#F4F2EF] hover:border-slate-400 active:bg-slate-100',
-  ghost: 'bg-transparent text-slate-600 border-transparent hover:bg-[#EAE8E3] hover:text-slate-900 active:bg-slate-200',
-  danger: 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100 hover:border-red-200',
-  trash: 'bg-white text-slate-600 border-[#DDD9D2] hover:bg-red-50 hover:text-red-700 hover:border-red-200',
+  primary: 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)] hover:bg-[var(--accent-hover)] hover:border-[var(--accent-hover)] shadow-[var(--shadow-sm)] active:bg-[var(--accent-active)]',
+  secondary: 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-strong)] hover:bg-[var(--bg-sunken)] hover:border-[var(--text-tertiary)] active:bg-slate-100',
+  ghost: 'bg-transparent text-[var(--text-secondary)] border-transparent hover:bg-slate-100 hover:text-[var(--text)] active:bg-slate-100',
+  danger: 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)] hover:bg-red-100 hover:border-red-200',
+  trash: 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-strong)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-text)] hover:border-[var(--danger-border)]',
 }
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
@@ -28,7 +28,7 @@ export function Button({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
+      className={`interactive-press inline-flex items-center justify-center gap-2 border font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
     >
       {children}
     </button>
@@ -51,7 +51,7 @@ export function ButtonLink({
   return (
     <Link
       href={href}
-      className={`inline-flex items-center justify-center gap-2 border font-semibold transition-all duration-150 ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
+      className={`interactive-press inline-flex items-center justify-center gap-2 border font-semibold ${BUTTON_TONES[tone]} ${BUTTON_SIZES[size]} ${className}`}
     >
       {children}
     </Link>
@@ -71,7 +71,7 @@ export function IconButton({
       type={props.type ?? 'button'}
       aria-label={label}
       title={label}
-      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${BUTTON_TONES[tone]} ${className}`}
+      className={`interactive-press inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${BUTTON_TONES[tone]} ${className}`}
     >
       {children}
     </button>
@@ -111,10 +111,10 @@ type BadgeTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 
 const BADGE_TONES: Record<BadgeTone, string> = {
   neutral: 'bg-slate-100 text-slate-700',
-  info: 'bg-indigo-50 text-indigo-700',
-  success: 'bg-emerald-50 text-emerald-700',
-  warning: 'bg-amber-50 text-amber-800',
-  danger: 'bg-red-50 text-red-700',
+  info: 'bg-[var(--info-bg)] text-[var(--info-text)]',
+  success: 'bg-[var(--success-bg)] text-[var(--success-text)]',
+  warning: 'bg-[var(--warning-bg)] text-[var(--warning-text)]',
+  danger: 'bg-[var(--danger-bg)] text-[var(--danger-text)]',
 }
 
 export function Badge({ children, tone = 'neutral', className = '' }: {
@@ -142,11 +142,11 @@ export function SwitchButton({
       aria-pressed={checked}
       className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors ${
         checked
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+          ? 'border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-text)] hover:bg-emerald-100'
+          : 'border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
       } ${className}`}
     >
-      <span className={`h-2.5 w-2.5 rounded-full ${checked ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+      <span className={`h-2.5 w-2.5 rounded-full ${checked ? 'bg-[var(--success-dot)]' : 'bg-slate-400'}`} />
       {children}
     </button>
   )
@@ -154,7 +154,7 @@ export function SwitchButton({
 
 export function SwitchVisual({ checked }: { checked: boolean }) {
   return (
-    <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+    <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-[var(--accent)]' : 'bg-slate-300'}`}>
       <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </span>
   )
@@ -164,7 +164,7 @@ export function TextInput({ className = '', ...props }: InputHTMLAttributes<HTML
   return (
     <input
       {...props}
-      className={`w-full rounded-xl border border-[#DDD9D2] bg-[#F4F2EF] px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-all duration-150 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 ${className}`}
+      className={`w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-3 py-2.5 text-sm text-[var(--text)] placeholder-slate-400 transition-all duration-150 focus:border-[var(--border-focus)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-ring)] ${className}`}
     />
   )
 }
@@ -265,7 +265,7 @@ export function Card({ children, className = '', padded = true }: {
   padded?: boolean
 }) {
   return (
-    <div className={`bg-white rounded-2xl border border-[#E6E3DD] shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ${padded ? 'p-5' : ''} ${className}`}>
+    <div className={`surface-card ${padded ? 'p-5' : ''} ${className}`}>
       {children}
     </div>
   )
@@ -277,7 +277,7 @@ export function CTA({ children, href, className = '' }: {
   href?: string
   className?: string
 }) {
-  const base = `flex items-center w-full text-sm font-semibold text-[var(--color-accent)] pt-3 mt-3 border-t border-slate-100 group ${className}`
+  const base = `flex items-center w-full text-sm font-semibold text-[var(--accent)] pt-3 mt-3 border-t border-[var(--border-subtle)] group ${className}`
   if (href) {
     return (
       <a href={href} className={base}>

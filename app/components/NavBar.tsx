@@ -15,7 +15,7 @@ export default function NavBar({ name, role, actions, homeHref, profileHref, can
   const resolvedHomeHref = homeHref ?? (role === 'ADMIN' ? '/admin' : '/dashboard')
 
   return (
-    <header className="bg-white/90 backdrop-blur-md border-b border-[#E6E3DD] sticky top-0 z-10">
+    <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg-surface)_92%,transparent)] backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
         <Link href={resolvedHomeHref}
           className="inline-flex h-10 items-center gap-2 shrink-0">
@@ -23,20 +23,20 @@ export default function NavBar({ name, role, actions, homeHref, profileHref, can
           <span className="font-bold text-slate-950 text-base tracking-tight">diARI</span>
         </Link>
 
-        <div className="flex items-center gap-2 flex-1 justify-end overflow-x-auto">
+        <div className="scrollbar-hidden flex flex-1 items-center justify-end gap-2 overflow-x-auto">
           {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
           {canSwitchModes && (
             <Link
               href={role === 'ADMIN' ? '/dashboard' : '/admin'}
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 whitespace-nowrap"
+              className="interactive-press inline-flex min-h-[44px] items-center rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)] whitespace-nowrap"
             >
               {role === 'ADMIN' ? 'Participant view' : 'Researcher view'}
             </Link>
           )}
-          <div className="flex items-center gap-2 pl-3 border-l border-slate-100 shrink-0">
+          <div className="flex items-center gap-2 pl-3 border-l border-[var(--border-subtle)] shrink-0">
             <ProfileNavLink name={name} role={role} profileHref={profileHref} />
             <form action={logout}>
-              <button className="inline-flex min-h-[44px] items-center rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 whitespace-nowrap">
+              <button className="interactive-press inline-flex min-h-[44px] items-center rounded-xl px-3 text-sm font-semibold text-[var(--text-secondary)] hover:bg-slate-100 hover:text-slate-950 whitespace-nowrap">
                 Sign out
               </button>
             </form>

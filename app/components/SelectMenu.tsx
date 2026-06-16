@@ -83,8 +83,8 @@ export default function SelectMenu({
             chooseByIndex(options.length - 1)
           }
         }}
-        className={`flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-slate-50 px-3 text-left text-sm text-slate-900 transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 ${
-          open ? 'border-indigo-500 bg-white' : 'border-slate-300'
+        className={`interactive-press flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-[var(--bg-sunken)] px-3 text-left text-sm text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-60 ${
+          open ? 'border-[var(--accent)] bg-white ring-2 ring-[var(--accent-ring)]' : 'border-[var(--border-strong)] hover:bg-white'
         } ${buttonClassName}`}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -96,7 +96,7 @@ export default function SelectMenu({
         </svg>
       </button>
       {open && (
-        <div role="listbox" className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+        <div role="listbox" className="control-menu absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto p-1">
           {options.map((option) => (
             <button
               key={option.value}
@@ -106,12 +106,12 @@ export default function SelectMenu({
               onClick={() => choose(option.value)}
               className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                 option.value === currentValue
-                  ? 'bg-indigo-50 font-semibold text-indigo-700'
-                  : 'text-slate-700 hover:bg-slate-50'
+                  ? 'bg-[var(--accent-subtle)] font-semibold text-[var(--accent-active)]'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'
               }`}
             >
               <span className="truncate">{option.label}</span>
-              {option.value === currentValue && <span className="text-indigo-600">✓</span>}
+              {option.value === currentValue && <span className="text-[var(--accent)]">✓</span>}
             </button>
           ))}
         </div>
