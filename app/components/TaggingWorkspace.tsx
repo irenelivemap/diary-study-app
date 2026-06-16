@@ -6,6 +6,7 @@ import {
   createQuestionTag,
   deleteQuestionTag,
   mergeQuestionTags,
+  suggestTagsWithAI,
   updateAnswerTags,
   updateQuestionTag,
 } from '@/app/actions/analysis'
@@ -48,15 +49,6 @@ function formatDate(iso: string) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function suggestMatchingTags(answerText: string, tags: TagDefinition[]): Set<string> {
-  const text = answerText.toLowerCase()
-  const matched = new Set<string>()
-  for (const tag of tags) {
-    const words = tag.label.toLowerCase().split(/\W+/).filter((w) => w.length >= 3)
-    if (words.some((word) => text.includes(word))) matched.add(tag.id)
-  }
-  return matched
-}
 
 // ─── TagAutocomplete ──────────────────────────────────────────────────────────
 
@@ -188,7 +180,10 @@ function CodeTab({
   const [filterEmail, setFilterEmail] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('date')
   const [cardIndex, setCardIndex] = useState(0)
-  const [suggestMode, setSuggestMode] = useState(false)
+  const [aiMode, setAiMode] = useState<'apply' | 'explore'>('apply')
+  const [suggesting, setSuggesting] = useState(false)
+  const [aiResult, setAiResult] = useState<{ apply: string[]; new_tags: string[] } | null>(null)
+  const lastSuggestedAnswerId = useRef<string | null>(null)
 
   const participants = useMemo(() => {
     const seen = new Map<string, string>()
@@ -239,15 +234,24 @@ function CodeTab({
   const currentTagIds = current ? (tagIdsByAnswer[current.answerId] ?? []) : []
   const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
 
-  const suggestions = useMemo(() => {
-    if (!current || !suggestMode) return new Set<string>()
-    return suggestMatchingTags(current.answer, tagDefinitions)
-  }, [current, suggestMode, tagDefinitions])
+  async function runSuggest() {
+    if (!current) return
+    setSuggesting(true)
+    setAiResult(null)
+    lastSuggestedAnswerId.current = current.answerId
+    const result = await suggestTagsWithAI(
+      current.answer,
+      tagDefinitions.map((t) => ({ id: t.id, label: t.label })),
+      aiMode,
+    )
+    setAiResult(result)
+    setSuggesting(false)
+  }
 
   function changeFilter(type: FilterType) {
     setFilterType(type)
     setCardIndex(0)
-    setSuggestMode(false)
+    setAiResult(null)
   }
 
   return (
@@ -391,7 +395,7 @@ function CodeTab({
               </div>
             )}
 
-            {/* Autocomplete + Suggest toggle */}
+            {/* Autocomplete + AI suggest */}
             <div className="flex gap-2">
               <TagAutocomplete
                 tags={tagDefinitions}
@@ -400,44 +404,67 @@ function CodeTab({
                 onCreate={(label) => onCreateAndApply(current.answerId, label)}
                 disabled={savingAnswerId === current.answerId || savingTagId === 'new'}
               />
+              {/* Mode toggle */}
+              <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => { setAiMode('apply'); setAiResult(null) }}
+                  title="Suggest from existing tags only"
+                  className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${aiMode === 'apply' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAiMode('explore'); setAiResult(null) }}
+                  title="Suggest new tags not yet in your list"
+                  className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${aiMode === 'explore' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                >
+                  Explore
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => setSuggestMode((m) => !m)}
-                title="Find tags that may match this answer"
-                className={`h-9 shrink-0 rounded-lg border px-3 text-sm font-semibold transition-colors ${
-                  suggestMode
-                    ? 'border-[var(--accent)] bg-[var(--accent-subtle)] text-[var(--accent)]'
-                    : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
-                }`}
+                onClick={() => void runSuggest()}
+                disabled={suggesting}
+                className="h-9 shrink-0 rounded-lg border border-[var(--border)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] disabled:opacity-50"
               >
-                {suggestMode && suggestions.size > 0 ? `Suggest (${suggestions.size})` : 'Suggest'}
+                {suggesting ? 'Thinking…' : 'Suggest'}
               </button>
             </div>
 
-            {/* Suggest panel */}
-            {suggestMode && (
-              <div className="rounded-lg border border-[var(--accent-muted)] bg-[var(--accent-subtle)] p-3">
-                <p className="mb-2 text-xs font-semibold text-[var(--accent)]">Suggested tags</p>
-                {suggestions.size === 0 ? (
-                  <p className="text-xs text-[var(--text-tertiary)]">No tags matched the text of this answer. Try typing a tag name above.</p>
-                ) : (
+            {/* AI result panel */}
+            {aiResult && lastSuggestedAnswerId.current === current.answerId && (
+              <div className="rounded-lg border border-[var(--accent-muted)] bg-[var(--accent-subtle)] p-3 space-y-2">
+                <p className="text-xs font-semibold text-[var(--accent)]">
+                  AI suggestions · {aiMode === 'explore' ? 'Explore mode' : 'Apply mode'}
+                </p>
+
+                {aiResult.apply.length === 0 && aiResult.new_tags.length === 0 ? (
+                  <p className="text-xs text-[var(--text-tertiary)]">No relevant tags found for this answer.</p>
+                ) : null}
+
+                {/* Existing tags to apply */}
+                {aiResult.apply.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {tagDefinitions.filter((t) => suggestions.has(t.id)).map((tag) => {
-                      const isApplied = currentTagIds.includes(tag.id)
+                    {aiResult.apply.map((tagId) => {
+                      const tag = tagById.get(tagId)
+                      if (!tag) return null
+                      const isApplied = currentTagIds.includes(tagId)
                       return isApplied ? (
                         <span
-                          key={tag.id}
+                          key={tagId}
                           className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold opacity-50"
                           style={{ backgroundColor: tag.color, color: readableTextColor(tag.color) }}
                         >
                           {tag.label}
-                          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="currentColor" aria-hidden><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2 6l3 3 5-5" /></svg>
                         </span>
                       ) : (
                         <button
-                          key={tag.id}
+                          key={tagId}
                           type="button"
-                          onClick={() => onApply(current.answerId, tag.id)}
+                          onClick={() => onApply(current.answerId, tagId)}
                           className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--accent)] bg-white px-3 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--text-on-accent)]"
                         >
                           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
@@ -447,12 +474,29 @@ function CodeTab({
                     })}
                   </div>
                 )}
+
+                {/* New tag suggestions (explore mode) */}
+                {aiResult.new_tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {aiResult.new_tags.map((label) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => onCreateAndApply(current.answerId, label)}
+                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--accent)] bg-white px-3 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--text-on-accent)]"
+                      >
+                        + {label} <span className="text-[10px] opacity-60">new</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Available tags — quick apply (non-suggested) */}
+            {/* Available tags — quick apply */}
             {(() => {
-              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id) && !suggestions.has(t.id))
+              const suggestedIds = new Set(aiResult?.apply ?? [])
+              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id) && !suggestedIds.has(t.id))
               if (!available.length) return null
               return (
                 <div className="flex flex-wrap gap-2">
