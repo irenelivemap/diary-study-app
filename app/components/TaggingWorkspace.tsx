@@ -10,6 +10,8 @@ import {
   updateAnswerTags,
   updateQuestionTag,
 } from '@/app/actions/analysis'
+import { Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
+import SelectMenu from '@/app/components/SelectMenu'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,35 @@ function formatDate(iso: string) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+// ─── AppliedTagChip ───────────────────────────────────────────────────────────
+// Colored chip (non-interactive) with a separate remove button inside.
+
+function AppliedTagChip({ tag, onRemove, size = 'md' }: {
+  tag: TagDefinition
+  onRemove: () => void
+  size?: 'sm' | 'md'
+}) {
+  const textColor = readableTextColor(tag.color)
+  const sm = size === 'sm'
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-semibold ${sm ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`}
+      style={{ backgroundColor: tag.color, color: textColor }}
+    >
+      {tag.label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${tag.label}`}
+        className="rounded-full p-0.5 opacity-60 transition-opacity hover:opacity-100"
+      >
+        <svg viewBox="0 0 16 16" className={sm ? 'h-2.5 w-2.5' : 'h-3 w-3'} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </button>
+    </span>
+  )
+}
 
 // ─── TagAutocomplete ──────────────────────────────────────────────────────────
 
@@ -119,7 +150,7 @@ function TagAutocomplete({
         onKeyDown={onKeyDown}
         disabled={disabled}
         placeholder="Search tags — Tab or Enter to apply, Enter to create new"
-        className="h-9 w-full rounded-lg border border-[var(--border-strong)] bg-white px-3 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-50"
+        className="h-9 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-3 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] transition-all focus:border-[var(--border-focus)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-ring)] disabled:opacity-50"
       />
       {open && (suggestions.length > 0 || (value.trim() && !exactMatch)) && (
         <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-48 rounded-xl border border-[var(--border)] bg-white shadow-lg overflow-hidden">
@@ -148,6 +179,37 @@ function TagAutocomplete({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── SegmentedControl ─────────────────────────────────────────────────────────
+
+function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+            value === opt.value
+              ? 'bg-[var(--accent)] text-[var(--text-on-accent)]'
+              : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -197,7 +259,6 @@ function CodeTab({
 
   const filtered = useMemo(() => {
     let result = [...answers]
-
     if (filterType === 'untagged') {
       result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
     } else if (filterType === 'tag' && filterTagId) {
@@ -205,21 +266,16 @@ function CodeTab({
     } else if (filterType === 'participant' && filterEmail) {
       result = result.filter((a) => a.participantEmail === filterEmail)
     }
-
-    if (sortBy === 'date') {
-      result.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
-    } else if (sortBy === 'size') {
-      result.sort((a, b) => b.answer.length - a.answer.length)
-    } else if (sortBy === 'participant') {
-      result.sort((a, b) => a.participantName.localeCompare(b.participantName))
-    } else if (sortBy === 'tag') {
+    if (sortBy === 'date') result.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+    else if (sortBy === 'size') result.sort((a, b) => b.answer.length - a.answer.length)
+    else if (sortBy === 'participant') result.sort((a, b) => a.participantName.localeCompare(b.participantName))
+    else if (sortBy === 'tag') {
       result.sort((a, b) => {
         const aTag = (tagIdsByAnswer[a.answerId] ?? []).map((id) => tagById.get(id)?.label ?? '').sort()[0] ?? '￿'
         const bTag = (tagIdsByAnswer[b.answerId] ?? []).map((id) => tagById.get(id)?.label ?? '').sort()[0] ?? '￿'
         return aTag.localeCompare(bTag)
       })
     }
-
     return result
   }, [answers, filterType, filterTagId, filterEmail, sortBy, tagIdsByAnswer, tagById])
 
@@ -230,7 +286,6 @@ function CodeTab({
 
   const safeIndex = Math.min(cardIndex, Math.max(0, filtered.length - 1))
   const current = filtered[safeIndex] ?? null
-
   const currentTagIds = current ? (tagIdsByAnswer[current.answerId] ?? []) : []
   const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
 
@@ -258,71 +313,64 @@ function CodeTab({
     setAiResult(null)
   }
 
+  const tagOptions = tagDefinitions.map((t) => ({ value: t.id, label: t.label }))
+  const participantOptions = participants.map((p) => ({ value: p.email, label: p.name }))
+  const sortOptions: { value: SortBy; label: string }[] = [
+    { value: 'date', label: 'Date' },
+    { value: 'size', label: 'Length' },
+    { value: 'tag', label: 'Tag' },
+    { value: 'participant', label: 'Participant' },
+  ]
+
   return (
     <div className="space-y-4">
       {/* Filter / sort bar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-          {([
-            { value: 'all', label: 'All' },
-            { value: 'untagged', label: 'Untagged' },
-            { value: 'tag', label: 'By tag' },
-            { value: 'participant', label: 'By participant' },
-          ] as { value: FilterType; label: string }[]).map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => changeFilter(value)}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                filterType === value
-                  ? 'bg-[var(--accent)] text-[var(--text-on-accent)]'
-                  : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          options={[
+            { value: 'all' as FilterType, label: 'All' },
+            { value: 'untagged' as FilterType, label: 'Untagged' },
+            { value: 'tag' as FilterType, label: 'By tag' },
+            { value: 'participant' as FilterType, label: 'By participant' },
+          ]}
+          value={filterType}
+          onChange={changeFilter}
+        />
 
         {filterType === 'tag' && (
-          <select
-            value={filterTagId}
-            onChange={(e) => { setFilterTagId(e.target.value); setCardIndex(0) }}
-            className="h-8 rounded-lg border border-[var(--border)] bg-white px-2 text-sm text-[var(--text)] focus:outline-none"
-          >
-            <option value="">Pick a tag…</option>
-            {tagDefinitions.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
+          <SelectMenu
+            value={filterTagId || (tagOptions[0]?.value ?? '')}
+            options={[{ value: '', label: 'Pick a tag…' }, ...tagOptions]}
+            onChange={(v) => { setFilterTagId(v); setCardIndex(0) }}
+            buttonClassName="h-9 rounded-lg text-sm"
+            className="w-44"
+          />
         )}
         {filterType === 'participant' && (
-          <select
-            value={filterEmail}
-            onChange={(e) => { setFilterEmail(e.target.value); setCardIndex(0) }}
-            className="h-8 rounded-lg border border-[var(--border)] bg-white px-2 text-sm text-[var(--text)] focus:outline-none"
-          >
-            <option value="">Pick a participant…</option>
-            {participants.map((p) => <option key={p.email} value={p.email}>{p.name}</option>)}
-          </select>
+          <SelectMenu
+            value={filterEmail || (participantOptions[0]?.value ?? '')}
+            options={[{ value: '', label: 'Pick a participant…' }, ...participantOptions]}
+            onChange={(v) => { setFilterEmail(v); setCardIndex(0) }}
+            buttonClassName="h-9 rounded-lg text-sm"
+            className="w-52"
+          />
         )}
 
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--text-tertiary)]">Sort</span>
-          <select
+          <span className="text-sm text-[var(--text-tertiary)]">Sort</span>
+          <SelectMenu
             value={sortBy}
-            onChange={(e) => { setSortBy(e.target.value as SortBy); setCardIndex(0) }}
-            className="h-8 rounded-lg border border-[var(--border)] bg-white px-2 text-sm text-[var(--text)] focus:outline-none"
-          >
-            <option value="date">Date</option>
-            <option value="size">Length</option>
-            <option value="tag">Tag</option>
-            <option value="participant">Participant</option>
-          </select>
+            options={sortOptions}
+            onChange={(v) => { setSortBy(v as SortBy); setCardIndex(0) }}
+            buttonClassName="h-9 rounded-lg text-sm"
+            className="w-36"
+          />
         </div>
 
         {totalUntagged > 0 && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-800">
             {totalUntagged} untagged
           </span>
         )}
@@ -384,17 +432,11 @@ function CodeTab({
             {currentTags.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {currentTags.map((tag) => (
-                  <button
+                  <AppliedTagChip
                     key={tag.id}
-                    type="button"
-                    onClick={() => onRemove(current.answerId, tag.id)}
-                    title="Remove tag"
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold transition-opacity hover:opacity-75"
-                    style={{ backgroundColor: tag.color, color: readableTextColor(tag.color) }}
-                  >
-                    {tag.label}
-                    <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
-                  </button>
+                    tag={tag}
+                    onRemove={() => onRemove(current.answerId, tag.id)}
+                  />
                 ))}
               </div>
             )}
@@ -408,33 +450,22 @@ function CodeTab({
                 onCreate={(label) => onCreateAndApply(current.answerId, label)}
                 disabled={savingAnswerId === current.answerId || savingTagId === 'new'}
               />
-              {/* Mode toggle */}
-              <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-                <button
-                  type="button"
-                  onClick={() => { setAiMode('apply'); setAiResult(null) }}
-                  title="Suggest from existing tags only"
-                  className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${aiMode === 'apply' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                >
-                  Apply
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAiMode('explore'); setAiResult(null) }}
-                  title="Suggest new tags not yet in your list"
-                  className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${aiMode === 'explore' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                >
-                  Explore
-                </button>
-              </div>
-              <button
-                type="button"
+              <SegmentedControl
+                options={[
+                  { value: 'apply' as const, label: 'Apply' },
+                  { value: 'explore' as const, label: 'Explore' },
+                ]}
+                value={aiMode}
+                onChange={(v) => { setAiMode(v); setAiResult(null) }}
+              />
+              <Button
+                tone="secondary"
+                size="sm"
                 onClick={() => void runSuggest()}
                 disabled={suggesting}
-                className="h-9 shrink-0 rounded-lg border border-[var(--border)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] disabled:opacity-50"
               >
                 {suggesting ? 'Thinking…' : 'Suggest'}
-              </button>
+              </Button>
             </div>
 
             {/* AI result panel */}
@@ -445,12 +476,11 @@ function CodeTab({
                 </p>
 
                 {aiResult.error ? (
-                  <p className="text-xs text-red-600">Error: {aiResult.error}</p>
+                  <p className="text-xs" style={{ color: 'var(--danger-text)' }}>Error: {aiResult.error}</p>
                 ) : aiResult.apply.length === 0 && aiResult.new_tags.length === 0 ? (
                   <p className="text-xs text-[var(--text-tertiary)]">No relevant tags found for this answer.</p>
                 ) : null}
 
-                {/* Existing tags to apply */}
                 {aiResult.apply.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {aiResult.apply.map((tagId) => {
@@ -481,7 +511,6 @@ function CodeTab({
                   </div>
                 )}
 
-                {/* New tag suggestions (explore mode) */}
                 {aiResult.new_tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {aiResult.new_tags.map((label) => (
@@ -567,46 +596,27 @@ function ListView({
   const visible = filtered.slice(0, visibleCount)
   const hasMore = visibleCount < filtered.length
 
+  const filterOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'untagged', label: 'Untagged' },
+    ...tagDefinitions.map((t) => ({ value: t.id, label: t.label })),
+  ]
+
   return (
     <div className="space-y-3">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-          <button
-            type="button"
-            onClick={() => { setTagFilter('all'); setVisibleCount(15) }}
-            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${tagFilter === 'all' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            onClick={() => { setTagFilter('untagged'); setVisibleCount(15) }}
-            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${tagFilter === 'untagged' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-          >
-            Untagged
-          </button>
-          {tagDefinitions.map((tag) => (
-            <button
-              key={tag.id}
-              type="button"
-              onClick={() => { setTagFilter(tag.id); setVisibleCount(15) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${tagFilter === tag.id ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-            >
-              <span
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: tagFilter === tag.id ? 'currentColor' : tag.color }}
-              />
-              {tag.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          options={filterOptions}
+          value={tagFilter}
+          onChange={(v) => { setTagFilter(v); setVisibleCount(15) }}
+        />
         {untaggedCount > 0 && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-800">
             {untaggedCount} untagged
           </span>
         )}
-        <span className="text-xs text-[var(--text-tertiary)]">
+        <span className="text-sm text-[var(--text-tertiary)]">
           {filtered.length} {filtered.length === 1 ? 'answer' : 'answers'}
         </span>
       </div>
@@ -638,17 +648,12 @@ function ListView({
                     {currentTags.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {currentTags.map((tag) => (
-                          <button
+                          <AppliedTagChip
                             key={tag.id}
-                            type="button"
-                            onClick={() => onRemove(answer.answerId, tag.id)}
-                            title="Remove tag"
-                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-opacity hover:opacity-75"
-                            style={{ backgroundColor: tag.color, color: readableTextColor(tag.color) }}
-                          >
-                            {tag.label}
-                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
-                          </button>
+                            tag={tag}
+                            size="sm"
+                            onRemove={() => onRemove(answer.answerId, tag.id)}
+                          />
                         ))}
                       </div>
                     )}
@@ -684,30 +689,18 @@ function ListView({
               <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-4">
                 {hasMore && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setVisibleCount((n) => Math.min(n + 15, filtered.length))}
-                      className="h-9 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
-                    >
+                    <Button tone="secondary" size="sm" onClick={() => setVisibleCount((n) => Math.min(n + 15, filtered.length))}>
                       Load 15 more
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setVisibleCount(filtered.length)}
-                      className="h-9 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
-                    >
+                    </Button>
+                    <Button tone="secondary" size="sm" onClick={() => setVisibleCount(filtered.length)}>
                       Load all
-                    </button>
+                    </Button>
                   </>
                 )}
                 {visibleCount > 15 && (
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCount(15)}
-                    className="h-9 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
-                  >
+                  <Button tone="ghost" size="sm" onClick={() => setVisibleCount(15)}>
                     Collapse
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -794,8 +787,7 @@ function ManageTab({
   async function handleCreate() {
     const label = normalizeLabel(newLabel)
     if (!label) return
-    const color = newColor
-    await onCreate(label, color)
+    await onCreate(label, newColor)
     setNewLabel('')
     setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
   }
@@ -804,13 +796,12 @@ function ManageTab({
     <div className="space-y-4">
       {/* New tag */}
       <div className="flex gap-2">
-        <input
-          type="text"
+        <TextInput
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }}
           placeholder="New tag name"
-          className="h-9 flex-1 rounded-lg border border-[var(--border-strong)] bg-white px-3 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
+          className="h-9 py-0"
         />
         <input
           type="color"
@@ -819,14 +810,14 @@ function ManageTab({
           aria-label="Tag color"
           className="h-9 w-10 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
         />
-        <button
-          type="button"
+        <Button
+          tone="primary"
+          size="sm"
           onClick={() => void handleCreate()}
           disabled={!newLabel.trim() || savingTagId === 'new'}
-          className="h-9 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--text-on-accent)] disabled:opacity-50"
         >
           {savingTagId === 'new' ? 'Adding…' : 'Add tag'}
-        </button>
+        </Button>
       </div>
 
       {/* Tags list */}
@@ -870,7 +861,7 @@ function ManageTab({
                         if (e.key === 'Enter') { e.preventDefault(); void commitRename(tag) }
                         if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
                       }}
-                      className="flex-1 rounded border border-[var(--accent)] bg-white px-2 py-0.5 text-sm text-[var(--text)] outline-none"
+                      className="flex-1 rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
                     />
                   ) : (
                     <button
@@ -887,32 +878,31 @@ function ManageTab({
                   </span>
                   {isConfirmingDelete ? (
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-red-600">Delete?</span>
-                      <button
-                        type="button"
+                      <Button
+                        tone="danger"
+                        size="sm"
                         onClick={() => { void onDelete(tag.id); setConfirmDeleteId(null) }}
-                        className="text-xs font-semibold text-red-600 hover:text-red-800"
                       >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
+                        Delete
+                      </Button>
+                      <Button
+                        tone="secondary"
+                        size="sm"
                         onClick={() => setConfirmDeleteId(null)}
-                        className="text-xs text-[var(--text-tertiary)]"
                       >
-                        No
-                      </button>
+                        Cancel
+                      </Button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
+                    <IconButton
+                      tone="trash"
+                      label={`Delete ${tag.label}`}
                       onClick={() => count > 0 ? setConfirmDeleteId(tag.id) : void onDelete(tag.id)}
                       disabled={savingTagId === tag.id}
-                      aria-label={`Delete ${tag.label}`}
-                      className="shrink-0 rounded-full p-1 text-[var(--text-muted)] hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                      className="h-8 w-8 shrink-0"
                     >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
-                    </button>
+                      <TrashIcon />
+                    </IconButton>
                   )}
                 </div>
               )
@@ -931,12 +921,11 @@ function ManageTab({
             {tagDefinitions.filter((t) => selectedIds.has(t.id)).map((t) => t.label).join(', ')}
           </p>
           <div className="flex flex-wrap gap-2">
-            <input
-              type="text"
+            <TextInput
               value={mergeLabel}
               onChange={(e) => setMergeLabel(e.target.value)}
               placeholder="Merged tag name…"
-              className="h-9 flex-1 min-w-40 rounded-lg border border-[var(--border-strong)] bg-white px-3 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
+              className="h-9 min-w-40 flex-1 py-0"
             />
             <input
               type="color"
@@ -945,21 +934,21 @@ function ManageTab({
               aria-label="Merged tag color"
               className="h-9 w-10 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
             />
-            <button
-              type="button"
+            <Button
+              tone="primary"
+              size="sm"
               onClick={() => void confirmMerge()}
               disabled={!mergeLabel.trim() || savingTagId === 'merge'}
-              className="h-9 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--text-on-accent)] disabled:opacity-50"
             >
               {savingTagId === 'merge' ? 'Merging…' : 'Merge'}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              tone="secondary"
+              size="sm"
               onClick={() => { setSelectedIds(new Set()); setMergeLabel(''); setMergeColor(DEFAULT_COLORS[0]) }}
-              className="h-9 rounded-lg border border-[var(--border)] bg-white px-3 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
             >
               Cancel
-            </button>
+            </Button>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {tagDefinitions.filter((t) => selectedIds.has(t.id)).map((t) => (
@@ -1004,19 +993,15 @@ export default function TaggingWorkspace({
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null)
   const [savingTagId, setSavingTagId] = useState<string | null>(null)
 
-  // Batch auto-tag state
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchScope, setBatchScope] = useState<'untagged' | 'all'>('untagged')
   const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('explore')
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
   const [batchSummary, setBatchSummary] = useState<{ total: number; tagsApplied: number; firstError?: string } | null>(null)
-  // Ref so the running loop always sees the latest tags without waiting for state
   const liveTagsRef = useRef<TagDefinition[]>(initialTags)
 
   const tagById = useMemo(() => new Map(tagDefinitions.map((t) => [t.id, t])), [tagDefinitions])
-
-  // Keep ref in sync for use inside batch loops
   liveTagsRef.current = tagDefinitions
 
   async function saveAnswerTags(answerId: string, nextTagIds: string[]) {
@@ -1160,7 +1145,6 @@ export default function TaggingWorkspace({
       const toAdd = result.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
       let nextIds = [...existingIds, ...toAdd]
 
-      // In explore mode, create new suggested tags and apply them
       for (const label of result.new_tags) {
         const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
         const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
@@ -1201,63 +1185,40 @@ export default function TaggingWorkspace({
           onClick={() => { setBatchOpen((o) => !o); setBatchSummary(null) }}
           className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-[var(--text)]"
         >
-          <span className="flex items-center gap-2">
-            <span className="text-[var(--accent)]">✦</span>
-            Auto-tag all answers with AI
-          </span>
+          Auto-tag all answers with AI
           <span className="text-xs text-[var(--text-tertiary)]">{batchOpen ? '▲' : '▼'}</span>
         </button>
 
         {batchOpen && (
           <div className="border-t border-[var(--border-subtle)] px-4 pb-4 pt-3 space-y-3">
             <div className="flex flex-wrap gap-3">
-              {/* Scope */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--text-tertiary)]">Tag</span>
-                <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-                  <button
-                    type="button"
-                    onClick={() => setBatchScope('untagged')}
-                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchScope === 'untagged' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                  >
-                    Untagged only ({untaggedCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBatchScope('all')}
-                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchScope === 'all' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                  >
-                    All answers ({answers.length})
-                  </button>
-                </div>
+                <span className="text-sm text-[var(--text-tertiary)]">Tag</span>
+                <SegmentedControl
+                  options={[
+                    { value: 'untagged' as const, label: `Untagged only (${untaggedCount})` },
+                    { value: 'all' as const, label: `All answers (${answers.length})` },
+                  ]}
+                  value={batchScope}
+                  onChange={setBatchScope}
+                />
               </div>
-              {/* Mode */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--text-tertiary)]">Mode</span>
-                <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-                  <button
-                    type="button"
-                    onClick={() => setBatchMode('apply')}
-                    title="Apply existing tags only"
-                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchMode === 'apply' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                  >
-                    Apply
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBatchMode('explore')}
-                    title="Apply existing tags and create new ones"
-                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchMode === 'explore' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                  >
-                    Explore
-                  </button>
-                </div>
+                <span className="text-sm text-[var(--text-tertiary)]">Mode</span>
+                <SegmentedControl
+                  options={[
+                    { value: 'apply' as const, label: 'Apply' },
+                    { value: 'explore' as const, label: 'Explore' },
+                  ]}
+                  value={batchMode}
+                  onChange={setBatchMode}
+                />
               </div>
             </div>
 
             {batchMode === 'apply' && tagDefinitions.length === 0 && (
-              <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                Apply mode needs at least one tag to exist. Create some tags first, or switch to Explore mode so AI can invent them.
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm" style={{ color: 'var(--warning-text)' }}>
+                Apply mode needs at least one tag to exist. Create some tags first, or switch to Explore mode.
               </p>
             )}
 
@@ -1269,20 +1230,20 @@ export default function TaggingWorkspace({
                     style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }}
                   />
                 </div>
-                <p className="text-xs text-[var(--text-tertiary)]">
+                <p className="text-sm text-[var(--text-tertiary)]">
                   {batchProgress.done} / {batchProgress.total} answers — {batchProgress.done === 0 ? 'starting…' : 'tagging…'}
                 </p>
               </div>
             ) : batchSummary ? (
               <div className="space-y-2">
                 {batchSummary.firstError && (
-                  <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                  <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
                     Error: {batchSummary.firstError}
                   </p>
                 )}
                 {batchSummary.tagsApplied > 0 ? (
-                  <p className="text-sm font-semibold text-[var(--accent)]">
-                    ✓ Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers
+                  <p className="text-sm font-semibold" style={{ color: 'var(--success-text)' }}>
+                    Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers
                   </p>
                 ) : (
                   <p className="text-sm text-[var(--text-secondary)]">
@@ -1291,23 +1252,19 @@ export default function TaggingWorkspace({
                     {batchMode === 'apply' && tagDefinitions.length > 0 && ' The AI did not match any existing tags. Try Explore mode to generate new tags from the answers.'}
                   </p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setBatchSummary(null)}
-                  className="text-xs text-[var(--text-link)] hover:underline"
-                >
+                <Button tone="ghost" size="sm" onClick={() => setBatchSummary(null)}>
                   Run again
-                </button>
+                </Button>
               </div>
             ) : (
-              <button
-                type="button"
+              <Button
+                tone="primary"
+                size="sm"
                 onClick={() => void runBatchTag()}
                 disabled={batchMode === 'apply' && tagDefinitions.length === 0}
-                className="h-9 rounded-lg bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--text-on-accent)] disabled:opacity-40"
               >
                 Tag {batchScope === 'untagged' ? untaggedCount : answers.length} answers
-              </button>
+              </Button>
             )}
           </div>
         )}
