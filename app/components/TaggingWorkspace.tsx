@@ -449,6 +449,197 @@ function CodeTab({
   )
 }
 
+// ─── ListView ─────────────────────────────────────────────────────────────────
+
+function ListView({
+  answers,
+  tagDefinitions,
+  tagIdsByAnswer,
+  tagById,
+  savingAnswerId,
+  savingTagId,
+  onApply,
+  onCreateAndApply,
+  onRemove,
+}: {
+  answers: Answer[]
+  tagDefinitions: TagDefinition[]
+  tagIdsByAnswer: Record<string, string[]>
+  tagById: Map<string, TagDefinition>
+  savingAnswerId: string | null
+  savingTagId: string | null
+  onApply: (answerId: string, tagId: string) => void
+  onCreateAndApply: (answerId: string, label: string) => void
+  onRemove: (answerId: string, tagId: string) => void
+}) {
+  const [tagFilter, setTagFilter] = useState('all')
+  const [visibleCount, setVisibleCount] = useState(15)
+
+  const filtered = useMemo(() => {
+    if (tagFilter === 'all') return answers
+    if (tagFilter === 'untagged') return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
+    return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(tagFilter))
+  }, [answers, tagFilter, tagIdsByAnswer])
+
+  const untaggedCount = useMemo(
+    () => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length,
+    [answers, tagIdsByAnswer],
+  )
+
+  const visible = filtered.slice(0, visibleCount)
+  const hasMore = visibleCount < filtered.length
+
+  return (
+    <div className="space-y-3">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
+          <button
+            type="button"
+            onClick={() => { setTagFilter('all'); setVisibleCount(15) }}
+            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${tagFilter === 'all' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => { setTagFilter('untagged'); setVisibleCount(15) }}
+            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${tagFilter === 'untagged' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+          >
+            Untagged
+          </button>
+          {tagDefinitions.map((tag) => (
+            <button
+              key={tag.id}
+              type="button"
+              onClick={() => { setTagFilter(tag.id); setVisibleCount(15) }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${tagFilter === tag.id ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+            >
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: tagFilter === tag.id ? 'currentColor' : tag.color }}
+              />
+              {tag.label}
+            </button>
+          ))}
+        </div>
+        {untaggedCount > 0 && (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            {untaggedCount} untagged
+          </span>
+        )}
+        <span className="text-xs text-[var(--text-tertiary)]">
+          {filtered.length} {filtered.length === 1 ? 'answer' : 'answers'}
+        </span>
+      </div>
+
+      {/* Answer list */}
+      <div className="rounded-xl border border-[var(--border)] bg-white">
+        {filtered.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No answers match this filter.</p>
+        ) : (
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {visible.map((answer) => {
+              const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
+              const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
+              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id))
+              const isSaving = savingAnswerId === answer.answerId
+
+              return (
+                <article key={answer.answerId} className="space-y-2.5 px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-tertiary)]">
+                    <span className="font-semibold text-[var(--text-secondary)]">{answer.participantName}</span>
+                    <span>{answer.participantEmail}</span>
+                    <span>{formatDate(answer.submittedAt)}</span>
+                    {isSaving && <span>Saving…</span>}
+                  </div>
+                  <p className="whitespace-pre-wrap rounded-lg bg-[var(--bg-sunken)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text)]">
+                    {answer.answer}
+                  </p>
+                  <div className="space-y-2">
+                    {currentTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentTags.map((tag) => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => onRemove(answer.answerId, tag.id)}
+                            title="Remove tag"
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-opacity hover:opacity-75"
+                            style={{ backgroundColor: tag.color, color: readableTextColor(tag.color) }}
+                          >
+                            {tag.label}
+                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {available.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {available.map((tag) => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => onApply(answer.answerId, tag.id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]"
+                          >
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                            + {tag.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <TagAutocomplete
+                        tags={tagDefinitions}
+                        appliedTagIds={currentTagIds}
+                        onApply={(tagId) => onApply(answer.answerId, tagId)}
+                        onCreate={(label) => onCreateAndApply(answer.answerId, label)}
+                        disabled={isSaving || savingTagId === 'new'}
+                      />
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+            {(hasMore || visibleCount > 15) && (
+              <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-4">
+                {hasMore && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((n) => Math.min(n + 15, filtered.length))}
+                      className="h-9 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
+                    >
+                      Load 15 more
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount(filtered.length)}
+                      className="h-9 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
+                    >
+                      Load all
+                    </button>
+                  </>
+                )}
+                {visibleCount > 15 && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount(15)}
+                    className="h-9 rounded-xl border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
+                  >
+                    Collapse
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── ManageTab ────────────────────────────────────────────────────────────────
 
 function ManageTab({
@@ -727,7 +918,7 @@ export default function TaggingWorkspace({
   answers: Answer[]
 }) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'code' | 'manage'>('code')
+  const [activeTab, setActiveTab] = useState<'code' | 'list' | 'manage'>('code')
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(initialTags)
   const [tagIdsByAnswer, setTagIdsByAnswer] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(answers.map((a) => [a.answerId, a.tags.map((t) => t.id)]))
@@ -854,24 +1045,40 @@ export default function TaggingWorkspace({
     <div className="space-y-4">
       {/* Tabs */}
       <div className="flex border-b border-[var(--border)]">
-        {(['code', 'manage'] as const).map((tab) => (
+        {([
+          { value: 'code', label: 'Code' },
+          { value: 'list', label: 'List' },
+          { value: 'manage', label: 'Manage tags' },
+        ] as { value: 'code' | 'list' | 'manage'; label: string }[]).map(({ value, label }) => (
           <button
-            key={tab}
+            key={value}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(value)}
             className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
-              activeTab === tab
+              activeTab === value
                 ? 'border-[var(--accent)] text-[var(--accent)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text)]'
             }`}
           >
-            {tab === 'code' ? 'Code' : 'Manage tags'}
+            {label}
           </button>
         ))}
       </div>
 
       {activeTab === 'code' ? (
         <CodeTab
+          answers={answers}
+          tagDefinitions={tagDefinitions}
+          tagIdsByAnswer={tagIdsByAnswer}
+          tagById={tagById}
+          savingAnswerId={savingAnswerId}
+          savingTagId={savingTagId}
+          onApply={applyTag}
+          onCreateAndApply={createAndApplyTag}
+          onRemove={removeTag}
+        />
+      ) : activeTab === 'list' ? (
+        <ListView
           answers={answers}
           tagDefinitions={tagDefinitions}
           tagIdsByAnswer={tagIdsByAnswer}
