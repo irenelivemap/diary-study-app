@@ -849,6 +849,7 @@ export function FreeTextAnswerList({
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null)
   const [tagFilter, setTagFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(10)
+  const [inlineCreate, setInlineCreate] = useState<{ answerId: string; label: string; color: string } | null>(null)
 
   const tagById = useMemo(
     () => new Map(tagDefinitions.map((tag) => [tag.id, tag])),
@@ -895,6 +896,34 @@ export function FreeTextAnswerList({
         return [...withoutDuplicate, result.tag].sort((a, b) => a.label.localeCompare(b.label))
       })
       setNewTagLabel('')
+      router.refresh()
+    }
+  }
+
+  async function createTagInline(answerId: string, label: string, color: string) {
+    const finalLabel = normalizeTagLabel(label)
+    if (!finalLabel) return
+    setSavingTagId('new')
+    const result = await createQuestionTag(studyId, questionId, finalLabel, color)
+    setSavingTagId(null)
+    if (result?.tag) {
+      setTagDefinitions((current) => {
+        const withoutDuplicate = current.filter((t) => t.id !== result.tag.id && t.label !== result.tag.label)
+        return [...withoutDuplicate, result.tag].sort((a, b) => a.label.localeCompare(b.label))
+      })
+      setInlineCreate(null)
+      // Apply the new tag directly — tagById hasn't updated yet so we bypass saveTags
+      const currentIds = tagIdsByAnswer[answerId] ?? []
+      if (!currentIds.includes(result.tag.id)) {
+        const nextIds = [...currentIds, result.tag.id]
+        setTagIdsByAnswer((current) => ({ ...current, [answerId]: nextIds }))
+        setSavingAnswerId(answerId)
+        const saveResult = await updateAnswerTags(studyId, answerId, nextIds)
+        setSavingAnswerId(null)
+        if (saveResult?.tagIds) {
+          setTagIdsByAnswer((current) => ({ ...current, [answerId]: saveResult.tagIds }))
+        }
+      }
       router.refresh()
     }
   }
@@ -1147,6 +1176,55 @@ export function FreeTextAnswerList({
                         </button>
                       ))}
                     </div>
+                  )}
+                  {inlineCreate?.answerId === answer.answerId ? (
+                    <form
+                      className="flex flex-wrap items-center gap-2"
+                      onSubmit={(e) => { e.preventDefault(); void createTagInline(answer.answerId, inlineCreate.label, inlineCreate.color) }}
+                    >
+                      <input
+                        type="text"
+                        value={inlineCreate.label}
+                        onChange={(e) => setInlineCreate((c) => c ? { ...c, label: e.target.value } : c)}
+                        onKeyDown={(e) => { if (e.key === 'Escape') setInlineCreate(null) }}
+                        placeholder="Tag name"
+                        autoFocus
+                        className="h-8 min-w-0 flex-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-3 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={inlineCreate.color}
+                        onChange={(e) => setInlineCreate((c) => c ? { ...c, color: e.target.value } : c)}
+                        className="h-8 w-10 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
+                        aria-label="Tag color"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!inlineCreate.label.trim() || savingTagId === 'new'}
+                        className="h-8 rounded-lg bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--text-on-accent)] disabled:opacity-50"
+                      >
+                        {savingTagId === 'new' ? 'Creating…' : 'Create & apply'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInlineCreate(null)}
+                        className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setInlineCreate({
+                        answerId: answer.answerId,
+                        label: '',
+                        color: ['#4f46e5', '#0d9488', '#d97706', '#7c3aed', '#e11d48', '#0891b2'][tagDefinitions.length % 6],
+                      })}
+                      className="text-sm text-[var(--text-muted)] hover:text-[var(--text-link)]"
+                    >
+                      + New tag
+                    </button>
                   )}
                 </div>
               </article>
