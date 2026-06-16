@@ -1085,7 +1085,97 @@ function ManageTab({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [consolidating, setConsolidating] = useState(false)
   const [aiProposal, setAiProposal] = useState<ProposedTheme[] | null>(null)
+  const [aiProposalScope, setAiProposalScope] = useState<Set<string>>(new Set())
   const [aiError, setAiError] = useState<string | null>(null)
+
+  // ── Selection state ──────────────────────────────────────────────────────────
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<'idle' | 'confirm-delete' | 'grouping'>('idle')
+  const [groupName, setGroupName] = useState('')
+  const [namingSuggesting, setNamingSuggesting] = useState(false)
+
+  function toggleSelect(tagId: string) {
+    setSelectedTagIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(tagId)) next.delete(tagId)
+      else next.add(tagId)
+      return next
+    })
+  }
+
+  function isGroupSelected(ids: string[]) {
+    return ids.length > 0 && ids.every((id) => selectedTagIds.has(id))
+  }
+
+  function isGroupIndeterminate(ids: string[]) {
+    return ids.some((id) => selectedTagIds.has(id)) && !ids.every((id) => selectedTagIds.has(id))
+  }
+
+  function toggleGroupSelect(ids: string[]) {
+    if (isGroupSelected(ids)) {
+      setSelectedTagIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next })
+    } else {
+      setSelectedTagIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(id)); return next })
+    }
+  }
+
+  function clearSelection() {
+    setSelectedTagIds(new Set())
+    setBulkAction('idle')
+    setGroupName('')
+  }
+
+  async function handleBulkDelete() {
+    for (const id of Array.from(selectedTagIds)) {
+      const isTheme = tagDefinitions.some((c) => c.parentId === id)
+      await onDelete(id, isTheme ? 'keep-subtags' : undefined)
+    }
+    clearSelection()
+  }
+
+  async function handleGroupSelected() {
+    const label = normalizeLabel(groupName)
+    if (!label) return
+    const color = DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length]
+    const result = await createQuestionTag(studyId, questionId, label, color)
+    if (!result?.tag) return
+    for (const tagId of Array.from(selectedTagIds)) {
+      await onMoveToTheme(tagId, result.tag.id)
+    }
+    clearSelection()
+  }
+
+  async function handleSuggestGroupName() {
+    const labels = Array.from(selectedTagIds)
+      .map((id) => tagDefinitions.find((t) => t.id === id)?.label ?? '')
+      .filter(Boolean)
+    if (!labels.length) return
+    setNamingSuggesting(true)
+    const result = await suggestThemeName(labels)
+    setNamingSuggesting(false)
+    if ('name' in result && result.name) setGroupName(result.name)
+  }
+
+  async function handleBulkAiGroup() {
+    const selectedTags = tagDefinitions.filter((t) => selectedTagIds.has(t.id))
+    if (selectedTags.length < 2) return
+    setConsolidating(true)
+    setAiError(null)
+    setAiProposal(null)
+    const scope = new Set(selectedTags.map((t) => t.id))
+    const result = await consolidateTagsWithAI(studyId, questionId, selectedTags.map((t) => ({ id: t.id, label: t.label })))
+    setConsolidating(false)
+    if ('error' in result && result.error) { setAiError(result.error as string); return }
+    if (result.themes.length === 0) { setAiError('AI returned no theme groupings.'); return }
+    setAiProposalScope(scope)
+    setAiProposal(result.themes.map((theme, i) => ({
+      tempId: `temp-${i}-${Date.now()}`,
+      name: theme.name,
+      description: theme.description,
+      tagIds: theme.tagIds,
+    })))
+    clearSelection()
+  }
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -1166,6 +1256,7 @@ function ManageTab({
     setConsolidating(true)
     setAiError(null)
     setAiProposal(null)
+    const scope = new Set(leafTags.map((t) => t.id))
     const result = await consolidateTagsWithAI(studyId, questionId, leafTags.map((t) => ({ id: t.id, label: t.label })))
     setConsolidating(false)
     if ('error' in result && result.error) {
@@ -1176,6 +1267,7 @@ function ManageTab({
       setAiError('AI returned no theme groupings.')
       return
     }
+    setAiProposalScope(scope)
     setAiProposal(result.themes.map((theme, i) => ({
       tempId: `temp-${i}-${Date.now()}`,
       name: theme.name,
@@ -1214,6 +1306,13 @@ function ManageTab({
         key={tag.id}
         className={`flex items-center gap-3 px-4 py-3 ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
       >
+        <input
+          type="checkbox"
+          checked={selectedTagIds.has(tag.id)}
+          onChange={() => toggleSelect(tag.id)}
+          aria-label={`Select ${tag.label}`}
+          className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+        />
         <input
           type="color"
           value={tag.color}
@@ -1403,6 +1502,81 @@ function ManageTab({
         </Button>
       </div>
 
+      {/* Selection action bar */}
+      {selectedTagIds.size > 0 && (
+        <div className="flex items-center gap-2 flex-wrap rounded-xl border border-[var(--accent-muted)] bg-[var(--accent-subtle)] px-4 py-2.5">
+          <span className="text-sm font-semibold text-[var(--text)]">{selectedTagIds.size} selected</span>
+          <span className="text-[var(--text-tertiary)]">·</span>
+
+          {bulkAction === 'idle' && (
+            <>
+              <Button tone="danger" size="sm" onClick={() => setBulkAction('confirm-delete')}>Delete</Button>
+              <Button tone="secondary" size="sm" onClick={() => setBulkAction('grouping')}>Group into theme</Button>
+              <Button
+                tone="secondary"
+                size="sm"
+                onClick={() => void handleBulkAiGroup()}
+                disabled={consolidating || selectedTagIds.size < 2}
+              >
+                {consolidating ? '✦ Grouping…' : '✦ Group with AI'}
+              </Button>
+            </>
+          )}
+
+          {bulkAction === 'confirm-delete' && (
+            <>
+              <span className="text-sm text-[var(--danger-text)]">
+                Delete {selectedTagIds.size} tag{selectedTagIds.size !== 1 ? 's' : ''}?
+                {Array.from(selectedTagIds).some((id) => tagDefinitions.some((c) => c.parentId === id)) && ' Themes will be removed; sub-tags ungrouped.'}
+              </span>
+              <Button tone="danger" size="sm" onClick={() => void handleBulkDelete()}>Confirm</Button>
+              <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
+            </>
+          )}
+
+          {bulkAction === 'grouping' && (
+            <>
+              <TextInput
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleGroupSelected() } }}
+                placeholder="Theme name…"
+                className="h-8 py-0 w-44"
+              />
+              <Button
+                tone="secondary"
+                size="sm"
+                onClick={() => void handleSuggestGroupName()}
+                disabled={namingSuggesting}
+              >
+                {namingSuggesting ? '…' : '✦ AI name'}
+              </Button>
+              <Button
+                tone="primary"
+                size="sm"
+                onClick={() => void handleGroupSelected()}
+                disabled={!groupName.trim()}
+              >
+                Create theme
+              </Button>
+              <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
+            </>
+          )}
+
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={clearSelection}
+            aria-label="Clear selection"
+            className="rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--text)]"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* AI error */}
       {aiError && (
         <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
@@ -1415,7 +1589,7 @@ function ManageTab({
         <AIProposalPanel
           proposal={aiProposal}
           tagById={new Map(tagDefinitions.map((t) => [t.id, t]))}
-          allTagIds={new Set(ungroupedTags.map((t) => t.id))}
+          allTagIds={aiProposalScope}
           studyId={studyId}
           questionId={questionId}
           tagDefinitions={tagDefinitions}
@@ -1441,6 +1615,14 @@ function ManageTab({
                       {/* Theme header row */}
                       <div className="px-4 py-3 bg-[var(--bg-sunken)]">
                         <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isGroupSelected(children.map((c) => c.id))}
+                            ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(children.map((c) => c.id)) }}
+                            onChange={() => toggleGroupSelect(children.map((c) => c.id))}
+                            aria-label={`Select all tags in ${theme.label}`}
+                            className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+                          />
                           <span className="text-base">📂</span>
                           <input
                             type="color"
@@ -1544,7 +1726,15 @@ function ManageTab({
             {/* UNGROUPED section */}
             {ungroupedTags.length > 0 && (
               <>
-                <div className="px-4 py-2 bg-[var(--bg-sunken)]">
+                <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg-sunken)]">
+                  <input
+                    type="checkbox"
+                    checked={isGroupSelected(ungroupedTags.map((t) => t.id))}
+                    ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(ungroupedTags.map((t) => t.id)) }}
+                    onChange={() => toggleGroupSelect(ungroupedTags.map((t) => t.id))}
+                    aria-label="Select all ungrouped tags"
+                    className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+                  />
                   <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
                     Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}
                   </span>
