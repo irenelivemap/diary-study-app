@@ -1001,7 +1001,7 @@ export default function TaggingWorkspace({
   // Batch auto-tag state
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchScope, setBatchScope] = useState<'untagged' | 'all'>('untagged')
-  const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('apply')
+  const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('explore')
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
   const [batchSummary, setBatchSummary] = useState<{ total: number; tagsApplied: number } | null>(null)
@@ -1262,13 +1262,30 @@ export default function TaggingWorkspace({
                   />
                 </div>
                 <p className="text-xs text-[var(--text-tertiary)]">
-                  Tagging {batchProgress.done} / {batchProgress.total}…
+                  {batchProgress.done} / {batchProgress.total} answers — {batchProgress.done === 0 ? 'starting…' : 'tagging…'}
                 </p>
               </div>
             ) : batchSummary ? (
-              <p className="text-sm font-semibold text-[var(--accent)]">
-                ✓ Done — {batchSummary.total} answers processed, {batchSummary.tagsApplied} tags applied
-              </p>
+              <div className="space-y-2">
+                {batchSummary.tagsApplied > 0 ? (
+                  <p className="text-sm font-semibold text-[var(--accent)]">
+                    ✓ Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers
+                  </p>
+                ) : (
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    Processed {batchSummary.total} answers but found nothing to tag.
+                    {batchMode === 'apply' && tagDefinitions.length === 0 && ' Switch to Explore mode — there are no existing tags to apply.'}
+                    {batchMode === 'apply' && tagDefinitions.length > 0 && ' The AI did not match any existing tags. Try Explore mode to generate new tags from the answers.'}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setBatchSummary(null)}
+                  className="text-xs text-[var(--text-link)] hover:underline"
+                >
+                  Run again
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
