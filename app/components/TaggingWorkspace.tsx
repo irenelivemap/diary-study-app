@@ -1004,7 +1004,7 @@ export default function TaggingWorkspace({
   const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('explore')
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
-  const [batchSummary, setBatchSummary] = useState<{ total: number; tagsApplied: number } | null>(null)
+  const [batchSummary, setBatchSummary] = useState<{ total: number; tagsApplied: number; firstError?: string } | null>(null)
   // Ref so the running loop always sees the latest tags without waiting for state
   const liveTagsRef = useRef<TagDefinition[]>(initialTags)
 
@@ -1138,6 +1138,7 @@ export default function TaggingWorkspace({
     setBatchProgress({ done: 0, total: toProcess.length })
 
     let tagsApplied = 0
+    let firstError: string | undefined
 
     for (const answer of toProcess) {
       const currentTags = liveTagsRef.current
@@ -1147,6 +1148,7 @@ export default function TaggingWorkspace({
         batchMode,
       )
 
+      if ('error' in result && result.error && !firstError) firstError = result.error as string
       const existingIds = tagIdsByAnswer[answer.answerId] ?? []
       const validTagIds = new Set(currentTags.map((t) => t.id))
       const toAdd = result.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
@@ -1178,7 +1180,7 @@ export default function TaggingWorkspace({
     }
 
     setBatchRunning(false)
-    setBatchSummary({ total: toProcess.length, tagsApplied })
+    setBatchSummary({ total: toProcess.length, tagsApplied, firstError })
     router.refresh()
   }
 
@@ -1267,6 +1269,11 @@ export default function TaggingWorkspace({
               </div>
             ) : batchSummary ? (
               <div className="space-y-2">
+                {batchSummary.firstError && (
+                  <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                    Error: {batchSummary.firstError}
+                  </p>
+                )}
                 {batchSummary.tagsApplied > 0 ? (
                   <p className="text-sm font-semibold text-[var(--accent)]">
                     ✓ Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers
