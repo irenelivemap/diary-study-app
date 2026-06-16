@@ -1185,7 +1185,7 @@ export default function TaggingWorkspace({
           onClick={() => { setBatchOpen((o) => !o); setBatchSummary(null) }}
           className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-[var(--text)]"
         >
-          Auto-tag all answers with AI
+          <span className="text-[var(--accent)]">✦</span> Auto-tag all answers with AI
           <span className="text-xs text-[var(--text-tertiary)]">{batchOpen ? '▲' : '▼'}</span>
         </button>
 
@@ -1252,8 +1252,8 @@ export default function TaggingWorkspace({
                     {batchMode === 'apply' && tagDefinitions.length > 0 && ' The AI did not match any existing tags. Try Explore mode to generate new tags from the answers.'}
                   </p>
                 )}
-                <Button tone="ghost" size="sm" onClick={() => setBatchSummary(null)}>
-                  Run again
+                <Button tone="secondary" size="sm" onClick={() => setBatchSummary(null)}>
+                  Tag again
                 </Button>
               </div>
             ) : (
