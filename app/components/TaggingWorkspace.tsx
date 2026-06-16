@@ -100,8 +100,8 @@ function TagAutocomplete({
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Tab' && suggestions.length > 0) {
       e.preventDefault()
-      setValue(suggestions[Math.max(0, cursor)]?.label ?? suggestions[0].label)
-      setCursor(-1)
+      const picked = cursor >= 0 ? suggestions[cursor] : suggestions[0]
+      commit(picked, picked.label)
       return
     }
     if (e.key === 'ArrowDown') { e.preventDefault(); setCursor((i) => Math.min(i + 1, suggestions.length - 1)); return }
