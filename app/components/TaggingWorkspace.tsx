@@ -118,7 +118,7 @@ function TagAutocomplete({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={onKeyDown}
         disabled={disabled}
-        placeholder="Add tag — Tab to complete, Enter to apply or create"
+        placeholder="Search tags — Tab or Enter to apply, Enter to create new"
         className="h-9 w-full rounded-lg border border-[var(--border-strong)] bg-white px-3 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-50"
       />
       {open && (suggestions.length > 0 || (value.trim() && !exactMatch)) && (
@@ -998,7 +998,20 @@ export default function TaggingWorkspace({
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null)
   const [savingTagId, setSavingTagId] = useState<string | null>(null)
 
+  // Batch auto-tag state
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [batchScope, setBatchScope] = useState<'untagged' | 'all'>('untagged')
+  const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('apply')
+  const [batchRunning, setBatchRunning] = useState(false)
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
+  const [batchSummary, setBatchSummary] = useState<{ total: number; tagsApplied: number } | null>(null)
+  // Ref so the running loop always sees the latest tags without waiting for state
+  const liveTagsRef = useRef<TagDefinition[]>(initialTags)
+
   const tagById = useMemo(() => new Map(tagDefinitions.map((t) => [t.id, t])), [tagDefinitions])
+
+  // Keep ref in sync for use inside batch loops
+  liveTagsRef.current = tagDefinitions
 
   async function saveAnswerTags(answerId: string, nextTagIds: string[]) {
     const final = [...new Set(nextTagIds)].filter((id) => tagById.has(id)).slice(0, 12)
@@ -1113,8 +1126,163 @@ export default function TaggingWorkspace({
     return result as { success?: boolean }
   }
 
+  async function runBatchTag() {
+    const toProcess = batchScope === 'untagged'
+      ? answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
+      : answers
+
+    if (!toProcess.length) return
+
+    setBatchRunning(true)
+    setBatchSummary(null)
+    setBatchProgress({ done: 0, total: toProcess.length })
+
+    let tagsApplied = 0
+
+    for (const answer of toProcess) {
+      const currentTags = liveTagsRef.current
+      const result = await suggestTagsWithAI(
+        answer.answer,
+        currentTags.map((t) => ({ id: t.id, label: t.label })),
+        batchMode,
+      )
+
+      const existingIds = tagIdsByAnswer[answer.answerId] ?? []
+      const validTagIds = new Set(currentTags.map((t) => t.id))
+      const toAdd = result.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
+      let nextIds = [...existingIds, ...toAdd]
+
+      // In explore mode, create new suggested tags and apply them
+      for (const label of result.new_tags) {
+        const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
+        const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
+        if (tagResult?.tag) {
+          const newTag = tagResult.tag as TagDefinition
+          const updated = [
+            ...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label),
+            newTag,
+          ].sort((a, b) => a.label.localeCompare(b.label))
+          liveTagsRef.current = updated
+          setTagDefinitions(updated)
+          if (!nextIds.includes(newTag.id)) nextIds.push(newTag.id)
+        }
+      }
+
+      if (nextIds.length > existingIds.length) {
+        tagsApplied += nextIds.length - existingIds.length
+        setTagIdsByAnswer((prev) => ({ ...prev, [answer.answerId]: nextIds }))
+        await updateAnswerTags(studyId, answer.answerId, nextIds)
+      }
+
+      setBatchProgress((prev) => ({ ...prev, done: prev.done + 1 }))
+    }
+
+    setBatchRunning(false)
+    setBatchSummary({ total: toProcess.length, tagsApplied })
+    router.refresh()
+  }
+
+  const untaggedCount = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length
+
   return (
     <div className="space-y-4">
+      {/* Auto-tag panel */}
+      <div className="rounded-xl border border-[var(--border)] bg-white">
+        <button
+          type="button"
+          onClick={() => { setBatchOpen((o) => !o); setBatchSummary(null) }}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-[var(--text)]"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-[var(--accent)]">✦</span>
+            Auto-tag all answers with AI
+          </span>
+          <span className="text-xs text-[var(--text-tertiary)]">{batchOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {batchOpen && (
+          <div className="border-t border-[var(--border-subtle)] px-4 pb-4 pt-3 space-y-3">
+            <div className="flex flex-wrap gap-3">
+              {/* Scope */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-tertiary)]">Tag</span>
+                <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setBatchScope('untagged')}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchScope === 'untagged' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                  >
+                    Untagged only ({untaggedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBatchScope('all')}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchScope === 'all' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                  >
+                    All answers ({answers.length})
+                  </button>
+                </div>
+              </div>
+              {/* Mode */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-tertiary)]">Mode</span>
+                <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setBatchMode('apply')}
+                    title="Apply existing tags only"
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchMode === 'apply' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBatchMode('explore')}
+                    title="Apply existing tags and create new ones"
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${batchMode === 'explore' ? 'bg-[var(--accent)] text-[var(--text-on-accent)]' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                  >
+                    Explore
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {batchMode === 'apply' && tagDefinitions.length === 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                Apply mode needs at least one tag to exist. Create some tags first, or switch to Explore mode so AI can invent them.
+              </p>
+            )}
+
+            {batchRunning ? (
+              <div className="space-y-2">
+                <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--accent)] transition-all"
+                    style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+                <p className="text-xs text-[var(--text-tertiary)]">
+                  Tagging {batchProgress.done} / {batchProgress.total}…
+                </p>
+              </div>
+            ) : batchSummary ? (
+              <p className="text-sm font-semibold text-[var(--accent)]">
+                ✓ Done — {batchSummary.total} answers processed, {batchSummary.tagsApplied} tags applied
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void runBatchTag()}
+                disabled={batchMode === 'apply' && tagDefinitions.length === 0}
+                className="h-9 rounded-lg bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--text-on-accent)] disabled:opacity-40"
+              >
+                Tag {batchScope === 'untagged' ? untaggedCount : answers.length} answers
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Tabs */}
       <div className="flex border-b border-[var(--border)]">
         {([
