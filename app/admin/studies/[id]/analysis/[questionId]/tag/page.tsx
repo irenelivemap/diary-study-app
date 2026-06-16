@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
-import { FreeTextAnswerList } from '@/app/components/AnalysisDashboard'
+import TaggingWorkspace from '@/app/components/TaggingWorkspace'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
 import { plainTextFromHtml } from '@/app/lib/sanitize-html'
@@ -82,7 +82,7 @@ export default async function TaggingPage({ params }: { params: Promise<{ id: st
           <h1 className="mt-3 text-xl font-semibold text-[var(--text)]">{questionText}</h1>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">{answers.length} {answers.length === 1 ? 'answer' : 'answers'}</p>
         </div>
-        <FreeTextAnswerList
+        <TaggingWorkspace
           studyId={id}
           questionId={questionId}
           initialTags={tagDefinitions}

@@ -123,3 +123,57 @@ export async function updateAnswerTags(studyId: string, answerId: string, tagIds
   revalidatePath(`/admin/studies/${studyId}/analysis`)
   return { success: true, tagIds: allowedTagIds }
 }
+
+export async function mergeQuestionTags(
+  studyId: string,
+  questionId: string,
+  sourceTagIds: string[],
+  resultLabel: string,
+  resultColor: string = DEFAULT_TAG_COLOR,
+) {
+  await requireAdmin()
+
+  if (!sourceTagIds.length) return { error: 'No tags to merge.' }
+
+  const finalLabel = cleanLabel(resultLabel)
+  if (!finalLabel) return { error: 'Tag label is required.' }
+
+  const sourceTags = await prisma.questionTag.findMany({
+    where: { id: { in: sourceTagIds }, questionId, question: { studyId, type: 'FREE_TEXT' } },
+    select: { id: true },
+  })
+  if (sourceTags.length !== sourceTagIds.length) return { error: 'Some tags not found.' }
+
+  const targetTag = await prisma.questionTag.upsert({
+    where: { questionId_label: { questionId, label: finalLabel } },
+    update: { color: cleanColor(resultColor) },
+    create: { questionId, label: finalLabel, color: cleanColor(resultColor) },
+  })
+
+  const affected = await prisma.answerTag.findMany({
+    where: { tagId: { in: sourceTagIds }, answer: { entry: { studyId } } },
+    select: { answerId: true },
+  })
+  const affectedAnswerIds = [...new Set(affected.map((r) => r.answerId))]
+
+  if (affectedAnswerIds.length > 0) {
+    await prisma.$transaction([
+      prisma.answerTag.deleteMany({
+        where: { tagId: { in: sourceTagIds }, answerId: { in: affectedAnswerIds } },
+      }),
+      prisma.answerTag.createMany({
+        data: affectedAnswerIds.map((answerId) => ({ answerId, tagId: targetTag.id })),
+        skipDuplicates: true,
+      }),
+    ])
+  }
+
+  const toDelete = sourceTagIds.filter((id) => id !== targetTag.id)
+  if (toDelete.length > 0) {
+    await prisma.questionTag.deleteMany({ where: { id: { in: toDelete } } })
+  }
+
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
+  revalidatePath(`/admin/studies/${studyId}/analysis/${questionId}/tag`)
+  return { success: true, tag: targetTag }
+}
