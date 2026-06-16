@@ -1222,44 +1222,15 @@ export default function TaggingWorkspace({
         <button
           type="button"
           onClick={() => { setBatchOpen((o) => !o); setBatchSummary(null) }}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-[var(--text)]"
+          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-[var(--text)]"
         >
-          <span className="text-[var(--accent)]">✦</span> Auto-tag all answers with AI
+          <span className="text-[var(--accent)]">✦</span>
+          <span className="flex-1 text-left">Auto-tag all answers with AI</span>
           <span className="text-xs text-[var(--text-tertiary)]">{batchOpen ? '▲' : '▼'}</span>
         </button>
 
         {batchOpen && (
-          <div className="border-t border-[var(--border-subtle)] px-4 pb-4 pt-3 space-y-3">
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[var(--text-tertiary)]">Tag</span>
-                <SegmentedControl
-                  options={[
-                    { value: 'untagged' as const, label: `Untagged only (${untaggedCount})` },
-                    { value: 'all' as const, label: `All answers (${answers.length})` },
-                  ]}
-                  value={batchScope}
-                  onChange={setBatchScope}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[var(--text-tertiary)]">Mode</span>
-                <SegmentedControl
-                  options={[
-                    { value: 'apply' as const, label: 'Apply' },
-                    { value: 'explore' as const, label: 'Explore' },
-                  ]}
-                  value={batchMode}
-                  onChange={setBatchMode}
-                />
-              </div>
-            </div>
-
-            {batchMode === 'apply' && tagDefinitions.length === 0 && (
-              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm" style={{ color: 'var(--warning-text)' }}>
-                Apply mode needs at least one tag to exist. Create some tags first, or switch to Explore mode.
-              </p>
-            )}
+          <div className="border-t border-[var(--border-subtle)] px-4 pb-5 pt-4 space-y-4">
 
             {batchRunning ? (
               <div className="space-y-2">
@@ -1270,13 +1241,13 @@ export default function TaggingWorkspace({
                   />
                 </div>
                 <p className="text-sm text-[var(--text-tertiary)]">
-                  {batchProgress.done} / {batchProgress.total} answers — {batchProgress.done === 0 ? 'starting…' : 'tagging…'}
+                  {batchProgress.done} / {batchProgress.total} answers processed…
                 </p>
               </div>
             ) : batchSummary ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {batchSummary.firstError && (
-                  <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
+                  <p className="rounded-lg px-3 py-2.5 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
                     Error: {batchSummary.firstError}
                   </p>
                 )}
@@ -1287,8 +1258,8 @@ export default function TaggingWorkspace({
                 ) : (
                   <p className="text-sm text-[var(--text-secondary)]">
                     Processed {batchSummary.total} answers but found nothing to tag.
-                    {batchMode === 'apply' && tagDefinitions.length === 0 && ' Switch to Explore mode — there are no existing tags to apply.'}
-                    {batchMode === 'apply' && tagDefinitions.length > 0 && ' The AI did not match any existing tags. Try Explore mode to generate new tags from the answers.'}
+                    {batchMode === 'apply' && tagDefinitions.length === 0 && ' No existing tags to apply — switch to Explore mode.'}
+                    {batchMode === 'apply' && tagDefinitions.length > 0 && ' Try Explore mode to generate new tags from the answers.'}
                   </p>
                 )}
                 <Button tone="secondary" size="sm" onClick={() => setBatchSummary(null)}>
@@ -1296,14 +1267,79 @@ export default function TaggingWorkspace({
                 </Button>
               </div>
             ) : (
-              <Button
-                tone="primary"
-                size="sm"
-                onClick={() => void runBatchTag()}
-                disabled={batchMode === 'apply' && tagDefinitions.length === 0}
-              >
-                Tag {batchScope === 'untagged' ? untaggedCount : answers.length} answers
-              </Button>
+              <>
+                {/* Options grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Scope */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Which answers</p>
+                    <div className="space-y-1">
+                      {([
+                        { value: 'untagged' as const, label: 'Untagged only', count: untaggedCount },
+                        { value: 'all' as const, label: 'All answers', count: answers.length },
+                      ]).map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setBatchScope(opt.value)}
+                          className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                            batchScope === opt.value
+                              ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] font-semibold text-[var(--accent)]'
+                              : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
+                          }`}
+                        >
+                          <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${batchScope === opt.value ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--border-strong)]'}`} />
+                          {opt.label}
+                          <span className="ml-auto tabular-nums text-xs opacity-60">{opt.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mode */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">AI mode</p>
+                    <div className="space-y-1">
+                      {([
+                        { value: 'explore' as const, label: 'Explore', desc: 'Create new tag names' },
+                        { value: 'apply' as const, label: 'Apply', desc: 'Match existing tags only' },
+                      ]).map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setBatchMode(opt.value)}
+                          className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                            batchMode === opt.value
+                              ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] font-semibold text-[var(--accent)]'
+                              : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
+                          }`}
+                        >
+                          <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${batchMode === opt.value ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--border-strong)]'}`} />
+                          <span>
+                            {opt.label}
+                            <span className="ml-1.5 text-xs font-normal opacity-60">{opt.desc}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {batchMode === 'apply' && tagDefinitions.length === 0 && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm" style={{ color: 'var(--warning-text)' }}>
+                    No existing tags to apply. Switch to Explore or create some tags first.
+                  </p>
+                )}
+
+                <Button
+                  tone="primary"
+                  size="md"
+                  onClick={() => void runBatchTag()}
+                  disabled={batchMode === 'apply' && tagDefinitions.length === 0}
+                >
+                  Tag {batchScope === 'untagged' ? untaggedCount : answers.length} answers
+                </Button>
+              </>
             )}
           </div>
         )}
