@@ -44,6 +44,8 @@ export default async function TaggingPage({ params }: { params: Promise<{ id: st
     id: tag.id,
     label: tag.label,
     color: tag.color,
+    parentId: tag.parentId ?? null,
+    description: tag.description ?? null,
   }))
 
   const answers = entries.flatMap((entry) => {

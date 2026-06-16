@@ -3,19 +3,30 @@
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  consolidateTagsWithAI,
   createQuestionTag,
   deleteQuestionTag,
   mergeQuestionTags,
+  setTagParent,
   suggestTagsWithAI,
+  suggestThemeName,
   updateAnswerTags,
   updateQuestionTag,
+  updateTagDescription,
 } from '@/app/actions/analysis'
 import { Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TagDefinition = { id: string; label: string; color: string }
+type TagDefinition = {
+  id: string
+  label: string
+  color: string
+  parentId: string | null
+  description: string | null
+}
+
 type Answer = {
   entryId: string
   participantName: string
@@ -24,8 +35,9 @@ type Answer = {
   submittedAt: string
   answerId: string
   answer: string
-  tags: TagDefinition[]
+  tags: { id: string; label: string; color: string }[]
 }
+
 type FilterType = 'all' | 'untagged' | 'tag' | 'participant'
 type SortBy = 'date' | 'size' | 'tag' | 'participant'
 
@@ -52,31 +64,43 @@ function formatDate(iso: string) {
 }
 
 // ─── AppliedTagChip ───────────────────────────────────────────────────────────
-// Colored chip (non-interactive) with a separate remove button inside.
 
-function AppliedTagChip({ tag, onRemove, size = 'md' }: {
+function AppliedTagChip({
+  tag,
+  parentTag,
+  onRemove,
+  size = 'md',
+}: {
   tag: TagDefinition
+  parentTag?: TagDefinition
   onRemove: () => void
   size?: 'sm' | 'md'
 }) {
   const textColor = readableTextColor(tag.color)
   const sm = size === 'sm'
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full font-semibold ${sm ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`}
-      style={{ backgroundColor: tag.color, color: textColor }}
-    >
-      {tag.label}
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${tag.label}`}
-        className="rounded-full p-0.5 opacity-60 transition-opacity hover:opacity-100"
+    <span className="inline-flex flex-col items-start">
+      {parentTag && (
+        <span className={`mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]`}>
+          {parentTag.label}
+        </span>
+      )}
+      <span
+        className={`inline-flex items-center gap-1 rounded-full font-semibold ${sm ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`}
+        style={{ backgroundColor: tag.color, color: textColor }}
       >
-        <svg viewBox="0 0 16 16" className={sm ? 'h-2.5 w-2.5' : 'h-3 w-3'} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-          <path d="M4 4l8 8M12 4l-8 8" />
-        </svg>
-      </button>
+        {tag.label}
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${tag.label}`}
+          className="rounded-full p-0.5 opacity-60 transition-opacity hover:opacity-100"
+        >
+          <svg viewBox="0 0 16 16" className={sm ? 'h-2.5 w-2.5' : 'h-3 w-3'} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
+      </span>
     </span>
   )
 }
@@ -100,11 +124,17 @@ function TagAutocomplete({
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(-1)
 
+  // Only show leaf tags (sub-tags and standalone) in the autocomplete — not themes
+  const leafTags = useMemo(() => tags.filter((t) => {
+    const isTheme = t.parentId === null && tags.some((c) => c.parentId === t.id)
+    return !isTheme
+  }), [tags])
+
   const suggestions = useMemo(() => {
     if (!value.trim()) return []
     const q = value.toLowerCase()
-    return tags.filter((t) => !appliedTagIds.includes(t.id) && t.label.toLowerCase().includes(q))
-  }, [value, tags, appliedTagIds])
+    return leafTags.filter((t) => !appliedTagIds.includes(t.id) && t.label.toLowerCase().includes(q))
+  }, [value, leafTags, appliedTagIds])
 
   function commit(tag: TagDefinition | null, raw: string) {
     if (tag) {
@@ -112,7 +142,7 @@ function TagAutocomplete({
     } else {
       const label = normalizeLabel(raw)
       if (!label) return
-      const exact = tags.find((t) => t.label.toLowerCase() === label.toLowerCase())
+      const exact = leafTags.find((t) => t.label.toLowerCase() === label.toLowerCase())
       exact ? onApply(exact.id) : onCreate(label)
     }
     setValue('')
@@ -137,7 +167,7 @@ function TagAutocomplete({
     }
   }
 
-  const exactMatch = value.trim() && tags.some((t) => t.label.toLowerCase() === value.trim().toLowerCase())
+  const exactMatch = value.trim() && leafTags.some((t) => t.label.toLowerCase() === value.trim().toLowerCase())
 
   return (
     <div className="relative flex-1">
@@ -154,19 +184,25 @@ function TagAutocomplete({
       />
       {open && (suggestions.length > 0 || (value.trim() && !exactMatch)) && (
         <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-48 rounded-xl border border-[var(--border)] bg-white shadow-lg overflow-hidden">
-          {suggestions.slice(0, 8).map((tag, i) => (
-            <button
-              key={tag.id}
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); commit(tag, tag.label) }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                i === cursor ? 'bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'text-[var(--text)] hover:bg-[var(--bg-sunken)]'
-              }`}
-            >
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-              {tag.label}
-            </button>
-          ))}
+          {suggestions.slice(0, 8).map((tag, i) => {
+            const parent = tag.parentId ? leafTags.find((t) => t.id === tag.parentId) : null
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); commit(tag, tag.label) }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                  i === cursor ? 'bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'text-[var(--text)] hover:bg-[var(--bg-sunken)]'
+                }`}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                <span className="flex-1 text-left">
+                  {parent && <span className="mr-1 text-[var(--text-tertiary)]">{parent.label} › </span>}
+                  {tag.label}
+                </span>
+              </button>
+            )
+          })}
           {value.trim() && !exactMatch && (
             <button
               type="button"
@@ -247,6 +283,24 @@ function CodeTab({
   const [aiResult, setAiResult] = useState<{ apply: string[]; new_tags: string[]; error?: string } | null>(null)
   const lastSuggestedAnswerId = useRef<string | null>(null)
 
+  // Build theme list for "By tag" filter: themes + standalone tags
+  const themes = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+  const standaloneTagsForFilter = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+
+  const tagFilterOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [{ value: '', label: 'Pick a tag…' }]
+    for (const theme of themes) {
+      opts.push({ value: `theme:${theme.id}`, label: `📂 ${theme.label}` })
+      for (const child of tagDefinitions.filter((t) => t.parentId === theme.id)) {
+        opts.push({ value: child.id, label: `  › ${child.label}` })
+      }
+    }
+    for (const tag of standaloneTagsForFilter) {
+      opts.push({ value: tag.id, label: tag.label })
+    }
+    return opts
+  }, [themes, standaloneTagsForFilter, tagDefinitions])
+
   const participants = useMemo(() => {
     const seen = new Map<string, string>()
     for (const a of answers) {
@@ -262,7 +316,13 @@ function CodeTab({
     if (filterType === 'untagged') {
       result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
     } else if (filterType === 'tag' && filterTagId) {
-      result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(filterTagId))
+      if (filterTagId.startsWith('theme:')) {
+        const themeId = filterTagId.slice(6)
+        const subTagIds = new Set(tagDefinitions.filter((t) => t.parentId === themeId).map((t) => t.id))
+        result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).some((id) => subTagIds.has(id)))
+      } else {
+        result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(filterTagId))
+      }
     } else if (filterType === 'participant' && filterEmail) {
       result = result.filter((a) => a.participantEmail === filterEmail)
     }
@@ -277,7 +337,7 @@ function CodeTab({
       })
     }
     return result
-  }, [answers, filterType, filterTagId, filterEmail, sortBy, tagIdsByAnswer, tagById])
+  }, [answers, filterType, filterTagId, filterEmail, sortBy, tagIdsByAnswer, tagById, tagDefinitions])
 
   const totalUntagged = useMemo(
     () => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length,
@@ -288,16 +348,20 @@ function CodeTab({
   const current = filtered[safeIndex] ?? null
   const currentTagIds = current ? (tagIdsByAnswer[current.answerId] ?? []) : []
   const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
+  // Only leaf tags shown as chips; themes are inferred
+  const currentLeafTags = currentTags.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
 
   async function runSuggest() {
     if (!current) return
     setSuggesting(true)
     setAiResult(null)
     lastSuggestedAnswerId.current = current.answerId
+    // Only pass leaf tags to AI
+    const leafTagsForAI = tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
     try {
       const result = await suggestTagsWithAI(
         current.answer,
-        tagDefinitions.map((t) => ({ id: t.id, label: t.label })),
+        leafTagsForAI.map((t) => ({ id: t.id, label: t.label })),
         aiMode,
       )
       setAiResult(result)
@@ -313,7 +377,6 @@ function CodeTab({
     setAiResult(null)
   }
 
-  const tagOptions = tagDefinitions.map((t) => ({ value: t.id, label: t.label }))
   const participantOptions = participants.map((p) => ({ value: p.email, label: p.name }))
   const sortOptions: { value: SortBy; label: string }[] = [
     { value: 'date', label: 'Date' },
@@ -321,6 +384,9 @@ function CodeTab({
     { value: 'tag', label: 'Tag' },
     { value: 'participant', label: 'Participant' },
   ]
+
+  // Available leaf tags for quick-apply (not already applied, not in AI suggestions)
+  const leafTagsForApply = tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
 
   return (
     <div className="space-y-4">
@@ -339,11 +405,11 @@ function CodeTab({
 
         {filterType === 'tag' && (
           <SelectMenu
-            value={filterTagId || (tagOptions[0]?.value ?? '')}
-            options={[{ value: '', label: 'Pick a tag…' }, ...tagOptions]}
+            value={filterTagId || (tagFilterOptions[0]?.value ?? '')}
+            options={tagFilterOptions}
             onChange={(v) => { setFilterTagId(v); setCardIndex(0) }}
             buttonClassName="h-9 rounded-lg text-sm"
-            className="w-44"
+            className="w-52"
           />
         )}
         {filterType === 'participant' && (
@@ -429,15 +495,19 @@ function CodeTab({
 
           {/* Tags area */}
           <div className="space-y-3 px-5 pb-5">
-            {currentTags.length > 0 && (
+            {currentLeafTags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {currentTags.map((tag) => (
-                  <AppliedTagChip
-                    key={tag.id}
-                    tag={tag}
-                    onRemove={() => onRemove(current.answerId, tag.id)}
-                  />
-                ))}
+                {currentLeafTags.map((tag) => {
+                  const parent = tag.parentId ? tagById.get(tag.parentId) : undefined
+                  return (
+                    <AppliedTagChip
+                      key={tag.id}
+                      tag={tag}
+                      parentTag={parent}
+                      onRemove={() => onRemove(current.answerId, tag.id)}
+                    />
+                  )
+                })}
               </div>
             )}
 
@@ -531,7 +601,7 @@ function CodeTab({
             {/* Available tags — quick apply */}
             {(() => {
               const suggestedIds = new Set(aiResult?.apply ?? [])
-              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id) && !suggestedIds.has(t.id))
+              const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id) && !suggestedIds.has(t.id))
               if (!available.length) return null
               return (
                 <div className="flex flex-wrap gap-2">
@@ -582,25 +652,46 @@ function ListView({
   const [tagFilter, setTagFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(15)
 
+  const themes = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+  const standaloneTags = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+
+  const filterOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [
+      { value: 'all', label: 'All' },
+      { value: 'untagged', label: 'Untagged' },
+    ]
+    for (const theme of themes) {
+      opts.push({ value: `theme:${theme.id}`, label: `📂 ${theme.label}` })
+      for (const child of tagDefinitions.filter((t) => t.parentId === theme.id)) {
+        opts.push({ value: child.id, label: `  › ${child.label}` })
+      }
+    }
+    for (const tag of standaloneTags) {
+      opts.push({ value: tag.id, label: tag.label })
+    }
+    return opts
+  }, [themes, standaloneTags, tagDefinitions])
+
   const filtered = useMemo(() => {
     if (tagFilter === 'all') return answers
     if (tagFilter === 'untagged') return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
+    if (tagFilter.startsWith('theme:')) {
+      const themeId = tagFilter.slice(6)
+      const subTagIds = new Set(tagDefinitions.filter((t) => t.parentId === themeId).map((t) => t.id))
+      return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).some((id) => subTagIds.has(id)))
+    }
     return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(tagFilter))
-  }, [answers, tagFilter, tagIdsByAnswer])
+  }, [answers, tagFilter, tagIdsByAnswer, tagDefinitions])
 
   const untaggedCount = useMemo(
     () => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length,
     [answers, tagIdsByAnswer],
   )
 
+  const leafTagsForApply = tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
+
   const visible = filtered.slice(0, visibleCount)
   const hasMore = visibleCount < filtered.length
-
-  const filterOptions = [
-    { value: 'all', label: 'All' },
-    { value: 'untagged', label: 'Untagged' },
-    ...tagDefinitions.map((t) => ({ value: t.id, label: t.label })),
-  ]
 
   return (
     <div className="space-y-3">
@@ -634,7 +725,8 @@ function ListView({
             {visible.map((answer) => {
               const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
               const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
-              const available = tagDefinitions.filter((t) => !currentTagIds.includes(t.id))
+              const currentLeafTags = currentTags.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
+              const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id))
               const isSaving = savingAnswerId === answer.answerId
 
               return (
@@ -649,16 +741,20 @@ function ListView({
                     {answer.answer}
                   </p>
                   <div className="space-y-2">
-                    {currentTags.length > 0 && (
+                    {currentLeafTags.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {currentTags.map((tag) => (
-                          <AppliedTagChip
-                            key={tag.id}
-                            tag={tag}
-                            size="sm"
-                            onRemove={() => onRemove(answer.answerId, tag.id)}
-                          />
-                        ))}
+                        {currentLeafTags.map((tag) => {
+                          const parent = tag.parentId ? tagById.get(tag.parentId) : undefined
+                          return (
+                            <AppliedTagChip
+                              key={tag.id}
+                              tag={tag}
+                              parentTag={parent}
+                              size="sm"
+                              onRemove={() => onRemove(answer.answerId, tag.id)}
+                            />
+                          )
+                        })}
                       </div>
                     )}
                     {available.length > 0 && (
@@ -715,33 +811,281 @@ function ListView({
   )
 }
 
+// ─── AIProposalPanel ──────────────────────────────────────────────────────────
+
+type ProposedTheme = {
+  tempId: string
+  name: string
+  description: string
+  tagIds: string[]
+}
+
+function AIProposalPanel({
+  proposal,
+  tagById,
+  allTagIds,
+  studyId,
+  questionId,
+  tagDefinitions,
+  onApply,
+  onCancel,
+}: {
+  proposal: ProposedTheme[]
+  tagById: Map<string, TagDefinition>
+  allTagIds: Set<string>
+  studyId: string
+  questionId: string
+  tagDefinitions: TagDefinition[]
+  onApply: (themes: ProposedTheme[]) => Promise<void>
+  onCancel: () => void
+}) {
+  const [themes, setThemes] = useState<ProposedTheme[]>(proposal)
+  const [applying, setApplying] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [editingDescId, setEditingDescId] = useState<string | null>(null)
+  const [suggestingId, setSuggestingId] = useState<string | null>(null)
+
+  const assignedTagIds = useMemo(() => new Set(themes.flatMap((t) => t.tagIds)), [themes])
+  const unassignedTagIds = useMemo(() => [...allTagIds].filter((id) => !assignedTagIds.has(id)), [allTagIds, assignedTagIds])
+
+  function removeSubTag(themeId: string, tagId: string) {
+    setThemes((prev) => prev.map((t) => t.tempId === themeId ? { ...t, tagIds: t.tagIds.filter((id) => id !== tagId) } : t))
+  }
+
+  function removeTheme(themeId: string) {
+    setThemes((prev) => prev.filter((t) => t.tempId !== themeId))
+  }
+
+  function renameTheme(themeId: string, name: string) {
+    setThemes((prev) => prev.map((t) => t.tempId === themeId ? { ...t, name } : t))
+  }
+
+  function updateDesc(themeId: string, description: string) {
+    setThemes((prev) => prev.map((t) => t.tempId === themeId ? { ...t, description } : t))
+  }
+
+  function addTagToTheme(themeId: string, tagId: string) {
+    setThemes((prev) => prev.map((t) => t.tempId === themeId ? { ...t, tagIds: [...t.tagIds, tagId] } : t))
+  }
+
+  async function handleSuggestName(theme: ProposedTheme) {
+    setSuggestingId(theme.tempId)
+    const labels = theme.tagIds.map((id) => tagById.get(id)?.label ?? '').filter(Boolean)
+    const result = await suggestThemeName(labels)
+    setSuggestingId(null)
+    if ('name' in result && result.name) {
+      setThemes((prev) => prev.map((t) => t.tempId === theme.tempId ? {
+        ...t,
+        name: result.name,
+        description: result.description ?? t.description,
+      } : t))
+    }
+  }
+
+  async function handleApply() {
+    setApplying(true)
+    await onApply(themes.filter((t) => t.tagIds.length > 0))
+    setApplying(false)
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--accent-muted)] bg-[var(--accent-subtle)] p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-[var(--text)]">
+          AI proposed {themes.length} themes — review and adjust before applying
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {themes.map((theme) => (
+          <div key={theme.tempId} className="rounded-lg border border-[var(--border)] bg-white p-4 space-y-3">
+            {/* Theme name row */}
+            <div className="flex items-start gap-2">
+              {renamingId === theme.tempId ? (
+                <input
+                  autoFocus
+                  value={theme.name}
+                  onChange={(e) => renameTheme(theme.tempId, e.target.value)}
+                  onBlur={() => setRenamingId(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape') setRenamingId(null)
+                  }}
+                  className="flex-1 rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm font-semibold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRenamingId(theme.tempId)}
+                  className="flex-1 text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
+                  title="Click to rename"
+                >
+                  {theme.name || <span className="text-[var(--text-tertiary)] italic">Unnamed theme</span>}
+                </button>
+              )}
+              <Button
+                tone="secondary"
+                size="sm"
+                onClick={() => void handleSuggestName(theme)}
+                disabled={suggestingId === theme.tempId || theme.tagIds.length === 0}
+                className="shrink-0 text-xs"
+              >
+                {suggestingId === theme.tempId ? '…' : '✦ Suggest name'}
+              </Button>
+              <Button
+                tone="danger"
+                size="sm"
+                onClick={() => removeTheme(theme.tempId)}
+                className="shrink-0"
+              >
+                Remove theme
+              </Button>
+            </div>
+
+            {/* Description */}
+            {editingDescId === theme.tempId ? (
+              <textarea
+                autoFocus
+                value={theme.description}
+                onChange={(e) => updateDesc(theme.tempId, e.target.value)}
+                onBlur={() => setEditingDescId(null)}
+                rows={2}
+                className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1.5 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingDescId(theme.tempId)}
+                className="w-full text-left text-sm text-[var(--text-secondary)] hover:text-[var(--text)] italic"
+                title="Click to edit description"
+              >
+                {theme.description || <span className="text-[var(--text-tertiary)] not-italic">Add description…</span>}
+              </button>
+            )}
+
+            {/* Sub-tag chips */}
+            <div className="flex flex-wrap gap-2">
+              {theme.tagIds.map((tagId) => {
+                const tag = tagById.get(tagId)
+                if (!tag) return null
+                return (
+                  <span
+                    key={tagId}
+                    className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-sunken)] border border-[var(--border)] px-2.5 py-0.5 text-sm text-[var(--text-secondary)]"
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                    {tag.label}
+                    <button
+                      type="button"
+                      onClick={() => removeSubTag(theme.tempId, tagId)}
+                      aria-label={`Remove ${tag.label} from theme`}
+                      className="ml-0.5 rounded-full p-0.5 opacity-50 hover:opacity-100"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </button>
+                  </span>
+                )
+              })}
+            </div>
+
+            {/* Add existing unassigned tag */}
+            {unassignedTagIds.length > 0 && (
+              <SelectMenu
+                value=""
+                options={[
+                  { value: '', label: '+ Add existing tag to this theme' },
+                  ...unassignedTagIds.map((id) => ({ value: id, label: tagById.get(id)?.label ?? id })),
+                ]}
+                onChange={(v) => { if (v) addTagToTheme(theme.tempId, v) }}
+                buttonClassName="h-8 text-sm"
+                className="w-64"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {unassignedTagIds.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+            Tags not in any theme
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {unassignedTagIds.map((id) => {
+              const tag = tagById.get(id)
+              if (!tag) return null
+              return (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[var(--border-strong)] bg-white px-2.5 py-0.5 text-sm text-[var(--text-secondary)]"
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                  {tag.label}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          tone="primary"
+          size="sm"
+          onClick={() => void handleApply()}
+          disabled={applying || themes.filter((t) => t.tagIds.length > 0).length === 0}
+        >
+          {applying ? 'Applying…' : 'Apply grouping'}
+        </Button>
+        <Button
+          tone="secondary"
+          size="sm"
+          onClick={onCancel}
+          disabled={applying}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── ManageTab ────────────────────────────────────────────────────────────────
 
 function ManageTab({
+  studyId,
+  questionId,
   tagDefinitions,
   tagIdsByAnswer,
   savingTagId,
   onRename,
   onDelete,
-  onMerge,
   onCreate,
+  onMoveToTheme,
+  onUpdateDescription,
 }: {
+  studyId: string
+  questionId: string
   tagDefinitions: TagDefinition[]
   tagIdsByAnswer: Record<string, string[]>
   savingTagId: string | null
   onRename: (tagId: string, label: string, color: string) => void
-  onDelete: (tagId: string) => void
-  onMerge: (sourceIds: string[], label: string, color: string) => Promise<{ success?: boolean } | null | undefined>
+  onDelete: (tagId: string, mode?: 'keep-subtags' | 'delete-all') => void
   onCreate: (label: string, color: string) => Promise<TagDefinition | null>
+  onMoveToTheme: (tagId: string, parentId: string | null) => Promise<void>
+  onUpdateDescription: (tagId: string, description: string) => Promise<void>
 }) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [mergeLabel, setMergeLabel] = useState('')
-  const [mergeColor, setMergeColor] = useState(DEFAULT_COLORS[0])
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [newLabel, setNewLabel] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_COLORS[0])
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [editingDescId, setEditingDescId] = useState<string | null>(null)
+  const [descValue, setDescValue] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [consolidating, setConsolidating] = useState(false)
+  const [aiProposal, setAiProposal] = useState<ProposedTheme[] | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -751,30 +1095,21 @@ function ManageTab({
     return counts
   }, [tagIdsByAnswer])
 
-  const mergeAffectedCount = useMemo(() => {
-    const answerIds = new Set<string>()
-    for (const [answerId, ids] of Object.entries(tagIdsByAnswer)) {
-      if (ids.some((id) => selectedIds.has(id))) answerIds.add(answerId)
-    }
-    return answerIds.size
-  }, [tagIdsByAnswer, selectedIds])
+  const themes = useMemo(
+    () => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)),
+    [tagDefinitions],
+  )
 
-  function toggleSelect(tagId: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(tagId) ? next.delete(tagId) : next.add(tagId)
-      return next
-    })
-  }
+  const ungroupedTags = useMemo(
+    () => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)),
+    [tagDefinitions],
+  )
 
-  async function confirmMerge() {
-    const result = await onMerge([...selectedIds], mergeLabel, mergeColor)
-    if (result?.success) {
-      setSelectedIds(new Set())
-      setMergeLabel('')
-      setMergeColor(DEFAULT_COLORS[0])
-    }
-  }
+  const themeOptions = useMemo(() => [
+    { value: '', label: 'Move to theme…' },
+    ...themes.map((t) => ({ value: t.id, label: t.label })),
+    { value: '__new__', label: 'New theme…' },
+  ], [themes])
 
   function startRename(tag: TagDefinition) {
     setRenamingId(tag.id)
@@ -788,6 +1123,17 @@ function ManageTab({
     setRenameValue('')
   }
 
+  function startEditDesc(tag: TagDefinition) {
+    setEditingDescId(tag.id)
+    setDescValue(tag.description ?? '')
+  }
+
+  async function commitDesc(tagId: string) {
+    await onUpdateDescription(tagId, descValue)
+    setEditingDescId(null)
+    setDescValue('')
+  }
+
   async function handleCreate() {
     const label = normalizeLabel(newLabel)
     if (!label) return
@@ -796,16 +1142,238 @@ function ManageTab({
     setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
   }
 
+  async function handleMoveToTheme(tagId: string, value: string) {
+    if (!value) return
+    if (value === '__new__') {
+      // Create a new theme then move into it
+      const color = DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length]
+      const newThemeLabel = 'New Theme ' + (themes.length + 1)
+      const result = await createQuestionTag(studyId, questionId, newThemeLabel, color)
+      if (result?.tag) {
+        await onMoveToTheme(tagId, result.tag.id)
+        // Start rename immediately
+        setRenamingId(result.tag.id)
+        setRenameValue(result.tag.label)
+      }
+    } else {
+      await onMoveToTheme(tagId, value)
+    }
+  }
+
+  async function handleAiConsolidate() {
+    const leafTags = tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id))
+    if (leafTags.length < 2) return
+    setConsolidating(true)
+    setAiError(null)
+    setAiProposal(null)
+    const result = await consolidateTagsWithAI(studyId, questionId, leafTags.map((t) => ({ id: t.id, label: t.label })))
+    setConsolidating(false)
+    if ('error' in result && result.error) {
+      setAiError(result.error as string)
+      return
+    }
+    if (result.themes.length === 0) {
+      setAiError('AI returned no theme groupings.')
+      return
+    }
+    setAiProposal(result.themes.map((theme, i) => ({
+      tempId: `temp-${i}-${Date.now()}`,
+      name: theme.name,
+      description: theme.description,
+      tagIds: theme.tagIds,
+    })))
+  }
+
+  async function applyProposal(themes: ProposedTheme[]) {
+    for (const theme of themes) {
+      if (!theme.tagIds.length) continue
+      // Create the theme tag if it doesn't exist
+      const result = await createQuestionTag(studyId, questionId, normalizeLabel(theme.name) || 'Theme', DEFAULT_COLORS[themes.indexOf(theme) % DEFAULT_COLORS.length])
+      if (!result?.tag) continue
+      const themeTagId = result.tag.id
+      // Move sub-tags into the theme
+      for (const tagId of theme.tagIds) {
+        await onMoveToTheme(tagId, themeTagId)
+      }
+      // Save description
+      if (theme.description) {
+        await onUpdateDescription(themeTagId, theme.description)
+      }
+    }
+    setAiProposal(null)
+  }
+
+  function renderTagRow(tag: TagDefinition, isIndented = false) {
+    const count = tagCounts.get(tag.id) ?? 0
+    const isRenaming = renamingId === tag.id
+    const isEditingDesc = editingDescId === tag.id
+    const isConfirmingDelete = confirmDeleteId === tag.id
+
+    return (
+      <div
+        key={tag.id}
+        className={`flex items-center gap-3 px-4 py-3 ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
+      >
+        <input
+          type="color"
+          value={tag.color}
+          onChange={(e) => onRename(tag.id, tag.label, e.target.value)}
+          aria-label={`${tag.label} color`}
+          className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0"
+        />
+        <div className="flex-1 min-w-0 space-y-0.5">
+          {isRenaming ? (
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={() => void commitRename(tag)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); void commitRename(tag) }
+                if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
+              }}
+              className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => startRename(tag)}
+              title="Click to rename"
+              className="block text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
+            >
+              {tag.label}
+            </button>
+          )}
+          {/* Description inline edit */}
+          {isEditingDesc ? (
+            <textarea
+              autoFocus
+              value={descValue}
+              onChange={(e) => setDescValue(e.target.value)}
+              onBlur={() => void commitDesc(tag.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(tag.id) }
+                if (e.key === 'Escape') { setEditingDescId(null) }
+              }}
+              rows={2}
+              placeholder="Add description…"
+              className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => startEditDesc(tag)}
+              className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic"
+              title="Click to edit description"
+            >
+              {tag.description || <span className="not-italic opacity-50">Add description…</span>}
+            </button>
+          )}
+        </div>
+        <span className="shrink-0 text-sm tabular-nums text-[var(--text-tertiary)]">
+          {count} {count === 1 ? 'answer' : 'answers'}
+        </span>
+
+        {/* Move to theme dropdown (only for leaf/ungrouped tags) */}
+        {isIndented || tag.parentId !== null ? (
+          <div className="shrink-0 w-36">
+            <SelectMenu
+              value=""
+              options={[
+                { value: '', label: 'Move to theme ▾' },
+                { value: '__none__', label: 'Remove from theme' },
+                ...themes.filter((t) => t.id !== tag.parentId).map((t) => ({ value: t.id, label: t.label })),
+                { value: '__new__', label: 'New theme…' },
+              ]}
+              onChange={async (v) => {
+                if (!v) return
+                if (v === '__none__') {
+                  await onMoveToTheme(tag.id, null)
+                } else {
+                  await handleMoveToTheme(tag.id, v)
+                }
+              }}
+              buttonClassName="h-8 text-xs"
+            />
+          </div>
+        ) : (
+          <div className="shrink-0 w-36">
+            <SelectMenu
+              value=""
+              options={themeOptions}
+              onChange={async (v) => {
+                if (!v) return
+                await handleMoveToTheme(tag.id, v)
+              }}
+              buttonClassName="h-8 text-xs"
+            />
+          </div>
+        )}
+
+        {isConfirmingDelete ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Theme with children — offer two delete modes */}
+            {tagDefinitions.some((c) => c.parentId === tag.id) ? (
+              <>
+                <Button
+                  tone="secondary"
+                  size="sm"
+                  onClick={() => { void onDelete(tag.id, 'keep-subtags'); setConfirmDeleteId(null) }}
+                  className="text-xs whitespace-nowrap"
+                >
+                  Keep sub-tags
+                </Button>
+                <Button
+                  tone="danger"
+                  size="sm"
+                  onClick={() => { void onDelete(tag.id, 'delete-all'); setConfirmDeleteId(null) }}
+                  className="text-xs whitespace-nowrap"
+                >
+                  Delete all
+                </Button>
+              </>
+            ) : (
+              <Button
+                tone="danger"
+                size="sm"
+                onClick={() => { void onDelete(tag.id); setConfirmDeleteId(null) }}
+              >
+                Delete
+              </Button>
+            )}
+            <Button
+              tone="secondary"
+              size="sm"
+              onClick={() => setConfirmDeleteId(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <IconButton
+            tone="trash"
+            label={`Delete ${tag.label}`}
+            onClick={() => count > 0 || tagDefinitions.some((c) => c.parentId === tag.id) ? setConfirmDeleteId(tag.id) : void onDelete(tag.id)}
+            disabled={savingTagId === tag.id}
+            className="h-8 w-8 shrink-0"
+          >
+            <TrashIcon />
+          </IconButton>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
-      {/* New tag */}
-      <div className="flex gap-2">
+      {/* New tag + AI group header */}
+      <div className="flex gap-2 flex-wrap">
         <TextInput
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }}
           placeholder="New tag name"
-          className="h-9 py-0"
+          className="h-9 py-0 flex-1 min-w-40"
         />
         <input
           type="color"
@@ -823,7 +1391,38 @@ function ManageTab({
         >
           {savingTagId === 'new' ? 'Adding…' : 'Add tag'}
         </Button>
+        <div className="flex-1" />
+        <Button
+          tone="secondary"
+          size="sm"
+          onClick={() => void handleAiConsolidate()}
+          disabled={consolidating || ungroupedTags.length < 2}
+          className="shrink-0 whitespace-nowrap"
+        >
+          {consolidating ? '✦ Grouping…' : '✦ Group with AI'}
+        </Button>
       </div>
+
+      {/* AI error */}
+      {aiError && (
+        <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
+          AI error: {aiError}
+        </p>
+      )}
+
+      {/* AI proposal panel */}
+      {aiProposal && (
+        <AIProposalPanel
+          proposal={aiProposal}
+          tagById={new Map(tagDefinitions.map((t) => [t.id, t]))}
+          allTagIds={new Set(ungroupedTags.map((t) => t.id))}
+          studyId={studyId}
+          questionId={questionId}
+          tagDefinitions={tagDefinitions}
+          onApply={applyProposal}
+          onCancel={() => setAiProposal(null)}
+        />
+      )}
 
       {/* Tags list */}
       <div className="rounded-xl border border-[var(--border)] bg-white">
@@ -831,181 +1430,131 @@ function ManageTab({
           <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No tags yet. Create one above.</p>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
-            {/* Select-all header */}
-            <div className="flex items-center gap-3 px-4 py-2.5">
-              <input
-                type="checkbox"
-                checked={selectedIds.size === tagDefinitions.length && tagDefinitions.length > 0}
-                ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < tagDefinitions.length }}
-                onChange={() => {
-                  if (selectedIds.size === tagDefinitions.length) {
-                    setSelectedIds(new Set())
-                  } else {
-                    setSelectedIds(new Set(tagDefinitions.map((t) => t.id)))
-                  }
-                }}
-                aria-label="Select all tags"
-                className="h-4 w-4 rounded accent-[var(--accent)]"
-              />
-              <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
-                {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${tagDefinitions.length} tags`}
-              </span>
-              {selectedIds.size > 0 && (
-                <Button
-                  tone="danger"
-                  size="sm"
-                  onClick={() => {
-                    const ids = [...selectedIds]
-                    ids.forEach((id) => void onDelete(id))
-                    setSelectedIds(new Set())
-                    setConfirmDeleteId(null)
-                  }}
-                >
-                  Delete {selectedIds.size} {selectedIds.size === 1 ? 'tag' : 'tags'}
-                </Button>
-              )}
-            </div>
-            {tagDefinitions.map((tag) => {
-              const count = tagCounts.get(tag.id) ?? 0
-              const isRenaming = renamingId === tag.id
-              const isSelected = selectedIds.has(tag.id)
-              const isConfirmingDelete = confirmDeleteId === tag.id
 
-              return (
-                <div
-                  key={tag.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${isSelected ? 'bg-[var(--accent-subtle)]' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(tag.id)}
-                    aria-label={`Select ${tag.label}`}
-                    className="h-4 w-4 rounded accent-[var(--accent)]"
-                  />
-                  <input
-                    type="color"
-                    value={tag.color}
-                    onChange={(e) => onRename(tag.id, tag.label, e.target.value)}
-                    aria-label={`${tag.label} color`}
-                    className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5"
-                  />
-                  {isRenaming ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => void commitRename(tag)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); void commitRename(tag) }
-                        if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
-                      }}
-                      className="flex-1 rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => startRename(tag)}
-                      title="Click to rename"
-                      className="flex-1 text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
-                    >
-                      {tag.label}
-                    </button>
-                  )}
-                  <span className="shrink-0 text-sm tabular-nums text-[var(--text-tertiary)]">
-                    {count} {count === 1 ? 'answer' : 'answers'}
-                  </span>
-                  {isConfirmingDelete ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button
-                        tone="danger"
-                        size="sm"
-                        onClick={() => { void onDelete(tag.id); setConfirmDeleteId(null) }}
-                      >
-                        Delete
-                      </Button>
-                      <Button
-                        tone="secondary"
-                        size="sm"
-                        onClick={() => setConfirmDeleteId(null)}
-                      >
-                        Cancel
-                      </Button>
+            {/* THEMES section */}
+            {themes.length > 0 && (
+              <>
+                {themes.map((theme) => {
+                  const children = tagDefinitions.filter((t) => t.parentId === theme.id)
+                  return (
+                    <div key={theme.id}>
+                      {/* Theme header row */}
+                      <div className="px-4 py-3 bg-[var(--bg-sunken)]">
+                        <div className="flex items-center gap-3">
+                          <span className="text-base">📂</span>
+                          <input
+                            type="color"
+                            value={theme.color}
+                            onChange={(e) => onRename(theme.id, theme.label, e.target.value)}
+                            aria-label={`${theme.label} color`}
+                            className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            {renamingId === theme.id ? (
+                              <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onBlur={() => void commitRename(theme)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) }
+                                  if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
+                                }}
+                                className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => startRename(theme)}
+                                className="block text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]"
+                                title="Click to rename theme"
+                              >
+                                {theme.label}
+                              </button>
+                            )}
+                            {editingDescId === theme.id ? (
+                              <textarea
+                                autoFocus
+                                value={descValue}
+                                onChange={(e) => setDescValue(e.target.value)}
+                                onBlur={() => void commitDesc(theme.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) }
+                                  if (e.key === 'Escape') { setEditingDescId(null) }
+                                }}
+                                rows={2}
+                                placeholder="Add description…"
+                                className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => startEditDesc(theme)}
+                                className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic"
+                                title="Click to edit description"
+                              >
+                                {theme.description || <span className="not-italic opacity-50">Add description…</span>}
+                              </button>
+                            )}
+                          </div>
+                          <span className="shrink-0 text-xs text-[var(--text-tertiary)]">
+                            {children.length} sub-tag{children.length !== 1 ? 's' : ''}
+                          </span>
+                          {confirmDeleteId === theme.id ? (
+                            <div className="flex shrink-0 items-center gap-2">
+                              <Button
+                                tone="secondary"
+                                size="sm"
+                                onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                Remove theme, keep tags
+                              </Button>
+                              <Button
+                                tone="danger"
+                                size="sm"
+                                onClick={() => { void onDelete(theme.id, 'delete-all'); setConfirmDeleteId(null) }}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                Delete all
+                              </Button>
+                              <Button tone="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <IconButton
+                              tone="trash"
+                              label={`Delete theme ${theme.label}`}
+                              onClick={() => setConfirmDeleteId(theme.id)}
+                              className="h-8 w-8 shrink-0"
+                            >
+                              <TrashIcon />
+                            </IconButton>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Sub-tags */}
+                      {children.map((child) => renderTagRow(child, true))}
                     </div>
-                  ) : (
-                    <IconButton
-                      tone="trash"
-                      label={`Delete ${tag.label}`}
-                      onClick={() => count > 0 ? setConfirmDeleteId(tag.id) : void onDelete(tag.id)}
-                      disabled={savingTagId === tag.id}
-                      className="h-8 w-8 shrink-0"
-                    >
-                      <TrashIcon />
-                    </IconButton>
-                  )}
+                  )
+                })}
+              </>
+            )}
+
+            {/* UNGROUPED section */}
+            {ungroupedTags.length > 0 && (
+              <>
+                <div className="px-4 py-2 bg-[var(--bg-sunken)]">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+                    Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}
+                  </span>
                 </div>
-              )
-            })}
+                {ungroupedTags.map((tag) => renderTagRow(tag, false))}
+              </>
+            )}
           </div>
         )}
       </div>
-
-      {/* Merge panel */}
-      {selectedIds.size >= 2 && (
-        <div className="rounded-xl border border-[var(--accent-muted)] bg-[var(--accent-subtle)] p-4">
-          <p className="mb-1 text-sm font-semibold text-[var(--text)]">
-            Merge {selectedIds.size} tags — {mergeAffectedCount} {mergeAffectedCount === 1 ? 'answer' : 'answers'} will be re-tagged
-          </p>
-          <p className="mb-3 text-xs text-[var(--text-secondary)]">
-            {tagDefinitions.filter((t) => selectedIds.has(t.id)).map((t) => t.label).join(', ')}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <TextInput
-              value={mergeLabel}
-              onChange={(e) => setMergeLabel(e.target.value)}
-              placeholder="Merged tag name…"
-              className="h-9 min-w-40 flex-1 py-0"
-            />
-            <input
-              type="color"
-              value={mergeColor}
-              onChange={(e) => setMergeColor(e.target.value)}
-              aria-label="Merged tag color"
-              className="h-9 w-10 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
-            />
-            <Button
-              tone="primary"
-              size="sm"
-              onClick={() => void confirmMerge()}
-              disabled={!mergeLabel.trim() || savingTagId === 'merge'}
-            >
-              {savingTagId === 'merge' ? 'Merging…' : 'Merge'}
-            </Button>
-            <Button
-              tone="secondary"
-              size="sm"
-              onClick={() => { setSelectedIds(new Set()); setMergeLabel(''); setMergeColor(DEFAULT_COLORS[0]) }}
-            >
-              Cancel
-            </Button>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {tagDefinitions.filter((t) => selectedIds.has(t.id)).map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => { setMergeLabel(t.label); setMergeColor(t.color) }}
-                className="rounded-full border border-[var(--border)] bg-white px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]"
-              >
-                Keep &ldquo;{t.label}&rdquo;
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {selectedIds.size === 1 && (
-        <p className="text-center text-xs text-[var(--text-tertiary)]">Select one more tag to merge</p>
-      )}
     </div>
   )
 }
@@ -1064,13 +1613,20 @@ export default function TaggingWorkspace({
     const result = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
     setSavingTagId(null)
     if (!result?.tag) return
+    const newTag: TagDefinition = {
+      id: result.tag.id,
+      label: result.tag.label,
+      color: result.tag.color,
+      parentId: null,
+      description: null,
+    }
     setTagDefinitions((prev) => {
-      const without = prev.filter((t) => t.id !== result.tag.id && t.label !== result.tag.label)
-      return [...without, result.tag].sort((a, b) => a.label.localeCompare(b.label))
+      const without = prev.filter((t) => t.id !== newTag.id && t.label !== newTag.label)
+      return [...without, newTag].sort((a, b) => a.label.localeCompare(b.label))
     })
     const current = tagIdsByAnswer[answerId] ?? []
-    if (!current.includes(result.tag.id)) {
-      const nextIds = [...current, result.tag.id]
+    if (!current.includes(newTag.id)) {
+      const nextIds = [...current, newTag.id]
       setTagIdsByAnswer((prev) => ({ ...prev, [answerId]: nextIds }))
       setSavingAnswerId(answerId)
       const saveResult = await updateAnswerTags(studyId, answerId, nextIds)
@@ -1084,19 +1640,26 @@ export default function TaggingWorkspace({
     await saveAnswerTags(answerId, (tagIdsByAnswer[answerId] ?? []).filter((id) => id !== tagId))
   }
 
-  async function createTag(label: string, color: string) {
+  async function createTag(label: string, color: string): Promise<TagDefinition | null> {
     const finalLabel = normalizeLabel(label)
     if (!finalLabel) return null
     setSavingTagId('new')
     const result = await createQuestionTag(studyId, questionId, finalLabel, color)
     setSavingTagId(null)
     if (!result?.tag) return null
+    const newTag: TagDefinition = {
+      id: result.tag.id,
+      label: result.tag.label,
+      color: result.tag.color,
+      parentId: null,
+      description: null,
+    }
     setTagDefinitions((prev) => {
-      const without = prev.filter((t) => t.id !== result.tag.id && t.label !== result.tag.label)
-      return [...without, result.tag].sort((a, b) => a.label.localeCompare(b.label))
+      const without = prev.filter((t) => t.id !== newTag.id && t.label !== newTag.label)
+      return [...without, newTag].sort((a, b) => a.label.localeCompare(b.label))
     })
     router.refresh()
-    return result.tag as TagDefinition
+    return newTag
   }
 
   async function renameTag(tagId: string, label: string, color: string) {
@@ -1105,14 +1668,33 @@ export default function TaggingWorkspace({
     setSavingTagId(null)
     if (result?.tag) {
       setTagDefinitions((prev) =>
-        prev.map((t) => t.id === tagId ? result.tag : t).sort((a, b) => a.label.localeCompare(b.label))
+        prev.map((t) => t.id === tagId ? { ...t, label: result.tag.label, color: result.tag.color } : t)
+          .sort((a, b) => a.label.localeCompare(b.label))
       )
       router.refresh()
     }
   }
 
-  async function deleteTag(tagId: string) {
+  async function deleteTag(tagId: string, mode?: 'keep-subtags' | 'delete-all') {
     setSavingTagId(tagId)
+    if (mode === 'keep-subtags') {
+      // Unparent all children first
+      const children = tagDefinitions.filter((t) => t.parentId === tagId)
+      for (const child of children) {
+        await setTagParent(studyId, child.id, null)
+      }
+      setTagDefinitions((prev) => prev.map((t) => t.parentId === tagId ? { ...t, parentId: null } : t))
+    } else if (mode === 'delete-all') {
+      // Delete children first
+      const children = tagDefinitions.filter((t) => t.parentId === tagId)
+      for (const child of children) {
+        await deleteQuestionTag(studyId, child.id)
+      }
+      setTagDefinitions((prev) => prev.filter((t) => t.parentId !== tagId))
+      setTagIdsByAnswer((prev) =>
+        Object.fromEntries(Object.entries(prev).map(([aid, ids]) => [aid, ids.filter((id) => !children.some((c) => c.id === id))]))
+      )
+    }
     const result = await deleteQuestionTag(studyId, tagId)
     setSavingTagId(null)
     if (result?.success) {
@@ -1124,39 +1706,25 @@ export default function TaggingWorkspace({
     }
   }
 
-  async function mergeTags(
-    sourceIds: string[],
-    resultLabel: string,
-    resultColor: string,
-  ): Promise<{ success?: boolean } | null | undefined> {
-    setSavingTagId('merge')
-    const result = await mergeQuestionTags(studyId, questionId, sourceIds, resultLabel, resultColor)
-    setSavingTagId(null)
-    if (!result?.tag) return result as { success?: boolean } | null | undefined
-    const mergedTag = result.tag as TagDefinition
-    setTagDefinitions((prev) => {
-      const without = prev.filter((t) => !sourceIds.includes(t.id) || t.id === mergedTag.id)
-      const hasTarget = without.some((t) => t.id === mergedTag.id)
-      const updated = hasTarget
-        ? without.map((t) => t.id === mergedTag.id ? mergedTag : t)
-        : [...without, mergedTag]
-      return updated.sort((a, b) => a.label.localeCompare(b.label))
-    })
-    setTagIdsByAnswer((prev) =>
-      Object.fromEntries(
-        Object.entries(prev).map(([aid, ids]) => {
-          const hasSource = ids.some((id) => sourceIds.includes(id))
-          if (!hasSource) return [aid, ids]
-          const without = ids.filter((id) => !sourceIds.includes(id))
-          return [aid, [...new Set([...without, mergedTag.id])]]
-        })
-      )
-    )
-    router.refresh()
-    return result as { success?: boolean }
+  async function moveTagToTheme(tagId: string, parentId: string | null) {
+    const result = await setTagParent(studyId, tagId, parentId)
+    if (result?.success) {
+      setTagDefinitions((prev) => prev.map((t) => t.id === tagId ? { ...t, parentId } : t))
+      router.refresh()
+    }
+  }
+
+  async function updateDescription(tagId: string, description: string) {
+    const result = await updateTagDescription(studyId, tagId, description)
+    if (result?.success) {
+      setTagDefinitions((prev) => prev.map((t) => t.id === tagId ? { ...t, description: description || null } : t))
+    }
   }
 
   async function runBatchTag() {
+    // Only apply to leaf tags
+    const leafTags = liveTagsRef.current.filter((t) => t.parentId !== null || !liveTagsRef.current.some((c) => c.parentId === t.id))
+
     const toProcess = batchScope === 'untagged'
       ? answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
       : answers
@@ -1171,16 +1739,16 @@ export default function TaggingWorkspace({
     let firstError: string | undefined
 
     for (const answer of toProcess) {
-      const currentTags = liveTagsRef.current
+      const currentLeafTags = leafTags
       const result = await suggestTagsWithAI(
         answer.answer,
-        currentTags.map((t) => ({ id: t.id, label: t.label })),
+        currentLeafTags.map((t) => ({ id: t.id, label: t.label })),
         batchMode,
       )
 
       if ('error' in result && result.error && !firstError) firstError = result.error as string
       const existingIds = tagIdsByAnswer[answer.answerId] ?? []
-      const validTagIds = new Set(currentTags.map((t) => t.id))
+      const validTagIds = new Set(currentLeafTags.map((t) => t.id))
       const toAdd = result.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
       let nextIds = [...existingIds, ...toAdd]
 
@@ -1188,7 +1756,13 @@ export default function TaggingWorkspace({
         const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
         const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
         if (tagResult?.tag) {
-          const newTag = tagResult.tag as TagDefinition
+          const newTag: TagDefinition = {
+            id: tagResult.tag.id,
+            label: tagResult.tag.label,
+            color: tagResult.tag.color,
+            parentId: null,
+            description: null,
+          }
           const updated = [
             ...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label),
             newTag,
@@ -1393,13 +1967,16 @@ export default function TaggingWorkspace({
         />
       ) : (
         <ManageTab
+          studyId={studyId}
+          questionId={questionId}
           tagDefinitions={tagDefinitions}
           tagIdsByAnswer={tagIdsByAnswer}
           savingTagId={savingTagId}
           onRename={renameTag}
           onDelete={deleteTag}
-          onMerge={mergeTags}
           onCreate={createTag}
+          onMoveToTheme={moveTagToTheme}
+          onUpdateDescription={updateDescription}
         />
       )}
     </div>

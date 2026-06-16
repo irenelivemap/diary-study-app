@@ -241,3 +241,142 @@ Rules:
     return { apply: [], new_tags: [], error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
+
+// ─── NEW: Tag hierarchy actions ───────────────────────────────────────────────
+
+export async function setTagParent(studyId: string, tagId: string, parentId: string | null) {
+  await requireAdmin()
+
+  const tag = await prisma.questionTag.findFirst({
+    where: { id: tagId, question: { studyId, type: 'FREE_TEXT' } },
+    select: { id: true, questionId: true },
+  })
+  if (!tag) return { error: 'Tag not found.' }
+
+  if (parentId !== null) {
+    const parent = await prisma.questionTag.findFirst({
+      where: { id: parentId, questionId: tag.questionId },
+      select: { id: true, parentId: true },
+    })
+    if (!parent) return { error: 'Parent tag not found.' }
+    if (parent.parentId !== null) return { error: 'Only one level of nesting allowed. The parent tag must be a top-level theme.' }
+    // Prevent cycles: cannot set a child as parent of itself
+    if (parentId === tagId) return { error: 'A tag cannot be its own parent.' }
+  }
+
+  await prisma.questionTag.update({
+    where: { id: tagId },
+    data: { parentId },
+  })
+
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
+  return { success: true }
+}
+
+export async function updateTagDescription(studyId: string, tagId: string, description: string) {
+  await requireAdmin()
+
+  const tag = await prisma.questionTag.findFirst({
+    where: { id: tagId, question: { studyId, type: 'FREE_TEXT' } },
+    select: { id: true },
+  })
+  if (!tag) return { error: 'Tag not found.' }
+
+  const updated = await prisma.questionTag.update({
+    where: { id: tagId },
+    data: { description: description.trim() || null },
+  })
+
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
+  return { success: true, tag: updated }
+}
+
+export async function consolidateTagsWithAI(
+  studyId: string,
+  questionId: string,
+  tags: { id: string; label: string }[],
+) {
+  await requireAdmin()
+
+  if (!tags.length) return { themes: [], error: 'No tags to consolidate.' }
+
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) return { themes: [], error: 'ANTHROPIC_API_KEY is not set in environment variables.' }
+    const client = new Anthropic({ apiKey })
+
+    const tagList = tags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')
+
+    const prompt = `You are a qualitative research assistant helping to organise codes from a diary study into themes.
+
+Codes to group:
+${tagList}
+
+Task: Group these codes into 4–8 meaningful themes suitable for thematic analysis. Every code must belong to exactly one theme.
+
+For each theme provide:
+- A short name (2–4 words)
+- A one-sentence description of what the theme covers
+- The IDs of all codes belonging to that theme
+
+Return JSON only (no code fences, no explanation):
+{"themes":[{"name":"...","description":"...","tagIds":["id1","id2"]}]}`
+
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const raw = (message.content[0].type === 'text' ? message.content[0].text : '').trim()
+    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+
+    const parsed = JSON.parse(json) as { themes?: { name: string; description: string; tagIds: string[] }[] }
+    const validIds = new Set(tags.map((t) => t.id))
+
+    const themes = (parsed.themes ?? []).map((theme) => ({
+      name: String(theme.name ?? '').trim(),
+      description: String(theme.description ?? '').trim(),
+      tagIds: (theme.tagIds ?? []).filter((id) => validIds.has(id)),
+    })).filter((t) => t.name && t.tagIds.length > 0)
+
+    return { themes }
+  } catch (err) {
+    console.error('[consolidateTagsWithAI]', err)
+    return { themes: [], error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function suggestThemeName(tagLabels: string[]) {
+  await requireAdmin()
+
+  if (!tagLabels.length) return { error: 'No tag labels provided.' }
+
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) return { error: 'ANTHROPIC_API_KEY is not set in environment variables.' }
+    const client = new Anthropic({ apiKey })
+
+    const prompt = `Given these qualitative codes from a diary study: ${tagLabels.join(', ')}. Suggest a concise theme name (2-4 words) and a one-sentence description. Return JSON only: {"name":"...","description":"..."}`
+
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 128,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const raw = (message.content[0].type === 'text' ? message.content[0].text : '').trim()
+    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+
+    const parsed = JSON.parse(json) as { name?: string; description?: string }
+    if (!parsed.name) return { error: 'AI did not return a valid name.' }
+
+    return {
+      name: String(parsed.name).trim(),
+      description: String(parsed.description ?? '').trim(),
+    }
+  } catch (err) {
+    console.error('[suggestThemeName]', err)
+    return { error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
