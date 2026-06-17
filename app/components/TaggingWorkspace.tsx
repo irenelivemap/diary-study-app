@@ -985,10 +985,12 @@ function AnalysisWorkspace({
     <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
     <div className="space-y-4">
 
-      {/* Header: AI group only */}
-      <div className="flex items-center justify-end">
-        <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
-      </div>
+      {/* Header: AI group — hidden when selection bar is active to avoid duplicate button */}
+      {selectedTagIds.size === 0 && (
+        <div className="flex items-center justify-end">
+          <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
+        </div>
+      )}
 
       {/* Selection bar */}
       {selectedTagIds.size > 0 && (
