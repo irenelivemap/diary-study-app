@@ -1074,9 +1074,9 @@ function AnalysisWorkspace({
               const themeCount = children.reduce((s, c) => s + (tagCounts.get(c.id) ?? 0), 0)
               return (
                 <div key={theme.id}>
-                  <div className="flex items-center gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
-                    <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
-                    <label className="relative h-4 w-4 shrink-0 cursor-pointer" title="Change color">
+                  <div className="flex items-start gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
+                    <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 mt-1 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
+                    <label className="relative h-4 w-4 shrink-0 mt-1 cursor-pointer" title="Change color">
                       <span className="block h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
                       <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                     </label>
@@ -1094,7 +1094,7 @@ function AnalysisWorkspace({
                         </button>
                       )}
                     </div>
-                    <span className="shrink-0 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''} · {themeCount} answer{themeCount !== 1 ? 's' : ''}</span>
+                    <span className="shrink-0 mt-1 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''} · {themeCount} answer{themeCount !== 1 ? 's' : ''}</span>
                     {confirmDeleteId === theme.id ? (
                       <div className="flex shrink-0 items-center gap-2">
                         <Button tone="secondary" size="sm" onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Remove theme, keep tags</Button>
