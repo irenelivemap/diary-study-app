@@ -951,13 +951,9 @@ function AnalysisWorkspace({
     <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
     <div className="space-y-4">
 
-      {/* Header: new tag + AI group */}
-      <div className="flex gap-2 flex-wrap items-center">
-        <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
-        <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1" />
-        <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
-        <div className="flex-1" />
-        <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="shrink-0 whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
+      {/* Header: AI group only */}
+      <div className="flex items-center justify-end">
+        <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
       </div>
 
       {/* Selection bar */}
@@ -1085,6 +1081,13 @@ function AnalysisWorkspace({
             )}
           </div>
         )}
+      </div>
+
+      {/* New tag — lives here, near untagged answers where it's actually needed */}
+      <div className="flex gap-2 items-center">
+        <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
+        <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1" />
+        <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
       </div>
 
       {/* Untagged answers */}
