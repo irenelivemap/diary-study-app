@@ -1076,7 +1076,11 @@ function AnalysisWorkspace({
                 <div key={theme.id}>
                   <div className="flex items-center gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
                     <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
-                    <span className="text-base">📂</span>
+                    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-[var(--text-tertiary)]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M1.5 5.5l6.5-3 6.5 3-6.5 3z" />
+                      <path d="M1.5 9l6.5 3 6.5-3" />
+                      <path d="M1.5 5.5l6.5 3 6.5-3" />
+                    </svg>
                     <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       {renamingId === theme.id ? (
