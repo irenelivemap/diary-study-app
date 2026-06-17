@@ -1347,6 +1347,13 @@ function ManageTab({
     if ('name' in result && result.name) setGroupName(result.name)
   }
 
+  async function handleBulkMoveToTheme(themeId: string) {
+    for (const tagId of Array.from(selectedTagIds)) {
+      await onMoveToTheme(tagId, themeId)
+    }
+    clearSelection()
+  }
+
   async function handleBulkAiGroup() {
     const selectedTags = tagDefinitions.filter((t) => selectedTagIds.has(t.id))
     if (selectedTags.length < 2) return
@@ -1537,6 +1544,17 @@ function ManageTab({
           {bulkAction === 'idle' && (
             <>
               <Button tone="danger" size="sm" onClick={() => setBulkAction('confirm-delete')}>Delete</Button>
+              {themes.length > 0 && (
+                <SelectMenu
+                  value=""
+                  options={[
+                    { value: '', label: 'Move to theme…' },
+                    ...themes.map((t) => ({ value: t.id, label: t.label })),
+                  ]}
+                  onChange={(v) => { if (v) void handleBulkMoveToTheme(v) }}
+                  buttonClassName="h-8 text-sm"
+                />
+              )}
               <Button tone="secondary" size="sm" onClick={() => setBulkAction('grouping')}>Group into theme</Button>
               <Button
                 tone="secondary"
