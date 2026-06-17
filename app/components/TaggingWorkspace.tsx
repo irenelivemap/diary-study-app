@@ -807,7 +807,7 @@ function AnalysisWorkspace({
   const [aiTagOpen, setAiTagOpen] = useState(false)
   const [answerSearch, setAnswerSearch] = useState('')
   const [answerSort, setAnswerSort] = useState<AnswerSortBy>('newest')
-  const [filterTag, setFilterTag] = useState<string>('untagged')
+  const [filterTag, setFilterTag] = useState<string>('')
   const [filterParticipant, setFilterParticipant] = useState<string>('')
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
