@@ -1076,12 +1076,10 @@ function AnalysisWorkspace({
                 <div key={theme.id}>
                   <div className="flex items-center gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
                     <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
-                    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-[var(--text-tertiary)]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M1.5 5.5l6.5-3 6.5 3-6.5 3z" />
-                      <path d="M1.5 9l6.5 3 6.5-3" />
-                      <path d="M1.5 5.5l6.5 3 6.5-3" />
-                    </svg>
-                    <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0" />
+                    <label className="relative h-4 w-4 shrink-0 cursor-pointer" title="Change color">
+                      <span className="block h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
+                      <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                    </label>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       {renamingId === theme.id ? (
                         <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
