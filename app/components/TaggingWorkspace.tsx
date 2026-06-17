@@ -808,6 +808,9 @@ function AnalysisWorkspace({
   const [answerSearch, setAnswerSearch] = useState('')
   const [answerSort, setAnswerSort] = useState<AnswerSortBy>('newest')
   const [showAllAnswers, setShowAllAnswers] = useState(false)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
+  const [selectedAnswerIds, setSelectedAnswerIds] = useState<Set<string>>(new Set())
   const [activeTagId, setActiveTagId] = useState<string | null>(null)
 
   const tagCounts = useMemo(() => {
@@ -845,6 +848,17 @@ function AnalysisWorkspace({
     else setSelectedTagIds((p) => { const n = new Set(p); ids.forEach((id) => n.add(id)); return n })
   }
   function clearSelection() { setSelectedTagIds(new Set()); setBulkAction('idle'); setGroupName('') }
+
+  function toggleAnswerSelect(answerId: string) {
+    setSelectedAnswerIds((prev) => { const n = new Set(prev); n.has(answerId) ? n.delete(answerId) : n.add(answerId); return n })
+  }
+  function clearAnswerSelection() { setSelectedAnswerIds(new Set()) }
+  async function handleBulkApplyTag(tagId: string) {
+    for (const answerId of Array.from(selectedAnswerIds)) await onApply(answerId, tagId)
+  }
+  async function handleBulkCreateAndApply(label: string) {
+    for (const answerId of Array.from(selectedAnswerIds)) await onCreateAndApply(answerId, label)
+  }
 
   async function handleBulkDelete() {
     for (const id of Array.from(selectedTagIds)) await onDelete(id, tagDefinitions.some((c) => c.parentId === id) ? 'keep-subtags' : undefined)
@@ -1098,79 +1112,110 @@ function AnalysisWorkspace({
         )}
       </div>
 
-      {/* New tag — lives here, near untagged answers where it's actually needed */}
-      <div className="flex gap-2 items-center">
-        <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
-        <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1" />
-        <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
+      {/* New tag + AI tag all */}
+      <div className="space-y-2">
+        <div className="flex gap-2 items-center">
+          <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
+          <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1" />
+          <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
+          <div className="w-px h-6 bg-[var(--border)] shrink-0" />
+          {batchRunning
+            ? <span className="text-sm text-[var(--text-tertiary)] whitespace-nowrap shrink-0">Tagging…</span>
+            : batchSummary
+              ? <Button tone="secondary" size="sm" onClick={() => { onClearBatchSummary(); setAiTagOpen(true) }} className="shrink-0 whitespace-nowrap">✦ Tag again</Button>
+              : <Button tone="secondary" size="sm" onClick={() => setAiTagOpen((v) => !v)} className="shrink-0 whitespace-nowrap">✦ AI tag all</Button>
+          }
+        </div>
+        {aiTagOpen && !batchRunning && (
+          <div className="flex items-center gap-3 flex-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3">
+            <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-sm bg-white">
+              {(['explore', 'apply'] as const).map((m) => (
+                <button key={m} type="button" onClick={() => setBatchMode(m)} className={`px-3 py-1.5 transition-colors ${batchMode === m ? 'bg-[var(--accent)] text-white font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}>
+                  {m === 'explore' ? 'Explore' : 'Apply existing'}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-[var(--text-tertiary)]">{batchMode === 'explore' ? 'AI will create new tags from the answers' : 'AI will match answers to existing tags'}</span>
+            <div className="flex-1" />
+            <Button tone="ghost" size="sm" onClick={() => setAiTagOpen(false)}>Cancel</Button>
+            <Button tone="primary" size="sm" onClick={() => { setAiTagOpen(false); onRunBatch() }} disabled={batchMode === 'apply' && tagDefinitions.length === 0} className="whitespace-nowrap">Tag {untaggedAnswers.length} answers</Button>
+          </div>
+        )}
       </div>
 
       {/* Answers panel (untagged by default, all when toggled) */}
       {answers.length > 0 && (
         <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
           <div className="border-b border-[var(--border-subtle)]">
-            {/* Header row: title + AI tag button */}
-            <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+            {/* Header row: title + filter/sort icons */}
+            <div className="flex items-center gap-1 px-4 py-2.5">
               <span className="text-sm font-semibold text-[var(--text)] shrink-0">
-                {showAllAnswers
-                  ? `${displayedAnswers.length} answer${displayedAnswers.length !== 1 ? 's' : ''}${answerSearch ? ' matching' : ''}`
-                  : `${untaggedAnswers.length} untagged answer${untaggedAnswers.length !== 1 ? 's' : ''}${answerSearch && displayedAnswers.length !== untaggedAnswers.length ? ` (${displayedAnswers.length} shown)` : ''}`}
+                {showAllAnswers ? 'All answers' : 'Untagged answers'}
+                {' '}
+                <span className="font-normal text-[var(--text-tertiary)]">
+                  {answerSearch && displayedAnswers.length !== (showAllAnswers ? answers : untaggedAnswers).length
+                    ? `${displayedAnswers.length} of ${(showAllAnswers ? answers : untaggedAnswers).length}`
+                    : (showAllAnswers ? answers : untaggedAnswers).length}
+                </span>
               </span>
               <div className="flex-1" />
-              {!batchRunning && !aiTagOpen && !showAllAnswers && (
-                batchSummary ? (
-                  <Button tone="secondary" size="sm" onClick={() => { onClearBatchSummary(); setAiTagOpen(true) }}>Tag again</Button>
-                ) : (
-                  <Button tone="secondary" size="sm" onClick={() => setAiTagOpen(true)} className="whitespace-nowrap">✦ AI tag all</Button>
-                )
-              )}
-              {batchRunning && <span className="text-sm text-[var(--text-tertiary)]">Tagging…</span>}
-            </div>
-            {/* Filter / sort row */}
-            <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
-              <input
-                type="search"
-                value={answerSearch}
-                onChange={(e) => { setAnswerSearch(e.target.value); setUntaggedVisibleCount(15) }}
-                placeholder="Search answers or participants…"
-                className="h-8 flex-1 min-w-36 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
-              />
-              <SelectMenu
-                value={answerSort}
-                options={[
-                  { value: 'newest', label: 'Newest first' },
-                  { value: 'oldest', label: 'Oldest first' },
-                  { value: 'name-az', label: 'Name A→Z' },
-                ]}
-                onChange={(v) => { setAnswerSort(v as AnswerSortBy); setUntaggedVisibleCount(15) }}
-                buttonClassName="h-8 text-sm shrink-0"
-              />
+              {/* Filter icon button */}
               <button
                 type="button"
-                onClick={() => { setShowAllAnswers((v) => !v); setUntaggedVisibleCount(15) }}
-                className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${showAllAnswers ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                title="Filter answers"
+                onClick={() => setFilterOpen((v) => !v)}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${filterOpen || answerSearch || showAllAnswers ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
               >
-                {showAllAnswers ? 'All answers' : 'Untagged only'}
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                  <path d="M1.5 4h13M4.5 8h7M7 12h2" />
+                </svg>
+              </button>
+              {/* Sort icon button */}
+              <button
+                type="button"
+                title="Sort answers"
+                onClick={() => setSortOpen((v) => !v)}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${sortOpen || answerSort !== 'newest' ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
+              >
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M2 4h8M2 8h5M2 12h3" />
+                  <path d="M12 3v10M10 10.5l2 2 2-2" />
+                </svg>
               </button>
             </div>
-            {aiTagOpen && !batchRunning && (
-              <div className="flex items-center gap-3 px-4 pb-3 flex-wrap">
-                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-sm">
-                  {(['explore', 'apply'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setBatchMode(m)}
-                      className={`px-3 py-1.5 transition-colors ${batchMode === m ? 'bg-[var(--accent)] text-white font-semibold' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
-                    >
-                      {m === 'explore' ? 'Explore' : 'Apply existing'}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-xs text-[var(--text-tertiary)]">{batchMode === 'explore' ? 'AI will create new tags from the answers' : 'AI will match answers to existing tags'}</span>
-                <div className="flex-1" />
-                <Button tone="ghost" size="sm" onClick={() => setAiTagOpen(false)}>Cancel</Button>
-                <Button tone="primary" size="sm" onClick={() => { setAiTagOpen(false); onRunBatch() }} disabled={batchMode === 'apply' && tagDefinitions.length === 0} className="whitespace-nowrap">Tag {untaggedAnswers.length} answers</Button>
+            {/* Filter expand */}
+            {filterOpen && (
+              <div className="flex items-center gap-2 px-4 pb-3 border-t border-[var(--border-subtle)] pt-3">
+                <input
+                  type="search"
+                  value={answerSearch}
+                  onChange={(e) => { setAnswerSearch(e.target.value); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                  placeholder="Search by text or participant…"
+                  autoFocus
+                  className="h-8 flex-1 min-w-36 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setShowAllAnswers((v) => !v); setUntaggedVisibleCount(15) }}
+                  className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${showAllAnswers ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                >
+                  {showAllAnswers ? 'All answers' : 'Untagged only'}
+                </button>
+              </div>
+            )}
+            {/* Sort expand */}
+            {sortOpen && (
+              <div className="flex items-center gap-1.5 px-4 pb-3 border-t border-[var(--border-subtle)] pt-3">
+                {([['newest', 'Newest first'], ['oldest', 'Oldest first'], ['name-az', 'Name A→Z']] as [AnswerSortBy, string][]).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => { setAnswerSort(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${answerSort === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -1191,6 +1236,28 @@ function AnalysisWorkspace({
               }
             </div>
           )}
+          {/* Answer selection bar */}
+          {selectedAnswerIds.size > 0 && !batchRunning && (
+            <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-[var(--accent-subtle)] border-b border-[var(--accent-muted)]">
+              <span className="text-sm font-semibold text-[var(--text)] shrink-0">{selectedAnswerIds.size} selected</span>
+              <span className="text-[var(--text-tertiary)] shrink-0">·</span>
+              <span className="text-xs text-[var(--text-tertiary)] shrink-0">Apply tag to all:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {leafTagsForApply.map((tag) => (
+                  <button key={tag.id} type="button" onClick={() => void handleBulkApplyTag(tag.id)}
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-white hover:text-[var(--text-link)]">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />{tag.label}
+                  </button>
+                ))}
+              </div>
+              {leafTagsForApply.length === 0 && <span className="text-xs text-[var(--text-tertiary)]">No tags yet — create one above</span>}
+              <TagAutocomplete tags={tagDefinitions} appliedTagIds={[]} onApply={(id) => void handleBulkApplyTag(id)} onCreate={(label) => void handleBulkCreateAndApply(label)} disabled={savingTagId === 'new'} />
+              <div className="flex-1" />
+              <button type="button" onClick={clearAnswerSelection} aria-label="Clear selection" className="rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--text)]">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
+              </button>
+            </div>
+          )}
           {!batchRunning && (
             <div className="divide-y divide-[var(--border-subtle)]">
               {displayedAnswers.length === 0 && (
@@ -1203,30 +1270,40 @@ function AnalysisWorkspace({
                 const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
                 const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id))
                 const isSaving = savingAnswerId === answer.answerId
+                const isSelected = selectedAnswerIds.has(answer.answerId)
                 return (
-                  <article key={answer.answerId} className="space-y-2.5 px-4 py-4">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-tertiary)]">
-                      <span className="font-semibold text-[var(--text-secondary)]">{answer.participantName}</span>
-                      <span>{formatDate(answer.submittedAt)}</span>
-                      {isSaving && <span>Saving…</span>}
-                    </div>
-                    <p className="whitespace-pre-wrap rounded-lg bg-[var(--bg-sunken)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text)]">{answer.answer}</p>
-                    <div className="space-y-2">
-                      {currentTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {currentTags.map((tag) => <AppliedTagChip key={tag.id} tag={tag} parentTag={tag.parentId ? tagById.get(tag.parentId) : undefined} size="sm" onRemove={() => onRemove(answer.answerId, tag.id)} />)}
-                        </div>
-                      )}
-                      {available.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {available.map((tag) => (
-                            <button key={tag.id} type="button" onClick={() => onApply(answer.answerId, tag.id)} className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]">
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />+ {tag.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <TagAutocomplete tags={tagDefinitions} appliedTagIds={currentTagIds} onApply={(id) => onApply(answer.answerId, id)} onCreate={(label) => onCreateAndApply(answer.answerId, label)} disabled={isSaving || savingTagId === 'new'} />
+                  <article key={answer.answerId} className={`flex gap-3 px-4 py-4 transition-colors ${isSelected ? 'bg-[var(--accent-subtle)]' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleAnswerSelect(answer.answerId)}
+                      aria-label={`Select answer from ${answer.participantName}`}
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+                    />
+                    <div className="flex-1 min-w-0 space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-tertiary)]">
+                        <span className="font-semibold text-[var(--text-secondary)]">{answer.participantName}</span>
+                        <span>{formatDate(answer.submittedAt)}</span>
+                        {isSaving && <span>Saving…</span>}
+                      </div>
+                      <p className="whitespace-pre-wrap rounded-lg bg-[var(--bg-sunken)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text)]">{answer.answer}</p>
+                      <div className="space-y-2">
+                        {currentTags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {currentTags.map((tag) => <AppliedTagChip key={tag.id} tag={tag} parentTag={tag.parentId ? tagById.get(tag.parentId) : undefined} size="sm" onRemove={() => onRemove(answer.answerId, tag.id)} />)}
+                          </div>
+                        )}
+                        {available.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {available.map((tag) => (
+                              <button key={tag.id} type="button" onClick={() => onApply(answer.answerId, tag.id)} className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />+ {tag.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {!isSelected && <TagAutocomplete tags={tagDefinitions} appliedTagIds={currentTagIds} onApply={(id) => onApply(answer.answerId, id)} onCreate={(label) => onCreateAndApply(answer.answerId, label)} disabled={isSaving || savingTagId === 'new'} />}
+                      </div>
                     </div>
                   </article>
                 )
