@@ -1167,8 +1167,19 @@ function AnalysisWorkspace({
       {answers.length > 0 && (
         <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
           <div className="border-b border-[var(--border-subtle)]">
-            {/* Header row: title + filter/sort icons */}
-            <div className="flex items-center gap-1 px-4 py-2.5">
+            {/* Header row: select-all + title + filter/sort icons */}
+            <div className="flex items-center gap-2 px-4 py-2.5">
+              <input
+                type="checkbox"
+                checked={displayedAnswers.length > 0 && displayedAnswers.every((a) => selectedAnswerIds.has(a.answerId))}
+                ref={(el) => { if (el) el.indeterminate = displayedAnswers.some((a) => selectedAnswerIds.has(a.answerId)) && !displayedAnswers.every((a) => selectedAnswerIds.has(a.answerId)) }}
+                onChange={() => {
+                  const allSelected = displayedAnswers.every((a) => selectedAnswerIds.has(a.answerId))
+                  setSelectedAnswerIds(allSelected ? new Set() : new Set(displayedAnswers.map((a) => a.answerId)))
+                }}
+                aria-label="Select all visible answers"
+                className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+              />
               <span className="text-sm font-semibold text-[var(--text)] shrink-0">
                 {filterTag === 'untagged' ? 'Untagged' : filterTag ? (tagById.get(filterTag)?.label ?? 'Filtered') : 'All answers'}
                 {filterParticipant && <span className="font-normal text-[var(--text-tertiary)]"> · {filterParticipant.split(' ')[0]}</span>}
