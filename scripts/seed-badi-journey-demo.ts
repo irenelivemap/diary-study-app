@@ -18,6 +18,16 @@ const PARTICIPANTS = [
   ['Oliver Chen', 'oliver.badi@example.com'],
   ['Lea Novak', 'lea.badi@example.com'],
   ['Jonas Weber', 'jonas.badi@example.com'],
+  ['Hana Kovač', 'hana.badi@example.com'],
+  ['Rafael Torres', 'rafael.badi@example.com'],
+  ['Yuki Tanaka', 'yuki.badi@example.com'],
+  ['Amina Diallo', 'amina.badi@example.com'],
+  ['Felix Braun', 'felix.badi@example.com'],
+  ['Ingrid Svensson', 'ingrid.badi@example.com'],
+  ['Marco Russo', 'marco.badi@example.com'],
+  ['Zara Ahmed', 'zara.badi@example.com'],
+  ['Elias Bergström', 'elias.badi@example.com'],
+  ['Nora Keller', 'nora.badi@example.com'],
 ] as const
 
 const INFO_NEEDS = ['Opening hours', 'Water temperature', 'Crowding', 'Food options', 'Accessibility', 'Prices', 'Rules / restrictions']
@@ -32,6 +42,13 @@ const UNCERTAINTIES = [
   'I was unsure if the food options would work for my child.',
   'The route seemed fine, but I did not know where the entrance was.',
   'I checked the opening hours twice because I was afraid they had changed.',
+  'I had no idea if there was a locker or somewhere safe to leave my bag.',
+  'I could not find reliable information about wheelchair accessibility.',
+  'I was not sure whether the kiosk accepted card payments.',
+  'The water quality indicator on the website was three days old and I did not trust it.',
+  'My group was meeting there and I was unsure which entrance we should all use.',
+  'I did not know if the grass areas would still be open after recent weather.',
+  'I wanted to know roughly how long the changing room queues would be.',
 ]
 
 const DURING_NOTES = [
@@ -40,6 +57,13 @@ const DURING_NOTES = [
   'I did not check much once I arrived because the signs were enough.',
   'I changed plans when I saw the food queue was very long.',
   'The water temperature matched what I expected, so I stayed longer.',
+  'There were no signs pointing to the accessible entrance and I had to ask someone.',
+  'The kiosk menu was not listed anywhere online, so I had to queue before knowing the prices.',
+  'I noticed a crowding board near the entrance that showed numbers but no context for what they meant.',
+  'The real-time occupancy info I had checked earlier turned out to be about an hour behind.',
+  'Signs for the lockers were too small and only in German. I had to look them up.',
+  'I appreciated that the water temperature sign was updated. It matched what I had read earlier.',
+  'Once inside I stopped using my phone completely. The layout was clear enough.',
 ]
 
 const AFTER_NOTES = [
@@ -48,6 +72,26 @@ const AFTER_NOTES = [
   'The visit went smoothly, but I still had to ask staff where to go.',
   'Live information was useful before the visit, but less important once I was there.',
   'I changed where I sat because the crowded area did not match my expectations.',
+  'What I needed most was an accurate crowding level, not a general popularity score. They are very different.',
+  'The water quality information was the deciding factor. Without it I might not have gone at all.',
+  'Nothing about the food or pricing was available in advance. I was surprised by how expensive it was.',
+  'Accessibility information online was vague. On arrival I found the path was narrow and had steps.',
+  'Before, during, and after — the single most useful piece of data was the real-time entry count.',
+  'I had to ask three different people to find the family changing rooms. That should not happen.',
+  'Knowing which areas were shaded in the afternoon would have changed where I set up. That information does not exist anywhere.',
+  'The information I got beforehand built trust. When it matched reality, I relaxed and enjoyed it more.',
+  'I came with children and the lack of facility details — toilets, shallow pool, snack options — made planning much harder than it needed to be.',
+  'I ended up leaving earlier than planned because I misjudged how crowded it would get. Better live data would have helped me arrive at a better time.',
+]
+
+const CHANGED_HOW_NOTES = [
+  'I chose a quieter area and delayed buying food until the queue was shorter.',
+  'I arrived 45 minutes earlier than planned after seeing the crowding was rising fast.',
+  'I switched from the main lawn to the far side of the facility once I saw the shade map.',
+  'We decided to skip the food kiosk entirely after seeing the queue and brought sandwiches next time.',
+  'I moved my towel three times trying to find an area that matched what the crowding indicator showed.',
+  'I left early because the real-time data showed it would get more crowded, not less.',
+  'I found a shaded bench near the accessible path after a staff member pointed me in the right direction.',
 ]
 
 function pick<T>(items: T[]) {
@@ -421,13 +465,13 @@ async function main() {
   let entryCount = 0
 
   for (const [userIndex, user] of users.entries()) {
-    const visits = userIndex < 4 ? 2 : 1
+    const visits = userIndex < 6 ? 2 : 1
     for (let visitIndex = 0; visitIndex < visits; visitIndex++) {
       const daysAgo = userIndex + visitIndex
       const date = dateDaysAgo(daysAgo)
       const plannedHour = numberBetween(10, 16)
       const didChangePlan = Math.random() > 0.55
-      const completesVisit = !(userIndex >= 6 && visitIndex === 0)
+      const completesVisit = !(userIndex >= 15 && visitIndex === 0)
       const beforeNeeds = sample(INFO_NEEDS, 1, 3)
       const usedInfo = sample(INFO_USED, 1, 3)
       const afterText = pick(AFTER_NOTES)
@@ -460,7 +504,7 @@ async function main() {
       await answer(beforeEntry.id, expectedCrowding.id, String(numberBetween(3, 7)))
       await answer(beforeEntry.id, uncertainty.id, pick(UNCERTAINTIES))
 
-      if (!completesVisit && userIndex === 7) continue
+      if (!completesVisit && userIndex === 16) continue
 
       const duringEntry = await prisma.entry.create({
         data: {
@@ -478,7 +522,7 @@ async function main() {
       await answer(duringEntry.id, infoUsed.id, JSON.stringify(usedInfo))
       await answer(duringEntry.id, easeFinding.id, String(numberBetween(3, 7)))
       await answer(duringEntry.id, changedPlan.id, didChangePlan ? 'Yes' : 'No')
-      await answer(duringEntry.id, changedHow.id, didChangePlan ? 'I chose a quieter area and delayed buying food until the queue was shorter.' : 'N/A - not shown', didChangePlan)
+      await answer(duringEntry.id, changedHow.id, didChangePlan ? pick(CHANGED_HOW_NOTES) : 'N/A - not shown', didChangePlan)
       await answer(duringEntry.id, duringNote.id, pick(DURING_NOTES))
 
       if (!completesVisit) continue
@@ -521,6 +565,7 @@ async function main() {
   console.log(`  Stages: Before the Badi → At the Badi → After the visit`)
   console.log(`  Journeys: ${journeyCount}`)
   console.log(`  Entries: ${entryCount}`)
+  console.log(`  Participants: ${users.length + 1} (incl. admin)`)
   console.log(`  Example participant login: sophie.badi@example.com / participant123`)
 }
 
