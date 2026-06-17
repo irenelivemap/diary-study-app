@@ -618,7 +618,7 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 px-4 py-3 ${isDragging ? 'opacity-40' : ''} ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
+      className={`group flex items-center gap-3 px-4 py-3 ${isDragging ? 'opacity-40' : ''} ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
     >
       {/* Drag handle */}
       <button
@@ -631,13 +631,13 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
         <GripIcon />
       </button>
 
-      {/* Selection checkbox */}
+      {/* Selection checkbox — hidden until hovered or something is already selected */}
       <input
         type="checkbox"
         checked={ctx.selectedTagIds.has(tag.id)}
         onChange={() => ctx.toggleSelect(tag.id)}
         aria-label={`Select ${tag.label}`}
-        className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+        className={`h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)] transition-opacity ${ctx.selectedTagIds.size > 0 || ctx.selectedTagIds.has(tag.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
       />
 
       {/* Color swatch */}
@@ -1058,7 +1058,6 @@ function AnalysisWorkspace({
                 <div key={theme.id}>
                   <div className="flex items-center gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
                     <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
-                    <input type="checkbox" checked={isGroupSelected(children.map((c) => c.id))} ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(children.map((c) => c.id)) }} onChange={() => toggleGroupSelect(children.map((c) => c.id))} aria-label={`Select all tags in ${theme.label}`} className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]" />
                     <span className="text-base">📂</span>
                     <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -1098,7 +1097,6 @@ function AnalysisWorkspace({
               <div>
                 <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg-sunken)]">
                   <button type="button" onClick={() => setUngroupedOpen((o) => !o)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={ungroupedOpen} /></button>
-                  <input type="checkbox" checked={isGroupSelected(ungroupedTags.map((t) => t.id))} ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(ungroupedTags.map((t) => t.id)) }} onChange={() => toggleGroupSelect(ungroupedTags.map((t) => t.id))} aria-label="Select all ungrouped tags" className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]" />
                   <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}</span>
                 </div>
                 {ungroupedOpen && (
