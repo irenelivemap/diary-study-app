@@ -5,6 +5,54 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
+
+// ─── AI provider abstraction ──────────────────────────────────────────────────
+// Set AI_PROVIDER=ollama in .env.local to use a local Ollama model.
+// Defaults to Anthropic (cloud) when AI_PROVIDER is unset or 'anthropic'.
+//
+// Ollama env vars (all optional, shown with defaults):
+//   OLLAMA_BASE_URL=http://localhost:11434/v1
+//   OLLAMA_MODEL=qwen2.5
+//
+// Anthropic env vars:
+//   ANTHROPIC_API_KEY=sk-ant-...
+
+type AIMessage = { role: 'user'; content: string }
+
+async function callAI(messages: AIMessage[], maxTokens: number): Promise<string> {
+  const provider = process.env.AI_PROVIDER ?? 'anthropic'
+
+  if (provider === 'ollama') {
+    const client = new OpenAI({
+      baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+      apiKey: 'ollama', // required by the SDK but unused by Ollama
+    })
+    const model = process.env.OLLAMA_MODEL ?? 'qwen2.5'
+    const response = await client.chat.completions.create({
+      model,
+      max_tokens: maxTokens,
+      messages,
+    })
+    return response.choices[0]?.message?.content?.trim() ?? ''
+  }
+
+  // Default: Anthropic
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set.')
+  const client = new Anthropic({ apiKey })
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: maxTokens,
+    messages,
+  })
+  return response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+}
+
+function parseJSON(raw: string): unknown {
+  const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  return JSON.parse(json)
+}
 
 async function requireAdmin() {
   const session = await getSession()
@@ -179,6 +227,63 @@ export async function mergeQuestionTags(
   return { success: true, tag: targetTag }
 }
 
+// Batch version: tags a group of answers in one AI call.
+// Returns a map of answerId → { apply: tagId[], new_tags: string[] }.
+export async function suggestTagsBatchWithAI(
+  answers: { id: string; text: string }[],
+  existingTags: { id: string; label: string }[],
+  mode: 'apply' | 'explore',
+): Promise<{ results: Record<string, { apply: string[]; new_tags: string[] }>; error?: string }> {
+  await requireAdmin()
+  if (!answers.length) return { results: {} }
+
+  try {
+    const existingTagList = existingTags.length
+      ? existingTags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')
+      : '(none yet)'
+
+    const exploreInstruction = mode === 'explore'
+      ? 'You may also suggest up to 2 brand-new short tag names (1–4 words) per answer if the answer contains themes not covered by existing tags.'
+      : 'Only use IDs from the existing tags list. Do not invent new tag names.'
+
+    const answerBlock = answers.map((a, i) => `[${i}] id:${a.id}\n${a.text}`).join('\n\n')
+
+    const prompt = `You are a qualitative research assistant coding diary study responses.
+
+Existing tags:
+${existingTagList}
+
+Answers to code (each prefixed with [index] and id):
+${answerBlock}
+
+Task: For each answer, identify which existing tags apply. ${exploreInstruction}
+
+Return a JSON object keyed by the answer id. Example:
+{"answerId1":{"apply":["tag-id-a","tag-id-b"],"new_tags":["New concept"]},"answerId2":{"apply":[],"new_tags":[]}}
+
+Rules:
+- Keys must be the exact answer ids given above
+- "apply" must only contain IDs from the existing tags list
+- "new_tags" must be short (1–4 words), in the same language as the answer
+- Return raw JSON only — no code fences, no explanation`
+
+    const raw = await callAI([{ role: 'user', content: prompt }], 1024)
+    const parsed = parseJSON(raw) as Record<string, { apply?: string[]; new_tags?: string[] }>
+    const validIds = new Set(existingTags.map((t) => t.id))
+    const results: Record<string, { apply: string[]; new_tags: string[] }> = {}
+    for (const [id, val] of Object.entries(parsed)) {
+      results[id] = {
+        apply: (val.apply ?? []).filter((tid) => validIds.has(tid)),
+        new_tags: mode === 'explore' ? (val.new_tags ?? []).map((l) => String(l).trim()).filter(Boolean).slice(0, 2) : [],
+      }
+    }
+    return { results }
+  } catch (err) {
+    console.error('[suggestTagsBatchWithAI]', err)
+    return { results: {}, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 export async function suggestTagsWithAI(
   answerText: string,
   existingTags: { id: string; label: string }[],
@@ -187,10 +292,6 @@ export async function suggestTagsWithAI(
   await requireAdmin()
 
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return { apply: [], new_tags: [], error: 'ANTHROPIC_API_KEY is not set in environment variables.' }
-    const client = new Anthropic({ apiKey })
-
     const existingTagList = existingTags.length
       ? existingTags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')
       : '(none yet)'
@@ -220,17 +321,8 @@ Rules:
 - If nothing applies, return {"apply":[],"new_tags":[]}
 - Return raw JSON only — no code fences, no extra text`
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 256,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const raw = (message.content[0].type === 'text' ? message.content[0].text : '').trim()
-    // Strip markdown code fences if the model wrapped the JSON anyway
-    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-
-    const parsed = JSON.parse(json) as { apply?: string[]; new_tags?: string[] }
+    const raw = await callAI([{ role: 'user', content: prompt }], 256)
+    const parsed = parseJSON(raw) as { apply?: string[]; new_tags?: string[] }
     const validIds = new Set(existingTags.map((t) => t.id))
     return {
       apply: (parsed.apply ?? []).filter((id) => validIds.has(id)),
@@ -301,10 +393,6 @@ export async function consolidateTagsWithAI(
   if (!tags.length) return { themes: [], error: 'No tags to consolidate.' }
 
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return { themes: [], error: 'ANTHROPIC_API_KEY is not set in environment variables.' }
-    const client = new Anthropic({ apiKey })
-
     const tagList = tags.map((t) => `- ${t.label} (id: ${t.id})`).join('\n')
 
     const prompt = `You are a qualitative research assistant helping to organise codes from a diary study into themes.
@@ -322,16 +410,8 @@ For each theme provide:
 Return JSON only (no code fences, no explanation):
 {"themes":[{"name":"...","description":"...","tagIds":["id1","id2"]}]}`
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const raw = (message.content[0].type === 'text' ? message.content[0].text : '').trim()
-    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-
-    const parsed = JSON.parse(json) as { themes?: { name: string; description: string; tagIds: string[] }[] }
+    const raw = await callAI([{ role: 'user', content: prompt }], 4096)
+    const parsed = parseJSON(raw) as { themes?: { name: string; description: string; tagIds: string[] }[] }
     const validIds = new Set(tags.map((t) => t.id))
 
     const themes = (parsed.themes ?? []).map((theme) => ({
@@ -353,22 +433,10 @@ export async function suggestThemeName(tagLabels: string[]) {
   if (!tagLabels.length) return { error: 'No tag labels provided.' }
 
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return { error: 'ANTHROPIC_API_KEY is not set in environment variables.' }
-    const client = new Anthropic({ apiKey })
-
     const prompt = `Given these qualitative codes from a diary study: ${tagLabels.join(', ')}. Suggest a concise theme name (2-4 words) and a one-sentence description. Return JSON only: {"name":"...","description":"..."}`
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 128,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const raw = (message.content[0].type === 'text' ? message.content[0].text : '').trim()
-    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-
-    const parsed = JSON.parse(json) as { name?: string; description?: string }
+    const raw = await callAI([{ role: 'user', content: prompt }], 128)
+    const parsed = parseJSON(raw) as { name?: string; description?: string }
     if (!parsed.name) return { error: 'AI did not return a valid name.' }
 
     return {
