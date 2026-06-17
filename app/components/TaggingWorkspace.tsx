@@ -10,7 +10,7 @@ import {
   deleteQuestionTag,
   mergeQuestionTags,
   setTagParent,
-  suggestTagsWithAI,
+  suggestTagsBatchWithAI,
   suggestThemeName,
   updateAnswerTags,
   updateQuestionTag,
@@ -1509,62 +1509,68 @@ export default function TaggingWorkspace({
   }
 
   async function runBatchTag() {
-    // Only apply to leaf tags
+    const BATCH_SIZE = 15  // answers per AI call
+    const CONCURRENCY = 5  // parallel AI calls at once
+
     const leafTags = liveTagsRef.current.filter((t) => t.parentId !== null || !liveTagsRef.current.some((c) => c.parentId === t.id))
-
     const toProcess = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
-
     if (!toProcess.length) return
 
     setBatchRunning(true)
     setBatchSummary(null)
     setBatchProgress({ done: 0, total: toProcess.length })
 
+    // Split into batches
+    const batches: typeof toProcess[] = []
+    for (let i = 0; i < toProcess.length; i += BATCH_SIZE) batches.push(toProcess.slice(i, i + BATCH_SIZE))
+
     let tagsApplied = 0
     let firstError: string | undefined
 
-    for (const answer of toProcess) {
-      const currentLeafTags = leafTags
-      const result = await suggestTagsWithAI(
-        answer.answer,
-        currentLeafTags.map((t) => ({ id: t.id, label: t.label })),
-        batchMode,
-      )
+    // Process batches with limited concurrency
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      const round = batches.slice(i, i + CONCURRENCY)
+      const tagSnapshot = liveTagsRef.current.filter((t) => t.parentId !== null || !liveTagsRef.current.some((c) => c.parentId === t.id))
 
-      if ('error' in result && result.error && !firstError) firstError = result.error as string
-      const existingIds = tagIdsByAnswer[answer.answerId] ?? []
-      const validTagIds = new Set(currentLeafTags.map((t) => t.id))
-      const toAdd = result.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
-      let nextIds = [...existingIds, ...toAdd]
+      await Promise.all(round.map(async (batch) => {
+        const result = await suggestTagsBatchWithAI(
+          batch.map((a) => ({ id: a.answerId, text: a.answer })),
+          tagSnapshot.map((t) => ({ id: t.id, label: t.label })),
+          batchMode,
+        )
 
-      for (const label of result.new_tags) {
-        const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
-        const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
-        if (tagResult?.tag) {
-          const newTag: TagDefinition = {
-            id: tagResult.tag.id,
-            label: tagResult.tag.label,
-            color: tagResult.tag.color,
-            parentId: null,
-            description: null,
+        if (result.error && !firstError) firstError = result.error
+
+        for (const answer of batch) {
+          const res = result.results[answer.answerId]
+          if (!res) { setBatchProgress((p) => ({ ...p, done: p.done + 1 })); continue }
+
+          const existingIds = tagIdsByAnswer[answer.answerId] ?? []
+          const validTagIds = new Set(tagSnapshot.map((t) => t.id))
+          const toAdd = res.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
+          let nextIds = [...existingIds, ...toAdd]
+
+          for (const label of res.new_tags) {
+            const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
+            const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
+            if (tagResult?.tag) {
+              const newTag: TagDefinition = { id: tagResult.tag.id, label: tagResult.tag.label, color: tagResult.tag.color, parentId: null, description: null }
+              const updated = [...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label), newTag].sort((a, b) => a.label.localeCompare(b.label))
+              liveTagsRef.current = updated
+              setTagDefinitions(updated)
+              if (!nextIds.includes(newTag.id)) nextIds.push(newTag.id)
+            }
           }
-          const updated = [
-            ...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label),
-            newTag,
-          ].sort((a, b) => a.label.localeCompare(b.label))
-          liveTagsRef.current = updated
-          setTagDefinitions(updated)
-          if (!nextIds.includes(newTag.id)) nextIds.push(newTag.id)
+
+          if (nextIds.length > existingIds.length) {
+            tagsApplied += nextIds.length - existingIds.length
+            setTagIdsByAnswer((prev) => ({ ...prev, [answer.answerId]: nextIds }))
+            await updateAnswerTags(studyId, answer.answerId, nextIds)
+          }
+
+          setBatchProgress((p) => ({ ...p, done: p.done + 1 }))
         }
-      }
-
-      if (nextIds.length > existingIds.length) {
-        tagsApplied += nextIds.length - existingIds.length
-        setTagIdsByAnswer((prev) => ({ ...prev, [answer.answerId]: nextIds }))
-        await updateAnswerTags(studyId, answer.answerId, nextIds)
-      }
-
-      setBatchProgress((prev) => ({ ...prev, done: prev.done + 1 }))
+      }))
     }
 
     setBatchRunning(false)
