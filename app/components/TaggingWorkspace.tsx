@@ -620,6 +620,16 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
       style={style}
       className={`group flex items-center gap-3 px-4 py-3 ${isDragging ? 'opacity-40' : ''} ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
     >
+      {/* Expand chevron — mirrors theme row; click to show/hide answers */}
+      <button
+        type="button"
+        onClick={() => ctx.toggleTagExpand(tag.id)}
+        aria-label={ctx.expandedTagIds.has(tag.id) ? 'Collapse answers' : 'Expand answers'}
+        className="shrink-0 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text)]"
+      >
+        <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${ctx.expandedTagIds.has(tag.id) ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
+      </button>
+
       {/* Drag handle — reveals on hover */}
       <button
         type="button"
@@ -696,14 +706,9 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => ctx.toggleTagExpand(tag.id)}
-        className="shrink-0 flex h-8 items-center gap-1 rounded-lg px-2 text-sm tabular-nums text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text-secondary)]"
-      >
+      <span className="shrink-0 text-xs tabular-nums text-[var(--text-tertiary)] whitespace-nowrap">
         {count} {count === 1 ? 'answer' : 'answers'}
-        <svg viewBox="0 0 12 12" className={`h-3 w-3 transition-transform ${ctx.expandedTagIds.has(tag.id) ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
-      </button>
+      </span>
 
       {isConfirmingDelete ? (
         <div className="flex shrink-0 items-center gap-2">
@@ -844,6 +849,25 @@ function AnalysisWorkspace({
 
   function toggleTagExpand(id: string) { setExpandedTagIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
   function toggleThemeExpand(id: string) { setExpandedThemeIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  function expandAll() {
+    setExpandedThemeIds(new Set(themes.map((t) => t.id)))
+    setExpandedTagIds(new Set(tagDefinitions.filter((t) => {
+      const isTheme = t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)
+      return !isTheme
+    }).map((t) => t.id)))
+    setUngroupedOpen(true)
+  }
+  function collapseAll() {
+    setExpandedThemeIds(new Set())
+    setExpandedTagIds(new Set())
+    setUngroupedOpen(false)
+  }
+  const allExpanded = themes.every((t) => expandedThemeIds.has(t.id)) &&
+    tagDefinitions.filter((t) => {
+      const isTheme = t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)
+      return !isTheme
+    }).every((t) => expandedTagIds.has(t.id)) &&
+    (ungroupedTags.length === 0 || ungroupedOpen)
   function toggleSelect(tagId: string) { setSelectedTagIds((p) => { const n = new Set(p); n.has(tagId) ? n.delete(tagId) : n.add(tagId); return n }) }
   function isGroupSelected(ids: string[]) { return ids.length > 0 && ids.every((id) => selectedTagIds.has(id)) }
   function isGroupIndeterminate(ids: string[]) { return ids.some((id) => selectedTagIds.has(id)) && !ids.every((id) => selectedTagIds.has(id)) }
@@ -1063,6 +1087,20 @@ function AnalysisWorkspace({
         {tagDefinitions.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No tags yet. Add one above or use AI to tag answers below.</p>
         ) : (
+          <>
+          <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)]">
+            <span className="text-xs text-[var(--text-tertiary)]">
+              {themes.length > 0 && <>{themes.length} theme{themes.length !== 1 ? 's' : ''} · </>}
+              {ungroupedTags.length + tagDefinitions.filter((t) => t.parentId !== null).length} tag{ungroupedTags.length + tagDefinitions.filter((t) => t.parentId !== null).length !== 1 ? 's' : ''}
+            </span>
+            <button
+              type="button"
+              onClick={allExpanded ? collapseAll : expandAll}
+              className="text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--text-link)] transition-colors"
+            >
+              {allExpanded ? 'Collapse all' : 'Expand all'}
+            </button>
+          </div>
           <div className="divide-y divide-[var(--border-subtle)]">
 
             {/* Themes */}
@@ -1152,6 +1190,7 @@ function AnalysisWorkspace({
               </div>
             )}
           </div>
+          </>
         )}
       </div>
 
