@@ -40,8 +40,7 @@ type Answer = {
   tags: { id: string; label: string; color: string }[]
 }
 
-type FilterType = 'all' | 'untagged' | 'tag' | 'participant'
-type SortBy = 'date' | 'size' | 'tag' | 'participant'
+type AnswerSortBy = 'newest' | 'oldest' | 'name-az'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -806,6 +805,9 @@ function AnalysisWorkspace({
   const [ungroupedOpen, setUngroupedOpen] = useState(true)
   const [untaggedVisibleCount, setUntaggedVisibleCount] = useState(15)
   const [aiTagOpen, setAiTagOpen] = useState(false)
+  const [answerSearch, setAnswerSearch] = useState('')
+  const [answerSort, setAnswerSort] = useState<AnswerSortBy>('newest')
+  const [showAllAnswers, setShowAllAnswers] = useState(false)
   const [activeTagId, setActiveTagId] = useState<string | null>(null)
 
   const tagCounts = useMemo(() => {
@@ -819,6 +821,19 @@ function AnalysisWorkspace({
   const ungroupedTags = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
   const untaggedAnswers = useMemo(() => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0), [answers, tagIdsByAnswer])
   const leafTagsForApply = useMemo(() => tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+
+  const displayedAnswers = useMemo(() => {
+    const base = showAllAnswers ? answers : untaggedAnswers
+    const search = answerSearch.trim().toLowerCase()
+    const filtered = search
+      ? base.filter((a) => a.answer.toLowerCase().includes(search) || a.participantName.toLowerCase().includes(search))
+      : base
+    return [...filtered].sort((a, b) => {
+      if (answerSort === 'newest') return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      if (answerSort === 'oldest') return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()
+      return a.participantName.localeCompare(b.participantName)
+    })
+  }, [answers, untaggedAnswers, showAllAnswers, answerSearch, answerSort])
 
   function toggleTagExpand(id: string) { setExpandedTagIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
   function toggleThemeExpand(id: string) { setExpandedThemeIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
@@ -1090,14 +1105,19 @@ function AnalysisWorkspace({
         <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
       </div>
 
-      {/* Untagged answers */}
-      {untaggedAnswers.length > 0 && (
+      {/* Answers panel (untagged by default, all when toggled) */}
+      {answers.length > 0 && (
         <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
           <div className="border-b border-[var(--border-subtle)]">
-            <div className="flex items-center gap-3 px-4 py-3">
-              <span className="text-sm font-semibold text-[var(--text)]">{untaggedAnswers.length} untagged answer{untaggedAnswers.length !== 1 ? 's' : ''}</span>
+            {/* Header row: title + AI tag button */}
+            <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+              <span className="text-sm font-semibold text-[var(--text)] shrink-0">
+                {showAllAnswers
+                  ? `${displayedAnswers.length} answer${displayedAnswers.length !== 1 ? 's' : ''}${answerSearch ? ' matching' : ''}`
+                  : `${untaggedAnswers.length} untagged answer${untaggedAnswers.length !== 1 ? 's' : ''}${answerSearch && displayedAnswers.length !== untaggedAnswers.length ? ` (${displayedAnswers.length} shown)` : ''}`}
+              </span>
               <div className="flex-1" />
-              {!batchRunning && !aiTagOpen && (
+              {!batchRunning && !aiTagOpen && !showAllAnswers && (
                 batchSummary ? (
                   <Button tone="secondary" size="sm" onClick={() => { onClearBatchSummary(); setAiTagOpen(true) }}>Tag again</Button>
                 ) : (
@@ -1105,6 +1125,33 @@ function AnalysisWorkspace({
                 )
               )}
               {batchRunning && <span className="text-sm text-[var(--text-tertiary)]">Tagging…</span>}
+            </div>
+            {/* Filter / sort row */}
+            <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
+              <input
+                type="search"
+                value={answerSearch}
+                onChange={(e) => { setAnswerSearch(e.target.value); setUntaggedVisibleCount(15) }}
+                placeholder="Search answers or participants…"
+                className="h-8 flex-1 min-w-36 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
+              />
+              <SelectMenu
+                value={answerSort}
+                options={[
+                  { value: 'newest', label: 'Newest first' },
+                  { value: 'oldest', label: 'Oldest first' },
+                  { value: 'name-az', label: 'Name A→Z' },
+                ]}
+                onChange={(v) => { setAnswerSort(v as AnswerSortBy); setUntaggedVisibleCount(15) }}
+                buttonClassName="h-8 text-sm shrink-0"
+              />
+              <button
+                type="button"
+                onClick={() => { setShowAllAnswers((v) => !v); setUntaggedVisibleCount(15) }}
+                className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${showAllAnswers ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+              >
+                {showAllAnswers ? 'All answers' : 'Untagged only'}
+              </button>
             </div>
             {aiTagOpen && !batchRunning && (
               <div className="flex items-center gap-3 px-4 pb-3 flex-wrap">
@@ -1146,7 +1193,12 @@ function AnalysisWorkspace({
           )}
           {!batchRunning && (
             <div className="divide-y divide-[var(--border-subtle)]">
-              {untaggedAnswers.slice(0, untaggedVisibleCount).map((answer) => {
+              {displayedAnswers.length === 0 && (
+                <p className="px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">
+                  {answerSearch ? 'No answers match your search.' : showAllAnswers ? 'No answers yet.' : 'All answers are tagged.'}
+                </p>
+              )}
+              {displayedAnswers.slice(0, untaggedVisibleCount).map((answer) => {
                 const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
                 const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
                 const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id))
@@ -1179,9 +1231,9 @@ function AnalysisWorkspace({
                   </article>
                 )
               })}
-              {(untaggedVisibleCount < untaggedAnswers.length || untaggedVisibleCount > 15) && (
+              {(untaggedVisibleCount < displayedAnswers.length || untaggedVisibleCount > 15) && (
                 <div className="flex items-center justify-center gap-3 px-4 py-3">
-                  {untaggedVisibleCount < untaggedAnswers.length && <Button tone="secondary" size="sm" onClick={() => setUntaggedVisibleCount((n) => Math.min(n + 15, untaggedAnswers.length))}>Load more</Button>}
+                  {untaggedVisibleCount < displayedAnswers.length && <Button tone="secondary" size="sm" onClick={() => setUntaggedVisibleCount((n) => Math.min(n + 15, displayedAnswers.length))}>Load more</Button>}
                   {untaggedVisibleCount > 15 && <Button tone="ghost" size="sm" onClick={() => setUntaggedVisibleCount(15)}>Collapse</Button>}
                 </div>
               )}
