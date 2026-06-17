@@ -252,567 +252,6 @@ function SegmentedControl<T extends string>({
   )
 }
 
-// ─── CodeTab ─────────────────────────────────────────────────────────────────
-
-function CodeTab({
-  answers,
-  tagDefinitions,
-  tagIdsByAnswer,
-  tagById,
-  savingAnswerId,
-  savingTagId,
-  onApply,
-  onCreateAndApply,
-  onRemove,
-}: {
-  answers: Answer[]
-  tagDefinitions: TagDefinition[]
-  tagIdsByAnswer: Record<string, string[]>
-  tagById: Map<string, TagDefinition>
-  savingAnswerId: string | null
-  savingTagId: string | null
-  onApply: (answerId: string, tagId: string) => void
-  onCreateAndApply: (answerId: string, label: string) => void
-  onRemove: (answerId: string, tagId: string) => void
-}) {
-  const [filterType, setFilterType] = useState<FilterType>('all')
-  const [filterTagId, setFilterTagId] = useState('')
-  const [filterEmail, setFilterEmail] = useState('')
-  const [sortBy, setSortBy] = useState<SortBy>('date')
-  const [cardIndex, setCardIndex] = useState(0)
-  const [aiMode, setAiMode] = useState<'apply' | 'explore'>('apply')
-  const [suggesting, setSuggesting] = useState(false)
-  const [aiResult, setAiResult] = useState<{ apply: string[]; new_tags: string[]; error?: string } | null>(null)
-  const lastSuggestedAnswerId = useRef<string | null>(null)
-
-  // Build theme list for "By tag" filter: themes + standalone tags
-  const themes = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
-  const standaloneTagsForFilter = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
-
-  const tagFilterOptions = useMemo(() => {
-    const opts: { value: string; label: string }[] = [{ value: '', label: 'Pick a tag…' }]
-    for (const theme of themes) {
-      opts.push({ value: `theme:${theme.id}`, label: `📂 ${theme.label}` })
-      for (const child of tagDefinitions.filter((t) => t.parentId === theme.id)) {
-        opts.push({ value: child.id, label: `  › ${child.label}` })
-      }
-    }
-    for (const tag of standaloneTagsForFilter) {
-      opts.push({ value: tag.id, label: tag.label })
-    }
-    return opts
-  }, [themes, standaloneTagsForFilter, tagDefinitions])
-
-  const participants = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const a of answers) {
-      if (!seen.has(a.participantEmail)) seen.set(a.participantEmail, a.participantName)
-    }
-    return Array.from(seen.entries())
-      .map(([email, name]) => ({ email, name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [answers])
-
-  const filtered = useMemo(() => {
-    let result = [...answers]
-    if (filterType === 'untagged') {
-      result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
-    } else if (filterType === 'tag' && filterTagId) {
-      if (filterTagId.startsWith('theme:')) {
-        const themeId = filterTagId.slice(6)
-        const subTagIds = new Set(tagDefinitions.filter((t) => t.parentId === themeId).map((t) => t.id))
-        result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).some((id) => subTagIds.has(id)))
-      } else {
-        result = result.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(filterTagId))
-      }
-    } else if (filterType === 'participant' && filterEmail) {
-      result = result.filter((a) => a.participantEmail === filterEmail)
-    }
-    if (sortBy === 'date') result.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
-    else if (sortBy === 'size') result.sort((a, b) => b.answer.length - a.answer.length)
-    else if (sortBy === 'participant') result.sort((a, b) => a.participantName.localeCompare(b.participantName))
-    else if (sortBy === 'tag') {
-      result.sort((a, b) => {
-        const aTag = (tagIdsByAnswer[a.answerId] ?? []).map((id) => tagById.get(id)?.label ?? '').sort()[0] ?? '￿'
-        const bTag = (tagIdsByAnswer[b.answerId] ?? []).map((id) => tagById.get(id)?.label ?? '').sort()[0] ?? '￿'
-        return aTag.localeCompare(bTag)
-      })
-    }
-    return result
-  }, [answers, filterType, filterTagId, filterEmail, sortBy, tagIdsByAnswer, tagById, tagDefinitions])
-
-  const totalUntagged = useMemo(
-    () => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length,
-    [answers, tagIdsByAnswer],
-  )
-
-  const safeIndex = Math.min(cardIndex, Math.max(0, filtered.length - 1))
-  const current = filtered[safeIndex] ?? null
-  const currentTagIds = current ? (tagIdsByAnswer[current.answerId] ?? []) : []
-  const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
-  // Only leaf tags shown as chips; themes are inferred
-  const currentLeafTags = currentTags.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
-
-  async function runSuggest() {
-    if (!current) return
-    setSuggesting(true)
-    setAiResult(null)
-    lastSuggestedAnswerId.current = current.answerId
-    // Only pass leaf tags to AI
-    const leafTagsForAI = tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
-    try {
-      const result = await suggestTagsWithAI(
-        current.answer,
-        leafTagsForAI.map((t) => ({ id: t.id, label: t.label })),
-        aiMode,
-      )
-      setAiResult(result)
-    } catch (e) {
-      setAiResult({ apply: [], new_tags: [], error: e instanceof Error ? e.message : 'Unknown error' })
-    }
-    setSuggesting(false)
-  }
-
-  function changeFilter(type: FilterType) {
-    setFilterType(type)
-    setCardIndex(0)
-    setAiResult(null)
-  }
-
-  const participantOptions = participants.map((p) => ({ value: p.email, label: p.name }))
-  const sortOptions: { value: SortBy; label: string }[] = [
-    { value: 'date', label: 'Date' },
-    { value: 'size', label: 'Length' },
-    { value: 'tag', label: 'Tag' },
-    { value: 'participant', label: 'Participant' },
-  ]
-
-  // Available leaf tags for quick-apply (not already applied, not in AI suggestions)
-  const leafTagsForApply = tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
-
-  return (
-    <div className="space-y-4">
-      {/* Filter / sort bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          options={[
-            { value: 'all' as FilterType, label: 'All' },
-            { value: 'untagged' as FilterType, label: 'Untagged' },
-            { value: 'tag' as FilterType, label: 'By tag' },
-            { value: 'participant' as FilterType, label: 'By participant' },
-          ]}
-          value={filterType}
-          onChange={changeFilter}
-        />
-
-        {filterType === 'tag' && (
-          <SelectMenu
-            value={filterTagId || (tagFilterOptions[0]?.value ?? '')}
-            options={tagFilterOptions}
-            onChange={(v) => { setFilterTagId(v); setCardIndex(0) }}
-            buttonClassName="h-9 rounded-lg text-sm"
-            className="w-52"
-          />
-        )}
-        {filterType === 'participant' && (
-          <SelectMenu
-            value={filterEmail || (participantOptions[0]?.value ?? '')}
-            options={[{ value: '', label: 'Pick a participant…' }, ...participantOptions]}
-            onChange={(v) => { setFilterEmail(v); setCardIndex(0) }}
-            buttonClassName="h-9 rounded-lg text-sm"
-            className="w-52"
-          />
-        )}
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-[var(--text-tertiary)]">Sort</span>
-          <SelectMenu
-            value={sortBy}
-            options={sortOptions}
-            onChange={(v) => { setSortBy(v as SortBy); setCardIndex(0) }}
-            buttonClassName="h-9 rounded-lg text-sm"
-            className="w-36"
-          />
-        </div>
-
-        {totalUntagged > 0 && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-800">
-            {totalUntagged} untagged
-          </span>
-        )}
-      </div>
-
-      {/* Card */}
-      {filtered.length === 0 ? (
-        <div className="rounded-xl border border-[var(--border)] bg-white px-6 py-16 text-center">
-          <p className="text-sm text-[var(--text-tertiary)]">No answers match this filter.</p>
-        </div>
-      ) : current ? (
-        <div className="rounded-xl border border-[var(--border)] bg-white">
-          {/* Card header */}
-          <div className="flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-3">
-            <div className="min-w-0 flex-1 text-sm">
-              <span className="font-semibold text-[var(--text)]">{current.participantName}</span>
-              <span className="mx-2 text-[var(--text-muted)]">·</span>
-              <span className="text-[var(--text-secondary)]">{current.participantEmail}</span>
-              <span className="mx-2 text-[var(--text-muted)]">·</span>
-              <span className="text-[var(--text-tertiary)]">{formatDate(current.submittedAt)}</span>
-              {savingAnswerId === current.answerId && (
-                <span className="ml-3 text-xs text-[var(--text-tertiary)]">Saving…</span>
-              )}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCardIndex((i) => Math.max(0, i - 1))}
-                disabled={safeIndex === 0}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] disabled:opacity-30"
-                aria-label="Previous answer"
-              >
-                ←
-              </button>
-              <span className="min-w-16 text-center text-sm text-[var(--text-secondary)] tabular-nums">
-                {safeIndex + 1} / {filtered.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => setCardIndex((i) => Math.min(filtered.length - 1, i + 1))}
-                disabled={safeIndex === filtered.length - 1}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] disabled:opacity-30"
-                aria-label="Next answer"
-              >
-                →
-              </button>
-            </div>
-          </div>
-
-          {/* Answer text */}
-          <div className="px-5 py-4">
-            <p className="whitespace-pre-wrap rounded-xl bg-[var(--bg-sunken)] px-4 py-4 text-sm leading-relaxed text-[var(--text)]">
-              {current.answer}
-            </p>
-          </div>
-
-          {/* Tags area */}
-          <div className="space-y-3 px-5 pb-5">
-            {currentLeafTags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {currentLeafTags.map((tag) => {
-                  const parent = tag.parentId ? tagById.get(tag.parentId) : undefined
-                  return (
-                    <AppliedTagChip
-                      key={tag.id}
-                      tag={tag}
-                      parentTag={parent}
-                      onRemove={() => onRemove(current.answerId, tag.id)}
-                    />
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Autocomplete + AI suggest */}
-            <div className="flex gap-2">
-              <TagAutocomplete
-                tags={tagDefinitions}
-                appliedTagIds={currentTagIds}
-                onApply={(tagId) => onApply(current.answerId, tagId)}
-                onCreate={(label) => onCreateAndApply(current.answerId, label)}
-                disabled={savingAnswerId === current.answerId || savingTagId === 'new'}
-              />
-              <SegmentedControl
-                options={[
-                  { value: 'apply' as const, label: 'Apply' },
-                  { value: 'explore' as const, label: 'Explore' },
-                ]}
-                value={aiMode}
-                onChange={(v) => { setAiMode(v); setAiResult(null) }}
-              />
-              <Button
-                tone="secondary"
-                size="sm"
-                onClick={() => void runSuggest()}
-                disabled={suggesting}
-              >
-                {suggesting ? 'Thinking…' : 'Suggest'}
-              </Button>
-            </div>
-
-            {/* AI result panel */}
-            {aiResult && lastSuggestedAnswerId.current === current.answerId && (
-              <div className="rounded-lg border border-[var(--accent-muted)] bg-[var(--accent-subtle)] p-3 space-y-2">
-                <p className="text-xs font-semibold text-[var(--accent)]">
-                  AI suggestions · {aiMode === 'explore' ? 'Explore mode' : 'Apply mode'}
-                </p>
-
-                {aiResult.error ? (
-                  <p className="text-xs" style={{ color: 'var(--danger-text)' }}>Error: {aiResult.error}</p>
-                ) : aiResult.apply.length === 0 && aiResult.new_tags.length === 0 ? (
-                  <p className="text-xs text-[var(--text-tertiary)]">No relevant tags found for this answer.</p>
-                ) : null}
-
-                {aiResult.apply.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {aiResult.apply.map((tagId) => {
-                      const tag = tagById.get(tagId)
-                      if (!tag) return null
-                      const isApplied = currentTagIds.includes(tagId)
-                      return isApplied ? (
-                        <span
-                          key={tagId}
-                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold opacity-50"
-                          style={{ backgroundColor: tag.color, color: readableTextColor(tag.color) }}
-                        >
-                          {tag.label}
-                          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2 6l3 3 5-5" /></svg>
-                        </span>
-                      ) : (
-                        <button
-                          key={tagId}
-                          type="button"
-                          onClick={() => onApply(current.answerId, tagId)}
-                          className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--accent)] bg-white px-3 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--text-on-accent)]"
-                        >
-                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                          + {tag.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {aiResult.new_tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {aiResult.new_tags.map((label) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => onCreateAndApply(current.answerId, label)}
-                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--accent)] bg-white px-3 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--text-on-accent)]"
-                      >
-                        + {label} <span className="text-[10px] opacity-60">new</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Available tags — quick apply */}
-            {(() => {
-              const suggestedIds = new Set(aiResult?.apply ?? [])
-              const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id) && !suggestedIds.has(t.id))
-              if (!available.length) return null
-              return (
-                <div className="flex flex-wrap gap-2">
-                  {available.map((tag) => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => onApply(current.answerId, tag.id)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]"
-                    >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                      {tag.label}
-                    </button>
-                  ))}
-                </div>
-              )
-            })()}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-// ─── ListView ─────────────────────────────────────────────────────────────────
-
-function ListView({
-  answers,
-  tagDefinitions,
-  tagIdsByAnswer,
-  tagById,
-  savingAnswerId,
-  savingTagId,
-  onApply,
-  onCreateAndApply,
-  onRemove,
-}: {
-  answers: Answer[]
-  tagDefinitions: TagDefinition[]
-  tagIdsByAnswer: Record<string, string[]>
-  tagById: Map<string, TagDefinition>
-  savingAnswerId: string | null
-  savingTagId: string | null
-  onApply: (answerId: string, tagId: string) => void
-  onCreateAndApply: (answerId: string, label: string) => void
-  onRemove: (answerId: string, tagId: string) => void
-}) {
-  const [tagFilter, setTagFilter] = useState('all')
-  const [visibleCount, setVisibleCount] = useState(15)
-
-  const themes = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
-  const standaloneTags = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
-
-  const filterOptions = useMemo(() => {
-    const opts: { value: string; label: string }[] = [
-      { value: 'all', label: 'All' },
-      { value: 'untagged', label: 'Untagged' },
-    ]
-    for (const theme of themes) {
-      opts.push({ value: `theme:${theme.id}`, label: `📂 ${theme.label}` })
-      for (const child of tagDefinitions.filter((t) => t.parentId === theme.id)) {
-        opts.push({ value: child.id, label: `  › ${child.label}` })
-      }
-    }
-    for (const tag of standaloneTags) {
-      opts.push({ value: tag.id, label: tag.label })
-    }
-    return opts
-  }, [themes, standaloneTags, tagDefinitions])
-
-  const filtered = useMemo(() => {
-    if (tagFilter === 'all') return answers
-    if (tagFilter === 'untagged') return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
-    if (tagFilter.startsWith('theme:')) {
-      const themeId = tagFilter.slice(6)
-      const subTagIds = new Set(tagDefinitions.filter((t) => t.parentId === themeId).map((t) => t.id))
-      return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).some((id) => subTagIds.has(id)))
-    }
-    return answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(tagFilter))
-  }, [answers, tagFilter, tagIdsByAnswer, tagDefinitions])
-
-  const untaggedCount = useMemo(
-    () => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length,
-    [answers, tagIdsByAnswer],
-  )
-
-  const leafTagsForApply = tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
-
-  const visible = filtered.slice(0, visibleCount)
-  const hasMore = visibleCount < filtered.length
-
-  return (
-    <div className="space-y-3">
-      {/* Filter bar */}
-      <div className="space-y-2">
-        <div className="overflow-x-auto pb-1">
-          <SegmentedControl
-            options={filterOptions}
-            value={tagFilter}
-            onChange={(v) => { setTagFilter(v); setVisibleCount(15) }}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          {untaggedCount > 0 && (
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-800">
-              {untaggedCount} untagged
-            </span>
-          )}
-          <span className="text-sm text-[var(--text-tertiary)]">
-            {filtered.length} {filtered.length === 1 ? 'answer' : 'answers'}
-          </span>
-        </div>
-      </div>
-
-      {/* Answer list */}
-      <div className="rounded-xl border border-[var(--border)] bg-white">
-        {filtered.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No answers match this filter.</p>
-        ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {visible.map((answer) => {
-              const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
-              const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
-              const currentLeafTags = currentTags.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id))
-              const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id))
-              const isSaving = savingAnswerId === answer.answerId
-
-              return (
-                <article key={answer.answerId} className="space-y-2.5 px-4 py-4">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-tertiary)]">
-                    <span className="font-semibold text-[var(--text-secondary)]">{answer.participantName}</span>
-                    <span>{answer.participantEmail}</span>
-                    <span>{formatDate(answer.submittedAt)}</span>
-                    {isSaving && <span>Saving…</span>}
-                  </div>
-                  <p className="whitespace-pre-wrap rounded-lg bg-[var(--bg-sunken)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text)]">
-                    {answer.answer}
-                  </p>
-                  <div className="space-y-2">
-                    {currentLeafTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {currentLeafTags.map((tag) => {
-                          const parent = tag.parentId ? tagById.get(tag.parentId) : undefined
-                          return (
-                            <AppliedTagChip
-                              key={tag.id}
-                              tag={tag}
-                              parentTag={parent}
-                              size="sm"
-                              onRemove={() => onRemove(answer.answerId, tag.id)}
-                            />
-                          )
-                        })}
-                      </div>
-                    )}
-                    {available.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {available.map((tag) => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => onApply(answer.answerId, tag.id)}
-                            className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]"
-                          >
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                            + {tag.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <TagAutocomplete
-                        tags={tagDefinitions}
-                        appliedTagIds={currentTagIds}
-                        onApply={(tagId) => onApply(answer.answerId, tagId)}
-                        onCreate={(label) => onCreateAndApply(answer.answerId, label)}
-                        disabled={isSaving || savingTagId === 'new'}
-                      />
-                    </div>
-                  </div>
-                </article>
-              )
-            })}
-            {(hasMore || visibleCount > 15) && (
-              <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-4">
-                {hasMore && (
-                  <>
-                    <Button tone="secondary" size="sm" onClick={() => setVisibleCount((n) => Math.min(n + 15, filtered.length))}>
-                      Load 15 more
-                    </Button>
-                    <Button tone="secondary" size="sm" onClick={() => setVisibleCount(filtered.length)}>
-                      Load all
-                    </Button>
-                  </>
-                )}
-                {visibleCount > 15 && (
-                  <Button tone="ghost" size="sm" onClick={() => setVisibleCount(15)}>
-                    Collapse
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── AIProposalPanel ──────────────────────────────────────────────────────────
 
 type ProposedTheme = {
@@ -1124,6 +563,8 @@ type ManageCtxType = {
   onRename: (id: string, label: string, color: string) => void
   startRename: (tag: TagDefinition) => void
   startEditDesc: (tag: TagDefinition) => void
+  expandedTagIds: Set<string>
+  toggleTagExpand: (id: string) => void
 }
 
 const ManageCtx = createContext<ManageCtxType | null>(null)
@@ -1258,9 +699,14 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
         )}
       </div>
 
-      <span className="shrink-0 text-sm tabular-nums text-[var(--text-tertiary)]">
+      <button
+        type="button"
+        onClick={() => ctx.toggleTagExpand(tag.id)}
+        className="shrink-0 flex items-center gap-1 text-sm tabular-nums text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+      >
         {count} {count === 1 ? 'answer' : 'answers'}
-      </span>
+        <svg viewBox="0 0 12 12" className={`h-3 w-3 transition-transform ${ctx.expandedTagIds.has(tag.id) ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
+      </button>
 
       {isConfirmingDelete ? (
         <div className="flex shrink-0 items-center gap-2">
@@ -1289,15 +735,27 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
   )
 }
 
-// ─── ManageTab ────────────────────────────────────────────────────────────────
+// ─── AnalysisWorkspace ───────────────────────────────────────────────────────
 
-function ManageTab({
+function AnalysisWorkspace({
   studyId,
   questionId,
   tagDefinitions,
   tagIdsByAnswer,
   answers,
+  tagById,
+  savingAnswerId,
   savingTagId,
+  batchRunning,
+  batchProgress,
+  batchSummary,
+  batchMode,
+  setBatchMode,
+  onRunBatch,
+  onClearBatchSummary,
+  onApply,
+  onCreateAndApply,
+  onRemove,
   onRename,
   onDelete,
   onCreate,
@@ -1309,7 +767,19 @@ function ManageTab({
   tagDefinitions: TagDefinition[]
   tagIdsByAnswer: Record<string, string[]>
   answers: Answer[]
+  tagById: Map<string, TagDefinition>
+  savingAnswerId: string | null
   savingTagId: string | null
+  batchRunning: boolean
+  batchProgress: { done: number; total: number }
+  batchSummary: { total: number; tagsApplied: number; firstError?: string } | null
+  batchMode: 'apply' | 'explore'
+  setBatchMode: (m: 'apply' | 'explore') => void
+  onRunBatch: () => void
+  onClearBatchSummary: () => void
+  onApply: (answerId: string, tagId: string) => void
+  onCreateAndApply: (answerId: string, label: string) => void
+  onRemove: (answerId: string, tagId: string) => void
   onRename: (tagId: string, label: string, color: string) => void
   onDelete: (tagId: string, mode?: 'keep-subtags' | 'delete-all') => void
   onCreate: (label: string, color: string) => Promise<TagDefinition | null>
@@ -1327,102 +797,15 @@ function ManageTab({
   const [aiProposal, setAiProposal] = useState<ProposedTheme[] | null>(null)
   const [aiProposalScope, setAiProposalScope] = useState<Set<string>>(new Set())
   const [aiError, setAiError] = useState<string | null>(null)
-
-  // ── Selection state ──────────────────────────────────────────────────────────
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<'idle' | 'confirm-delete' | 'grouping'>('idle')
   const [groupName, setGroupName] = useState('')
   const [namingSuggesting, setNamingSuggesting] = useState(false)
-
-  function toggleSelect(tagId: string) {
-    setSelectedTagIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(tagId)) next.delete(tagId)
-      else next.add(tagId)
-      return next
-    })
-  }
-
-  function isGroupSelected(ids: string[]) {
-    return ids.length > 0 && ids.every((id) => selectedTagIds.has(id))
-  }
-
-  function isGroupIndeterminate(ids: string[]) {
-    return ids.some((id) => selectedTagIds.has(id)) && !ids.every((id) => selectedTagIds.has(id))
-  }
-
-  function toggleGroupSelect(ids: string[]) {
-    if (isGroupSelected(ids)) {
-      setSelectedTagIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next })
-    } else {
-      setSelectedTagIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(id)); return next })
-    }
-  }
-
-  function clearSelection() {
-    setSelectedTagIds(new Set())
-    setBulkAction('idle')
-    setGroupName('')
-  }
-
-  async function handleBulkDelete() {
-    for (const id of Array.from(selectedTagIds)) {
-      const isTheme = tagDefinitions.some((c) => c.parentId === id)
-      await onDelete(id, isTheme ? 'keep-subtags' : undefined)
-    }
-    clearSelection()
-  }
-
-  async function handleGroupSelected() {
-    const label = normalizeLabel(groupName)
-    if (!label) return
-    const color = DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length]
-    const result = await createQuestionTag(studyId, questionId, label, color)
-    if (!result?.tag) return
-    for (const tagId of Array.from(selectedTagIds)) {
-      await onMoveToTheme(tagId, result.tag.id)
-    }
-    clearSelection()
-  }
-
-  async function handleSuggestGroupName() {
-    const labels = Array.from(selectedTagIds)
-      .map((id) => tagDefinitions.find((t) => t.id === id)?.label ?? '')
-      .filter(Boolean)
-    if (!labels.length) return
-    setNamingSuggesting(true)
-    const result = await suggestThemeName(labels)
-    setNamingSuggesting(false)
-    if ('name' in result && result.name) setGroupName(result.name)
-  }
-
-  async function handleBulkMoveToTheme(themeId: string) {
-    for (const tagId of Array.from(selectedTagIds)) {
-      await onMoveToTheme(tagId, themeId)
-    }
-    clearSelection()
-  }
-
-  async function handleBulkAiGroup() {
-    const selectedTags = tagDefinitions.filter((t) => selectedTagIds.has(t.id))
-    if (selectedTags.length < 2) return
-    setConsolidating(true)
-    setAiError(null)
-    setAiProposal(null)
-    const scope = new Set(selectedTags.map((t) => t.id))
-    const result = await consolidateTagsWithAI(studyId, questionId, selectedTags.map((t) => ({ id: t.id, label: t.label })))
-    setConsolidating(false)
-    if ('error' in result && result.error) { setAiError(result.error as string); return }
-    if (result.themes.length === 0) { setAiError('AI returned no theme groupings.'); return }
-    setAiProposalScope(scope)
-    setAiProposal(result.themes.map((theme, i) => ({
-      tempId: `temp-${i}-${Date.now()}`,
-      name: theme.name,
-      description: theme.description,
-      tagIds: theme.tagIds,
-    })))
-    clearSelection()
-  }
+  const [expandedTagIds, setExpandedTagIds] = useState<Set<string>>(new Set())
+  const [expandedThemeIds, setExpandedThemeIds] = useState<Set<string>>(new Set())
+  const [ungroupedOpen, setUngroupedOpen] = useState(true)
+  const [untaggedVisibleCount, setUntaggedVisibleCount] = useState(15)
+  const [activeTagId, setActiveTagId] = useState<string | null>(null)
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -1431,107 +814,97 @@ function ManageTab({
     }
     return counts
   }, [tagIdsByAnswer])
+  const themes = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+  const ungroupedTags = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+  const untaggedAnswers = useMemo(() => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0), [answers, tagIdsByAnswer])
+  const leafTagsForApply = useMemo(() => tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
 
-  const themes = useMemo(
-    () => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)),
-    [tagDefinitions],
-  )
-
-  const ungroupedTags = useMemo(
-    () => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)),
-    [tagDefinitions],
-  )
-
-  // ── DnD ────────────────────────────────────────────────────────────────────
-  const [activeTagId, setActiveTagId] = useState<string | null>(null)
-
-  function handleDragEnd(event: DragEndEvent) {
-    setActiveTagId(null)
-    const { active, over } = event
-    if (!over) return
-    const tagId = String(active.id).replace(/^tag-/, '')
-    const dest = String(over.id)
-    if (dest === 'ungrouped') {
-      void onMoveToTheme(tagId, null)
-    } else if (dest.startsWith('theme-')) {
-      void onMoveToTheme(tagId, dest.replace(/^theme-/, ''))
-    }
+  function toggleTagExpand(id: string) { setExpandedTagIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  function toggleThemeExpand(id: string) { setExpandedThemeIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  function toggleSelect(tagId: string) { setSelectedTagIds((p) => { const n = new Set(p); n.has(tagId) ? n.delete(tagId) : n.add(tagId); return n }) }
+  function isGroupSelected(ids: string[]) { return ids.length > 0 && ids.every((id) => selectedTagIds.has(id)) }
+  function isGroupIndeterminate(ids: string[]) { return ids.some((id) => selectedTagIds.has(id)) && !ids.every((id) => selectedTagIds.has(id)) }
+  function toggleGroupSelect(ids: string[]) {
+    if (isGroupSelected(ids)) setSelectedTagIds((p) => { const n = new Set(p); ids.forEach((id) => n.delete(id)); return n })
+    else setSelectedTagIds((p) => { const n = new Set(p); ids.forEach((id) => n.add(id)); return n })
   }
+  function clearSelection() { setSelectedTagIds(new Set()); setBulkAction('idle'); setGroupName('') }
 
-  function startRename(tag: TagDefinition) {
-    setRenamingId(tag.id)
-    setRenameValue(tag.label)
+  async function handleBulkDelete() {
+    for (const id of Array.from(selectedTagIds)) await onDelete(id, tagDefinitions.some((c) => c.parentId === id) ? 'keep-subtags' : undefined)
+    clearSelection()
   }
-
-  async function commitRename(tag: TagDefinition) {
-    const label = normalizeLabel(renameValue)
-    if (label && label !== tag.label) onRename(tag.id, label, tag.color)
-    setRenamingId(null)
-    setRenameValue('')
+  async function handleGroupSelected() {
+    const label = normalizeLabel(groupName); if (!label) return
+    const result = await createQuestionTag(studyId, questionId, label, DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
+    if (!result?.tag) return
+    for (const tagId of Array.from(selectedTagIds)) await onMoveToTheme(tagId, result.tag.id)
+    clearSelection()
   }
-
-  function startEditDesc(tag: TagDefinition) {
-    setEditingDescId(tag.id)
-    setDescValue(tag.description ?? '')
+  async function handleSuggestGroupName() {
+    const labels = Array.from(selectedTagIds).map((id) => tagDefinitions.find((t) => t.id === id)?.label ?? '').filter(Boolean)
+    if (!labels.length) return
+    setNamingSuggesting(true)
+    const result = await suggestThemeName(labels)
+    setNamingSuggesting(false)
+    if ('name' in result && result.name) setGroupName(result.name)
   }
-
-  async function commitDesc(tagId: string) {
-    await onUpdateDescription(tagId, descValue)
-    setEditingDescId(null)
-    setDescValue('')
+  async function handleBulkMoveToTheme(themeId: string) {
+    for (const tagId of Array.from(selectedTagIds)) await onMoveToTheme(tagId, themeId)
+    clearSelection()
   }
-
+  async function handleBulkAiGroup() {
+    const sel = tagDefinitions.filter((t) => selectedTagIds.has(t.id)); if (sel.length < 2) return
+    setConsolidating(true); setAiError(null); setAiProposal(null)
+    const result = await consolidateTagsWithAI(studyId, questionId, sel.map((t) => ({ id: t.id, label: t.label })))
+    setConsolidating(false)
+    if ('error' in result && result.error) { setAiError(result.error as string); return }
+    if (result.themes.length === 0) { setAiError('AI returned no theme groupings.'); return }
+    setAiProposalScope(new Set(sel.map((t) => t.id)))
+    setAiProposal(result.themes.map((theme, i) => ({ tempId: `temp-${i}-${Date.now()}`, name: theme.name, description: theme.description, tagIds: theme.tagIds })))
+    clearSelection()
+  }
   async function handleCreate() {
-    const label = normalizeLabel(newLabel)
-    if (!label) return
+    const label = normalizeLabel(newLabel); if (!label) return
     await onCreate(label, newColor)
-    setNewLabel('')
-    setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
+    setNewLabel(''); setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
   }
-
   async function handleAiConsolidate() {
     const leafTags = tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id))
     if (leafTags.length < 2) return
-    setConsolidating(true)
-    setAiError(null)
-    setAiProposal(null)
-    const scope = new Set(leafTags.map((t) => t.id))
+    setConsolidating(true); setAiError(null); setAiProposal(null)
     const result = await consolidateTagsWithAI(studyId, questionId, leafTags.map((t) => ({ id: t.id, label: t.label })))
     setConsolidating(false)
-    if ('error' in result && result.error) {
-      setAiError(result.error as string)
-      return
-    }
-    if (result.themes.length === 0) {
-      setAiError('AI returned no theme groupings.')
-      return
-    }
-    setAiProposalScope(scope)
-    setAiProposal(result.themes.map((theme, i) => ({
-      tempId: `temp-${i}-${Date.now()}`,
-      name: theme.name,
-      description: theme.description,
-      tagIds: theme.tagIds,
-    })))
+    if ('error' in result && result.error) { setAiError(result.error as string); return }
+    if (result.themes.length === 0) { setAiError('AI returned no theme groupings.'); return }
+    setAiProposalScope(new Set(leafTags.map((t) => t.id)))
+    setAiProposal(result.themes.map((theme, i) => ({ tempId: `temp-${i}-${Date.now()}`, name: theme.name, description: theme.description, tagIds: theme.tagIds })))
   }
-
-  async function applyProposal(themes: ProposedTheme[]) {
-    for (const theme of themes) {
+  async function applyProposal(proposals: ProposedTheme[]) {
+    for (const theme of proposals) {
       if (!theme.tagIds.length) continue
-      // Create the theme tag if it doesn't exist
-      const result = await createQuestionTag(studyId, questionId, normalizeLabel(theme.name) || 'Theme', DEFAULT_COLORS[themes.indexOf(theme) % DEFAULT_COLORS.length])
+      const result = await createQuestionTag(studyId, questionId, normalizeLabel(theme.name) || 'Theme', DEFAULT_COLORS[proposals.indexOf(theme) % DEFAULT_COLORS.length])
       if (!result?.tag) continue
-      const themeTagId = result.tag.id
-      // Move sub-tags into the theme
-      for (const tagId of theme.tagIds) {
-        await onMoveToTheme(tagId, themeTagId)
-      }
-      // Save description
-      if (theme.description) {
-        await onUpdateDescription(themeTagId, theme.description)
-      }
+      for (const tagId of theme.tagIds) await onMoveToTheme(tagId, result.tag.id)
+      if (theme.description) await onUpdateDescription(result.tag.id, theme.description)
     }
     setAiProposal(null)
+  }
+  function startRename(tag: TagDefinition) { setRenamingId(tag.id); setRenameValue(tag.label) }
+  async function commitRename(tag: TagDefinition) {
+    const label = normalizeLabel(renameValue)
+    if (label && label !== tag.label) onRename(tag.id, label, tag.color)
+    setRenamingId(null); setRenameValue('')
+  }
+  function startEditDesc(tag: TagDefinition) { setEditingDescId(tag.id); setDescValue(tag.description ?? '') }
+  async function commitDesc(tagId: string) { await onUpdateDescription(tagId, descValue); setEditingDescId(null); setDescValue('') }
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveTagId(null)
+    const { active, over } = event; if (!over) return
+    const tagId = String(active.id).replace(/^tag-/, '')
+    const dest = String(over.id)
+    if (dest === 'ungrouped') void onMoveToTheme(tagId, null)
+    else if (dest.startsWith('theme-')) void onMoveToTheme(tagId, dest.replace(/^theme-/, ''))
   }
 
   const ctxValue: ManageCtxType = {
@@ -1541,317 +914,265 @@ function ManageTab({
     editingDescId, descValue, setDescValue, setEditingDescId, commitDesc,
     confirmDeleteId, setConfirmDeleteId, onDelete, onRename,
     startRename, startEditDesc,
+    expandedTagIds, toggleTagExpand,
   }
+
+  function TagAnswers({ tag, indent }: { tag: TagDefinition; indent: boolean }) {
+    const tagged = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(tag.id))
+    const pl = indent ? 'pl-14' : 'pl-6'
+    if (!tagged.length) return <p className={`${pl} pr-4 py-3 text-sm italic text-[var(--text-tertiary)] bg-[var(--bg-sunken)]`}>No answers tagged yet.</p>
+    return (
+      <div className="divide-y divide-[var(--border-subtle)] bg-[var(--bg-sunken)]">
+        {tagged.map((a) => (
+          <div key={a.answerId} className={`flex items-start gap-3 ${pl} pr-4 py-3`}>
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
+                <span className="font-medium text-[var(--text-secondary)]">{a.participantName}</span>
+                <span>{formatDate(a.submittedAt)}</span>
+              </div>
+              <p className="text-sm leading-relaxed text-[var(--text)] line-clamp-3">{a.answer}</p>
+            </div>
+            <button type="button" onClick={() => onRemove(a.answerId, tag.id)} title="Remove tag from answer" className="mt-1 shrink-0 rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--danger-text)]">
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
+            </button>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const Chevron = ({ open }: { open: boolean }) => (
+    <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
+  )
 
   return (
     <ManageCtx.Provider value={ctxValue}>
     <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
     <div className="space-y-4">
-      {/* New tag + AI group header */}
-      <div className="flex gap-2 flex-wrap">
-        <TextInput
-          value={newLabel}
-          onChange={(e) => setNewLabel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }}
-          placeholder="New tag name"
-          className="h-9 py-0 flex-1 min-w-40"
-        />
-        <input
-          type="color"
-          value={newColor}
-          onChange={(e) => setNewColor(e.target.value)}
-          aria-label="Tag color"
-          className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1"
-        />
-        <Button
-          tone="primary"
-          size="sm"
-          onClick={() => void handleCreate()}
-          disabled={!newLabel.trim() || savingTagId === 'new'}
-          className="shrink-0 whitespace-nowrap"
-        >
-          {savingTagId === 'new' ? 'Adding…' : 'Add tag'}
-        </Button>
+
+      {/* Header: new tag + AI group */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
+        <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1" />
+        <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
         <div className="flex-1" />
-        <Button
-          tone="secondary"
-          size="sm"
-          onClick={() => void handleAiConsolidate()}
-          disabled={consolidating || ungroupedTags.length < 2}
-          className="shrink-0 whitespace-nowrap"
-        >
-          {consolidating ? '✦ Grouping…' : '✦ Group with AI'}
-        </Button>
+        <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="shrink-0 whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
       </div>
 
-      {/* Selection action bar */}
+      {/* Selection bar */}
       {selectedTagIds.size > 0 && (
         <div className="flex items-center gap-2 flex-wrap rounded-xl border border-[var(--accent-muted)] bg-[var(--accent-subtle)] px-4 py-2.5">
           <span className="text-sm font-semibold text-[var(--text)]">{selectedTagIds.size} selected</span>
           <span className="text-[var(--text-tertiary)]">·</span>
-
           {bulkAction === 'idle' && (
             <>
               <Button tone="danger" size="sm" onClick={() => setBulkAction('confirm-delete')}>Delete</Button>
-              {themes.length > 0 && (
-                <SelectMenu
-                  value=""
-                  options={[
-                    { value: '', label: 'Move to theme…' },
-                    ...themes.map((t) => ({ value: t.id, label: t.label })),
-                  ]}
-                  onChange={(v) => { if (v) void handleBulkMoveToTheme(v) }}
-                  buttonClassName="h-8 text-sm"
-                />
-              )}
+              {themes.length > 0 && <SelectMenu value="" options={[{ value: '', label: 'Move to theme…' }, ...themes.map((t) => ({ value: t.id, label: t.label }))]} onChange={(v) => { if (v) void handleBulkMoveToTheme(v) }} buttonClassName="h-8 text-sm" />}
               <Button tone="secondary" size="sm" onClick={() => setBulkAction('grouping')}>Group into theme</Button>
-              <Button
-                tone="secondary"
-                size="sm"
-                onClick={() => void handleBulkAiGroup()}
-                disabled={consolidating || selectedTagIds.size < 2}
-              >
-                {consolidating ? '✦ Grouping…' : '✦ Group with AI'}
-              </Button>
+              <Button tone="secondary" size="sm" onClick={() => void handleBulkAiGroup()} disabled={consolidating || selectedTagIds.size < 2}>{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
             </>
           )}
-
           {bulkAction === 'confirm-delete' && (
             <>
-              <span className="text-sm text-[var(--danger-text)]">
-                Delete {selectedTagIds.size} tag{selectedTagIds.size !== 1 ? 's' : ''}?
-                {Array.from(selectedTagIds).some((id) => tagDefinitions.some((c) => c.parentId === id)) && ' Themes will be removed; sub-tags ungrouped.'}
-              </span>
+              <span className="text-sm text-[var(--danger-text)]">Delete {selectedTagIds.size} tag{selectedTagIds.size !== 1 ? 's' : ''}?{Array.from(selectedTagIds).some((id) => tagDefinitions.some((c) => c.parentId === id)) && ' Themes will be removed; sub-tags ungrouped.'}</span>
               <Button tone="danger" size="sm" onClick={() => void handleBulkDelete()}>Confirm</Button>
               <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
             </>
           )}
-
           {bulkAction === 'grouping' && (
             <>
-              <TextInput
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleGroupSelected() } }}
-                placeholder="Theme name…"
-                className="h-8 py-0 w-44"
-              />
-              <Button
-                tone="secondary"
-                size="sm"
-                onClick={() => void handleSuggestGroupName()}
-                disabled={namingSuggesting}
-              >
-                {namingSuggesting ? '…' : '✦ AI name'}
-              </Button>
-              <Button
-                tone="primary"
-                size="sm"
-                onClick={() => void handleGroupSelected()}
-                disabled={!groupName.trim()}
-              >
-                Create theme
-              </Button>
+              <TextInput value={groupName} onChange={(e) => setGroupName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleGroupSelected() } }} placeholder="Theme name…" className="h-8 py-0 w-44" />
+              <Button tone="secondary" size="sm" onClick={() => void handleSuggestGroupName()} disabled={namingSuggesting}>{namingSuggesting ? '…' : '✦ AI name'}</Button>
+              <Button tone="primary" size="sm" onClick={() => void handleGroupSelected()} disabled={!groupName.trim()}>Create theme</Button>
               <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
             </>
           )}
-
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={clearSelection}
-            aria-label="Clear selection"
-            className="rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--text)]"
-          >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
+          <button type="button" onClick={clearSelection} aria-label="Clear selection" className="rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--text)]">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
         </div>
       )}
 
       {/* AI error */}
-      {aiError && (
-        <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
-          AI error: {aiError}
-        </p>
-      )}
+      {aiError && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>AI error: {aiError}</p>}
 
-      {/* AI proposal panel */}
+      {/* AI proposal */}
       {aiProposal && (
         <AIProposalPanel
           proposal={aiProposal}
           tagById={new Map(tagDefinitions.map((t) => [t.id, t]))}
           allTagIds={aiProposalScope}
-          studyId={studyId}
-          questionId={questionId}
+          studyId={studyId} questionId={questionId}
           tagDefinitions={tagDefinitions}
-          answers={answers}
-          tagIdsByAnswer={tagIdsByAnswer}
+          answers={answers} tagIdsByAnswer={tagIdsByAnswer}
           onApply={applyProposal}
           onCancel={() => setAiProposal(null)}
         />
       )}
 
-      {/* Tags list */}
-      <div className="rounded-xl border border-[var(--border)] bg-white">
+      {/* Tag structure */}
+      <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
         {tagDefinitions.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No tags yet. Create one above.</p>
+          <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No tags yet. Add one above or use AI to tag answers below.</p>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
 
-            {/* THEMES section */}
-            {themes.length > 0 && (
-              <>
-                {themes.map((theme) => {
-                  const children = tagDefinitions.filter((t) => t.parentId === theme.id)
-                  return (
-                    <div key={theme.id}>
-                      {/* Theme header row */}
-                      <div className="px-4 py-3 bg-[var(--bg-sunken)]">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isGroupSelected(children.map((c) => c.id))}
-                            ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(children.map((c) => c.id)) }}
-                            onChange={() => toggleGroupSelect(children.map((c) => c.id))}
-                            aria-label={`Select all tags in ${theme.label}`}
-                            className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
-                          />
-                          <span className="text-base">📂</span>
-                          <input
-                            type="color"
-                            value={theme.color}
-                            onChange={(e) => onRename(theme.id, theme.label, e.target.value)}
-                            aria-label={`${theme.label} color`}
-                            className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0"
-                          />
-                          <div className="flex-1 min-w-0 space-y-0.5">
-                            {renamingId === theme.id ? (
-                              <input
-                                autoFocus
-                                value={renameValue}
-                                onChange={(e) => setRenameValue(e.target.value)}
-                                onBlur={() => void commitRename(theme)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) }
-                                  if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
-                                }}
-                                className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => startRename(theme)}
-                                className="block text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]"
-                                title="Click to rename theme"
-                              >
-                                {theme.label}
-                              </button>
-                            )}
-                            {editingDescId === theme.id ? (
-                              <textarea
-                                autoFocus
-                                value={descValue}
-                                onChange={(e) => setDescValue(e.target.value)}
-                                onBlur={() => void commitDesc(theme.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) }
-                                  if (e.key === 'Escape') { setEditingDescId(null) }
-                                }}
-                                rows={2}
-                                placeholder="Add description…"
-                                className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => startEditDesc(theme)}
-                                className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic"
-                                title="Click to edit description"
-                              >
-                                {theme.description || <span className="not-italic opacity-50">Add description…</span>}
-                              </button>
-                            )}
-                          </div>
-                          <span className="shrink-0 text-xs text-[var(--text-tertiary)]">
-                            {children.length} sub-tag{children.length !== 1 ? 's' : ''}
-                          </span>
-                          {confirmDeleteId === theme.id ? (
-                            <div className="flex shrink-0 items-center gap-2">
-                              <Button
-                                tone="secondary"
-                                size="sm"
-                                onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }}
-                                className="text-xs whitespace-nowrap"
-                              >
-                                Remove theme, keep tags
-                              </Button>
-                              <Button
-                                tone="danger"
-                                size="sm"
-                                onClick={() => { void onDelete(theme.id, 'delete-all'); setConfirmDeleteId(null) }}
-                                className="text-xs whitespace-nowrap"
-                              >
-                                Delete all
-                              </Button>
-                              <Button tone="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
-                            </div>
-                          ) : (
-                            <IconButton
-                              tone="trash"
-                              label={`Delete theme ${theme.label}`}
-                              onClick={() => setConfirmDeleteId(theme.id)}
-                              className="h-8 w-8 shrink-0"
-                            >
-                              <TrashIcon />
-                            </IconButton>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Sub-tags */}
-                      <ThemeDropZone themeId={theme.id}>
-                        {children.map((child) => <TagRow key={child.id} tag={child} isIndented />)}
-                      </ThemeDropZone>
+            {/* Themes */}
+            {themes.map((theme) => {
+              const children = tagDefinitions.filter((t) => t.parentId === theme.id)
+              const isOpen = expandedThemeIds.has(theme.id)
+              const themeCount = children.reduce((s, c) => s + (tagCounts.get(c.id) ?? 0), 0)
+              return (
+                <div key={theme.id}>
+                  <div className="flex items-center gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
+                    <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
+                    <input type="checkbox" checked={isGroupSelected(children.map((c) => c.id))} ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(children.map((c) => c.id)) }} onChange={() => toggleGroupSelect(children.map((c) => c.id))} aria-label={`Select all tags in ${theme.label}`} className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]" />
+                    <span className="text-base">📂</span>
+                    <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      {renamingId === theme.id ? (
+                        <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
+                      ) : (
+                        <button type="button" onClick={() => startRename(theme)} title="Click to rename" className="block text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]">{theme.label}</button>
+                      )}
                     </div>
-                  )
-                })}
-              </>
-            )}
-
-            {/* UNGROUPED section */}
-            {ungroupedTags.length > 0 && (
-              <>
-                <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg-sunken)]">
-                  <input
-                    type="checkbox"
-                    checked={isGroupSelected(ungroupedTags.map((t) => t.id))}
-                    ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(ungroupedTags.map((t) => t.id)) }}
-                    onChange={() => toggleGroupSelect(ungroupedTags.map((t) => t.id))}
-                    aria-label="Select all ungrouped tags"
-                    className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
-                  />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
-                    Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}
-                  </span>
+                    <span className="shrink-0 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''} · {themeCount} answer{themeCount !== 1 ? 's' : ''}</span>
+                    {confirmDeleteId === theme.id ? (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button tone="secondary" size="sm" onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Remove theme, keep tags</Button>
+                        <Button tone="danger" size="sm" onClick={() => { void onDelete(theme.id, 'delete-all'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Delete all</Button>
+                        <Button tone="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <IconButton tone="trash" label={`Delete theme ${theme.label}`} onClick={() => setConfirmDeleteId(theme.id)} className="h-8 w-8 shrink-0"><TrashIcon /></IconButton>
+                    )}
+                  </div>
+                  {isOpen && (
+                    <ThemeDropZone themeId={theme.id}>
+                      {children.map((tag) => (
+                        <div key={tag.id}>
+                          <TagRow tag={tag} isIndented />
+                          {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent />}
+                        </div>
+                      ))}
+                    </ThemeDropZone>
+                  )}
                 </div>
-                <UngroupedDropZone>
-                  {ungroupedTags.map((tag) => <TagRow key={tag.id} tag={tag} />)}
-                </UngroupedDropZone>
-              </>
+              )
+            })}
+
+            {/* Ungrouped */}
+            {ungroupedTags.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg-sunken)]">
+                  <button type="button" onClick={() => setUngroupedOpen((o) => !o)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={ungroupedOpen} /></button>
+                  <input type="checkbox" checked={isGroupSelected(ungroupedTags.map((t) => t.id))} ref={(el) => { if (el) el.indeterminate = isGroupIndeterminate(ungroupedTags.map((t) => t.id)) }} onChange={() => toggleGroupSelect(ungroupedTags.map((t) => t.id))} aria-label="Select all ungrouped tags" className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}</span>
+                </div>
+                {ungroupedOpen && (
+                  <UngroupedDropZone>
+                    {ungroupedTags.map((tag) => (
+                      <div key={tag.id}>
+                        <TagRow tag={tag} />
+                        {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent={false} />}
+                      </div>
+                    ))}
+                  </UngroupedDropZone>
+                )}
+              </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Untagged answers */}
+      {untaggedAnswers.length > 0 && (
+        <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
+            <span className="text-sm font-semibold text-[var(--text)]">{untaggedAnswers.length} untagged answer{untaggedAnswers.length !== 1 ? 's' : ''}</span>
+            <div className="flex-1" />
+            {!batchRunning && (
+              <>
+                <SelectMenu value={batchMode} options={[{ value: 'explore', label: 'Explore — create new tags' }, { value: 'apply', label: 'Apply — use existing tags' }]} onChange={(v) => setBatchMode(v as 'apply' | 'explore')} buttonClassName="h-8 text-sm" />
+                {batchSummary ? (
+                  <Button tone="secondary" size="sm" onClick={onClearBatchSummary}>Tag again</Button>
+                ) : (
+                  <Button tone="primary" size="sm" onClick={onRunBatch} disabled={batchMode === 'apply' && tagDefinitions.length === 0} className="whitespace-nowrap">✦ AI tag all</Button>
+                )}
+              </>
+            )}
+          </div>
+          {batchRunning && (
+            <div className="px-4 py-4 space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
+                <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }} />
+              </div>
+              <p className="text-sm text-[var(--text-tertiary)]">{batchProgress.done} / {batchProgress.total} answers processed…</p>
+            </div>
+          )}
+          {batchSummary && !batchRunning && (
+            <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+              {batchSummary.firstError && <p className="mb-2 rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>Error: {batchSummary.firstError}</p>}
+              {batchSummary.tagsApplied > 0
+                ? <p className="text-sm font-semibold" style={{ color: 'var(--success-text)' }}>Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers</p>
+                : <p className="text-sm text-[var(--text-secondary)]">Processed {batchSummary.total} answers but found nothing new to tag.{batchMode === 'apply' && tagDefinitions.length === 0 && ' No existing tags — try Explore mode.'}</p>
+              }
+            </div>
+          )}
+          {!batchRunning && (
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {untaggedAnswers.slice(0, untaggedVisibleCount).map((answer) => {
+                const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
+                const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
+                const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id))
+                const isSaving = savingAnswerId === answer.answerId
+                return (
+                  <article key={answer.answerId} className="space-y-2.5 px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-tertiary)]">
+                      <span className="font-semibold text-[var(--text-secondary)]">{answer.participantName}</span>
+                      <span>{formatDate(answer.submittedAt)}</span>
+                      {isSaving && <span>Saving…</span>}
+                    </div>
+                    <p className="whitespace-pre-wrap rounded-lg bg-[var(--bg-sunken)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text)]">{answer.answer}</p>
+                    <div className="space-y-2">
+                      {currentTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {currentTags.map((tag) => <AppliedTagChip key={tag.id} tag={tag} parentTag={tag.parentId ? tagById.get(tag.parentId) : undefined} size="sm" onRemove={() => onRemove(answer.answerId, tag.id)} />)}
+                        </div>
+                      )}
+                      {available.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {available.map((tag) => (
+                            <button key={tag.id} type="button" onClick={() => onApply(answer.answerId, tag.id)} className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />+ {tag.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <TagAutocomplete tags={tagDefinitions} appliedTagIds={currentTagIds} onApply={(id) => onApply(answer.answerId, id)} onCreate={(label) => onCreateAndApply(answer.answerId, label)} disabled={isSaving || savingTagId === 'new'} />
+                    </div>
+                  </article>
+                )
+              })}
+              {(untaggedVisibleCount < untaggedAnswers.length || untaggedVisibleCount > 15) && (
+                <div className="flex items-center justify-center gap-3 px-4 py-3">
+                  {untaggedVisibleCount < untaggedAnswers.length && <Button tone="secondary" size="sm" onClick={() => setUntaggedVisibleCount((n) => Math.min(n + 15, untaggedAnswers.length))}>Load more</Button>}
+                  {untaggedVisibleCount > 15 && <Button tone="ghost" size="sm" onClick={() => setUntaggedVisibleCount(15)}>Collapse</Button>}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
     <DragOverlay>
       {activeTagId ? (() => {
         const tag = tagDefinitions.find((t) => t.id === activeTagId)
         return tag ? (
           <div className="flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-white px-4 py-3 shadow-lg text-sm font-semibold text-[var(--text)] opacity-90">
-            <span className="h-3 w-3 rounded-full shrink-0" style={{ background: tag.color }} />
-            {tag.label}
+            <span className="h-3 w-3 rounded-full shrink-0" style={{ background: tag.color }} />{tag.label}
           </div>
         ) : null
       })() : null}
@@ -1875,7 +1196,6 @@ export default function TaggingWorkspace({
   answers: Answer[]
 }) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'code' | 'list' | 'manage'>('code')
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(initialTags)
   const [tagIdsByAnswer, setTagIdsByAnswer] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(answers.map((a) => [a.answerId, a.tags.map((t) => t.id)]))
@@ -1883,8 +1203,6 @@ export default function TaggingWorkspace({
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null)
   const [savingTagId, setSavingTagId] = useState<string | null>(null)
 
-  const [batchOpen, setBatchOpen] = useState(false)
-  const [batchScope, setBatchScope] = useState<'untagged' | 'all'>('untagged')
   const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('explore')
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
@@ -2027,9 +1345,7 @@ export default function TaggingWorkspace({
     // Only apply to leaf tags
     const leafTags = liveTagsRef.current.filter((t) => t.parentId !== null || !liveTagsRef.current.some((c) => c.parentId === t.id))
 
-    const toProcess = batchScope === 'untagged'
-      ? answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
-      : answers
+    const toProcess = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
 
     if (!toProcess.length) return
 
@@ -2089,199 +1405,31 @@ export default function TaggingWorkspace({
     router.refresh()
   }
 
-  const untaggedCount = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0).length
-
   return (
-    <div className="space-y-4">
-      {/* Auto-tag panel */}
-      <div className="rounded-xl border border-[var(--border)] bg-white">
-        <button
-          type="button"
-          onClick={() => { setBatchOpen((o) => !o); setBatchSummary(null) }}
-          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-[var(--text)]"
-        >
-          <span className="text-[var(--accent)]">✦</span>
-          <span className="flex-1 text-left">Auto-tag all answers with AI</span>
-          <span className="text-xs text-[var(--text-tertiary)]">{batchOpen ? '▲' : '▼'}</span>
-        </button>
-
-        {batchOpen && (
-          <div className="border-t border-[var(--border-subtle)] px-4 pb-5 pt-4 space-y-4">
-
-            {batchRunning ? (
-              <div className="space-y-2">
-                <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--accent)] transition-all"
-                    style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }}
-                  />
-                </div>
-                <p className="text-sm text-[var(--text-tertiary)]">
-                  {batchProgress.done} / {batchProgress.total} answers processed…
-                </p>
-              </div>
-            ) : batchSummary ? (
-              <div className="space-y-3">
-                {batchSummary.firstError && (
-                  <p className="rounded-lg px-3 py-2.5 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>
-                    Error: {batchSummary.firstError}
-                  </p>
-                )}
-                {batchSummary.tagsApplied > 0 ? (
-                  <p className="text-sm font-semibold" style={{ color: 'var(--success-text)' }}>
-                    Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers
-                  </p>
-                ) : (
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    Processed {batchSummary.total} answers but found nothing to tag.
-                    {batchMode === 'apply' && tagDefinitions.length === 0 && ' No existing tags to apply — switch to Explore mode.'}
-                    {batchMode === 'apply' && tagDefinitions.length > 0 && ' Try Explore mode to generate new tags from the answers.'}
-                  </p>
-                )}
-                <Button tone="secondary" size="sm" onClick={() => setBatchSummary(null)}>
-                  Tag again
-                </Button>
-              </div>
-            ) : (
-              <>
-                {/* Options grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Scope */}
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Which answers</p>
-                    <div className="space-y-1">
-                      {([
-                        { value: 'untagged' as const, label: 'Untagged only', count: untaggedCount },
-                        { value: 'all' as const, label: 'All answers', count: answers.length },
-                      ]).map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setBatchScope(opt.value)}
-                          className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                            batchScope === opt.value
-                              ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] font-semibold text-[var(--accent)]'
-                              : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
-                          }`}
-                        >
-                          <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${batchScope === opt.value ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--border-strong)]'}`} />
-                          {opt.label}
-                          <span className="ml-auto tabular-nums text-xs opacity-60">{opt.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mode */}
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">AI mode</p>
-                    <div className="space-y-1">
-                      {([
-                        { value: 'explore' as const, label: 'Explore', desc: 'Create new tag names' },
-                        { value: 'apply' as const, label: 'Apply', desc: 'Match existing tags only' },
-                      ]).map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setBatchMode(opt.value)}
-                          className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                            batchMode === opt.value
-                              ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] font-semibold text-[var(--accent)]'
-                              : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
-                          }`}
-                        >
-                          <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${batchMode === opt.value ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--border-strong)]'}`} />
-                          <span>
-                            {opt.label}
-                            <span className="ml-1.5 text-xs font-normal opacity-60">{opt.desc}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {batchMode === 'apply' && tagDefinitions.length === 0 && (
-                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm" style={{ color: 'var(--warning-text)' }}>
-                    No existing tags to apply. Switch to Explore or create some tags first.
-                  </p>
-                )}
-
-                <Button
-                  tone="primary"
-                  size="md"
-                  onClick={() => void runBatchTag()}
-                  disabled={batchMode === 'apply' && tagDefinitions.length === 0}
-                >
-                  Tag {batchScope === 'untagged' ? untaggedCount : answers.length} answers
-                </Button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-[var(--border)]">
-        {([
-          { value: 'code', label: 'Code' },
-          { value: 'list', label: 'List' },
-          { value: 'manage', label: 'Manage tags' },
-        ] as { value: 'code' | 'list' | 'manage'; label: string }[]).map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setActiveTab(value)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
-              activeTab === value
-                ? 'border-[var(--accent)] text-[var(--accent)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text)]'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'code' ? (
-        <CodeTab
-          answers={answers}
-          tagDefinitions={tagDefinitions}
-          tagIdsByAnswer={tagIdsByAnswer}
-          tagById={tagById}
-          savingAnswerId={savingAnswerId}
-          savingTagId={savingTagId}
-          onApply={applyTag}
-          onCreateAndApply={createAndApplyTag}
-          onRemove={removeTag}
-        />
-      ) : activeTab === 'list' ? (
-        <ListView
-          answers={answers}
-          tagDefinitions={tagDefinitions}
-          tagIdsByAnswer={tagIdsByAnswer}
-          tagById={tagById}
-          savingAnswerId={savingAnswerId}
-          savingTagId={savingTagId}
-          onApply={applyTag}
-          onCreateAndApply={createAndApplyTag}
-          onRemove={removeTag}
-        />
-      ) : (
-        <ManageTab
-          studyId={studyId}
-          questionId={questionId}
-          tagDefinitions={tagDefinitions}
-          tagIdsByAnswer={tagIdsByAnswer}
-          answers={answers}
-          savingTagId={savingTagId}
-          onRename={renameTag}
-          onDelete={deleteTag}
-          onCreate={createTag}
-          onMoveToTheme={moveTagToTheme}
-          onUpdateDescription={updateDescription}
-        />
-      )}
-    </div>
+    <AnalysisWorkspace
+      studyId={studyId}
+      questionId={questionId}
+      tagDefinitions={tagDefinitions}
+      tagIdsByAnswer={tagIdsByAnswer}
+      answers={answers}
+      tagById={tagById}
+      savingAnswerId={savingAnswerId}
+      savingTagId={savingTagId}
+      batchRunning={batchRunning}
+      batchProgress={batchProgress}
+      batchSummary={batchSummary}
+      batchMode={batchMode}
+      setBatchMode={setBatchMode}
+      onRunBatch={() => void runBatchTag()}
+      onClearBatchSummary={() => setBatchSummary(null)}
+      onApply={applyTag}
+      onCreateAndApply={createAndApplyTag}
+      onRemove={removeTag}
+      onRename={renameTag}
+      onDelete={deleteTag}
+      onCreate={createTag}
+      onMoveToTheme={moveTagToTheme}
+      onUpdateDescription={updateDescription}
+    />
   )
 }
