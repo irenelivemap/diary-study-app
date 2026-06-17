@@ -922,10 +922,11 @@ function AnalysisWorkspace({
   async function applyProposal(proposals: ProposedTheme[]) {
     for (const theme of proposals) {
       if (!theme.tagIds.length) continue
-      const result = await createQuestionTag(studyId, questionId, normalizeLabel(theme.name) || 'Theme', DEFAULT_COLORS[proposals.indexOf(theme) % DEFAULT_COLORS.length])
-      if (!result?.tag) continue
-      for (const tagId of theme.tagIds) await onMoveToTheme(tagId, result.tag.id)
-      if (theme.description) await onUpdateDescription(result.tag.id, theme.description)
+      // Use onCreate so the new theme is added to local tagDefinitions state immediately
+      const newTheme = await onCreate(normalizeLabel(theme.name) || 'Theme', DEFAULT_COLORS[proposals.indexOf(theme) % DEFAULT_COLORS.length])
+      if (!newTheme) continue
+      for (const tagId of theme.tagIds) await onMoveToTheme(tagId, newTheme.id)
+      if (theme.description) await onUpdateDescription(newTheme.id, theme.description)
     }
     setAiProposal(null)
   }
