@@ -620,12 +620,13 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
       style={style}
       className={`group flex items-center gap-3 px-4 py-3 ${isDragging ? 'opacity-40' : ''} ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
     >
-      {/* Drag handle */}
+      {/* Drag handle — reveals on hover */}
       <button
         type="button"
         {...attributes}
         {...listeners}
-        className="shrink-0 cursor-grab touch-none text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] active:cursor-grabbing"
+        title="Drag to move to a theme"
+        className="shrink-0 cursor-grab touch-none text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label={`Drag ${tag.label} to a theme`}
       >
         <GripIcon />
@@ -640,14 +641,11 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
         className={`h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)] transition-opacity ${ctx.selectedTagIds.size > 0 || ctx.selectedTagIds.has(tag.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
       />
 
-      {/* Color swatch */}
-      <input
-        type="color"
-        value={tag.color}
-        onChange={(e) => ctx.onRename(tag.id, tag.label, e.target.value)}
-        aria-label={`${tag.label} color`}
-        className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0"
-      />
+      {/* Color dot */}
+      <label className="relative h-3.5 w-3.5 shrink-0 cursor-pointer" title="Change color">
+        <span className="block h-3.5 w-3.5 rounded-full ring-1 ring-black/10" style={{ backgroundColor: tag.color }} />
+        <input type="color" value={tag.color} onChange={(e) => ctx.onRename(tag.id, tag.label, e.target.value)} aria-label={`${tag.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+      </label>
 
       <div className="flex-1 min-w-0 space-y-0.5">
         {isRenaming ? (
@@ -666,10 +664,10 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
           <button
             type="button"
             onClick={() => ctx.startRename(tag)}
-            title="Click to rename"
-            className="block text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
+            className="group/name inline-flex items-center gap-1 text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
           >
             {tag.label}
+            <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
           </button>
         )}
         {isEditingDesc ? (
@@ -690,10 +688,10 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
           <button
             type="button"
             onClick={() => ctx.startEditDesc(tag)}
-            className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic"
-            title="Click to edit description"
+            className="group/desc inline-flex items-center gap-1 text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text)] italic"
           >
             {tag.description || <span className="not-italic opacity-50">Add description…</span>}
+            <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/desc:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
           </button>
         )}
       </div>
@@ -701,7 +699,7 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
       <button
         type="button"
         onClick={() => ctx.toggleTagExpand(tag.id)}
-        className="shrink-0 flex items-center gap-1 text-sm tabular-nums text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+        className="shrink-0 flex h-8 items-center gap-1 rounded-lg px-2 text-sm tabular-nums text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text-secondary)]"
       >
         {count} {count === 1 ? 'answer' : 'answers'}
         <svg viewBox="0 0 12 12" className={`h-3 w-3 transition-transform ${ctx.expandedTagIds.has(tag.id) ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
@@ -1074,36 +1072,51 @@ function AnalysisWorkspace({
               const themeCount = children.reduce((s, c) => s + (tagCounts.get(c.id) ?? 0), 0)
               return (
                 <div key={theme.id}>
-                  <div className="flex items-start gap-3 px-4 py-3 bg-[var(--bg-sunken)]">
-                    <button type="button" onClick={() => toggleThemeExpand(theme.id)} className="shrink-0 mt-1 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={isOpen} /></button>
-                    <label className="relative h-4 w-4 shrink-0 mt-1 cursor-pointer" title="Change color">
+                  <div
+                    className="flex items-start gap-3 px-4 py-3 bg-[var(--bg-sunken)] cursor-pointer select-none hover:brightness-[0.97]"
+                    onClick={() => toggleThemeExpand(theme.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleThemeExpand(theme.id) } }}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="shrink-0 mt-1 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)]">
+                      <Chevron open={isOpen} />
+                    </span>
+                    <label className="relative h-4 w-4 shrink-0 mt-1 cursor-pointer" title="Change color" onClick={(e) => e.stopPropagation()}>
                       <span className="block h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
                       <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                     </label>
-                    <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex-1 min-w-0 space-y-0.5" onClick={(e) => e.stopPropagation()}>
                       {renamingId === theme.id ? (
                         <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
                       ) : (
-                        <button type="button" onClick={() => startRename(theme)} title="Click to rename" className="block text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]">{theme.label}</button>
+                        <button type="button" onClick={() => startRename(theme)} className="group/name inline-flex items-center gap-1 text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]">
+                          {theme.label}
+                          <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
+                        </button>
                       )}
                       {editingDescId === theme.id ? (
                         <textarea autoFocus value={descValue} onChange={(e) => setDescValue(e.target.value)} onBlur={() => void commitDesc(theme.id)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) } if (e.key === 'Escape') setEditingDescId(null) }} rows={2} placeholder="Add description…" className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-xs text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]" />
                       ) : (
-                        <button type="button" onClick={() => startEditDesc(theme)} className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic truncate max-w-full" title={theme.description ?? 'Click to add description'}>
-                          {theme.description ?? <span className="not-italic opacity-40">Add description…</span>}
+                        <button type="button" onClick={() => startEditDesc(theme)} className="group/desc inline-flex items-center gap-1 text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text)] italic truncate max-w-full">
+                          <span className="truncate">{theme.description ?? <span className="not-italic opacity-40">Add description…</span>}</span>
+                          <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/desc:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
                         </button>
                       )}
                     </div>
                     <span className="shrink-0 mt-1 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''} · {themeCount} answer{themeCount !== 1 ? 's' : ''}</span>
-                    {confirmDeleteId === theme.id ? (
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Button tone="secondary" size="sm" onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Remove theme, keep tags</Button>
-                        <Button tone="danger" size="sm" onClick={() => { void onDelete(theme.id, 'delete-all'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Delete all</Button>
-                        <Button tone="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
-                      </div>
-                    ) : (
-                      <IconButton tone="trash" label={`Delete theme ${theme.label}`} onClick={() => setConfirmDeleteId(theme.id)} className="h-8 w-8 shrink-0"><TrashIcon /></IconButton>
-                    )}
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {confirmDeleteId === theme.id ? (
+                        <div className="flex items-center gap-2">
+                          <Button tone="secondary" size="sm" onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Remove theme, keep tags</Button>
+                          <Button tone="danger" size="sm" onClick={() => { void onDelete(theme.id, 'delete-all'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Delete all</Button>
+                          <Button tone="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+                        </div>
+                      ) : (
+                        <IconButton tone="trash" label={`Delete theme ${theme.label}`} onClick={() => setConfirmDeleteId(theme.id)} className="h-8 w-8"><TrashIcon /></IconButton>
+                      )}
+                    </div>
                   </div>
                   {isOpen && (
                     <ThemeDropZone themeId={theme.id}>
@@ -1146,7 +1159,10 @@ function AnalysisWorkspace({
       <div className="space-y-2">
         <div className="flex gap-2 items-center">
           <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
-          <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-[var(--border-strong)] bg-white p-1" />
+          <label className="relative h-5 w-5 shrink-0 cursor-pointer" title="Choose color">
+            <span className="block h-5 w-5 rounded-full ring-2 ring-[var(--border-strong)]" style={{ backgroundColor: newColor }} />
+            <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+          </label>
           <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
           <div className="w-px h-6 bg-[var(--border)] shrink-0" />
           {batchRunning
@@ -1168,7 +1184,10 @@ function AnalysisWorkspace({
             <span className="text-xs text-[var(--text-tertiary)]">{batchMode === 'explore' ? 'AI will create new tags from the answers' : 'AI will match answers to existing tags'}</span>
             <div className="flex-1" />
             <Button tone="ghost" size="sm" onClick={() => setAiTagOpen(false)}>Cancel</Button>
-            <Button tone="primary" size="sm" onClick={() => { setAiTagOpen(false); onRunBatch() }} disabled={batchMode === 'apply' && tagDefinitions.length === 0} className="whitespace-nowrap">Tag {untaggedAnswers.length} answers</Button>
+            {batchMode === 'apply' && tagDefinitions.length === 0
+              ? <span className="text-xs text-[var(--text-tertiary)]">No tags yet — switch to Explore mode to create them</span>
+              : <Button tone="primary" size="sm" onClick={() => { setAiTagOpen(false); onRunBatch() }} className="whitespace-nowrap">Tag {untaggedAnswers.length} answers</Button>
+            }
           </div>
         )}
       </div>
@@ -1239,19 +1258,37 @@ function AnalysisWorkspace({
                 {/* Tag/status row */}
                 <div className="flex items-start gap-3">
                   <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] pt-0.5 w-24">Show</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {([['', 'All'], ['untagged', 'Untagged']] as [string, string][]).concat(tagDefinitions.map((t) => [t.id, t.label])).map(([val, label]) => {
-                      const tagDef = val && val !== 'untagged' ? tagById.get(val) : null
-                      return (
-                        <button key={val} type="button"
-                          onClick={() => { setFilterTag(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                    {/* All + Untagged */}
+                    {(['', 'untagged'] as const).map((val) => (
+                      <button key={val} type="button"
+                        onClick={() => { setFilterTag(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                        className={`rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                      >{val === '' ? 'All' : 'Untagged'}</button>
+                    ))}
+                    {/* Tags grouped by theme — shows "Theme › Tag" for context */}
+                    {themes.map((theme) =>
+                      tagDefinitions.filter((t) => t.parentId === theme.id).map((tag) => (
+                        <button key={tag.id} type="button"
+                          onClick={() => { setFilterTag(tag.id); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === tag.id ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
                         >
-                          {tagDef && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tagDef.color }} />}
-                          {label}
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                          <span className="text-[var(--text-tertiary)]">{theme.label} ›</span>
+                          {tag.label}
                         </button>
-                      )
-                    })}
+                      ))
+                    )}
+                    {/* Ungrouped standalone tags */}
+                    {ungroupedTags.map((tag) => (
+                      <button key={tag.id} type="button"
+                        onClick={() => { setFilterTag(tag.id); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === tag.id ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                        {tag.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 {/* Text search */}
@@ -1302,7 +1339,7 @@ function AnalysisWorkspace({
               <span className="text-sm font-semibold text-[var(--text)] shrink-0">{selectedAnswerIds.size} selected</span>
               <span className="text-[var(--text-tertiary)] shrink-0">·</span>
               <span className="text-xs text-[var(--text-tertiary)] shrink-0">Apply tag to all:</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                 {leafTagsForApply.map((tag) => (
                   <button key={tag.id} type="button" onClick={() => void handleBulkApplyTag(tag.id)}
                     className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-white hover:text-[var(--text-link)]">
@@ -1360,7 +1397,12 @@ function AnalysisWorkspace({
               })}
               {(untaggedVisibleCount < displayedAnswers.length || untaggedVisibleCount > 15) && (
                 <div className="flex items-center justify-center gap-3 px-4 py-3">
-                  {untaggedVisibleCount < displayedAnswers.length && <Button tone="secondary" size="sm" onClick={() => setUntaggedVisibleCount((n) => Math.min(n + 15, displayedAnswers.length))}>Load more</Button>}
+                  {untaggedVisibleCount < displayedAnswers.length && (
+                    <Button tone="secondary" size="sm" onClick={() => setUntaggedVisibleCount((n) => Math.min(n + 15, displayedAnswers.length))}>
+                      Load {Math.min(15, displayedAnswers.length - untaggedVisibleCount)} more
+                      <span className="ml-1 font-normal text-[var(--text-tertiary)]">({displayedAnswers.length - untaggedVisibleCount} remaining)</span>
+                    </Button>
+                  )}
                   {untaggedVisibleCount > 15 && <Button tone="ghost" size="sm" onClick={() => setUntaggedVisibleCount(15)}>Collapse</Button>}
                 </div>
               )}
