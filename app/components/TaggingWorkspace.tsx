@@ -805,6 +805,7 @@ function AnalysisWorkspace({
   const [expandedThemeIds, setExpandedThemeIds] = useState<Set<string>>(new Set())
   const [ungroupedOpen, setUngroupedOpen] = useState(true)
   const [untaggedVisibleCount, setUntaggedVisibleCount] = useState(15)
+  const [aiTagOpen, setAiTagOpen] = useState(false)
   const [activeTagId, setActiveTagId] = useState<string | null>(null)
 
   const tagCounts = useMemo(() => {
@@ -1089,18 +1090,38 @@ function AnalysisWorkspace({
       {/* Untagged answers */}
       {untaggedAnswers.length > 0 && (
         <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
-            <span className="text-sm font-semibold text-[var(--text)]">{untaggedAnswers.length} untagged answer{untaggedAnswers.length !== 1 ? 's' : ''}</span>
-            <div className="flex-1" />
-            {!batchRunning && (
-              <>
-                <SelectMenu value={batchMode} options={[{ value: 'explore', label: 'Explore — create new tags' }, { value: 'apply', label: 'Apply — use existing tags' }]} onChange={(v) => setBatchMode(v as 'apply' | 'explore')} buttonClassName="h-8 text-sm" />
-                {batchSummary ? (
-                  <Button tone="secondary" size="sm" onClick={onClearBatchSummary}>Tag again</Button>
+          <div className="border-b border-[var(--border-subtle)]">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <span className="text-sm font-semibold text-[var(--text)]">{untaggedAnswers.length} untagged answer{untaggedAnswers.length !== 1 ? 's' : ''}</span>
+              <div className="flex-1" />
+              {!batchRunning && !aiTagOpen && (
+                batchSummary ? (
+                  <Button tone="secondary" size="sm" onClick={() => { onClearBatchSummary(); setAiTagOpen(true) }}>Tag again</Button>
                 ) : (
-                  <Button tone="primary" size="sm" onClick={onRunBatch} disabled={batchMode === 'apply' && tagDefinitions.length === 0} className="whitespace-nowrap">✦ AI tag all</Button>
-                )}
-              </>
+                  <Button tone="secondary" size="sm" onClick={() => setAiTagOpen(true)} className="whitespace-nowrap">✦ AI tag all</Button>
+                )
+              )}
+              {batchRunning && <span className="text-sm text-[var(--text-tertiary)]">Tagging…</span>}
+            </div>
+            {aiTagOpen && !batchRunning && (
+              <div className="flex items-center gap-3 px-4 pb-3 flex-wrap">
+                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-sm">
+                  {(['explore', 'apply'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setBatchMode(m)}
+                      className={`px-3 py-1.5 transition-colors ${batchMode === m ? 'bg-[var(--accent)] text-white font-semibold' : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}
+                    >
+                      {m === 'explore' ? 'Explore' : 'Apply existing'}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs text-[var(--text-tertiary)]">{batchMode === 'explore' ? 'AI will create new tags from the answers' : 'AI will match answers to existing tags'}</span>
+                <div className="flex-1" />
+                <Button tone="ghost" size="sm" onClick={() => setAiTagOpen(false)}>Cancel</Button>
+                <Button tone="primary" size="sm" onClick={() => { setAiTagOpen(false); onRunBatch() }} disabled={batchMode === 'apply' && tagDefinitions.length === 0} className="whitespace-nowrap">Tag {untaggedAnswers.length} answers</Button>
+              </div>
             )}
           </div>
           {batchRunning && (
