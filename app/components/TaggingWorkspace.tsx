@@ -793,6 +793,7 @@ function AnalysisWorkspace({
   const [descValue, setDescValue] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [consolidating, setConsolidating] = useState(false)
+  const [confirmClearThemes, setConfirmClearThemes] = useState(false)
   const [aiProposal, setAiProposal] = useState<ProposedTheme[] | null>(null)
   const [aiProposalScope, setAiProposalScope] = useState<Set<string>>(new Set())
   const [aiError, setAiError] = useState<string | null>(null)
@@ -904,6 +905,9 @@ function AnalysisWorkspace({
     await onCreate(label, newColor)
     setNewLabel(''); setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
   }
+  async function handleClearAllThemes() {
+    for (const theme of themes) await onDelete(theme.id, 'keep-subtags')
+  }
   async function handleAiConsolidate() {
     const leafTags = tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id))
     if (leafTags.length < 2) return
@@ -985,9 +989,20 @@ function AnalysisWorkspace({
     <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
     <div className="space-y-4">
 
-      {/* Header: AI group — hidden when selection bar is active to avoid duplicate button */}
+      {/* Header: AI group + clear themes — hidden when selection bar is active */}
       {selectedTagIds.size === 0 && (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2 justify-end">
+          {themes.length > 0 && (
+            confirmClearThemes ? (
+              <>
+                <span className="text-sm text-[var(--danger-text)]">Remove all {themes.length} theme{themes.length !== 1 ? 's' : ''}? Sub-tags will stay ungrouped.</span>
+                <Button tone="danger" size="sm" onClick={() => { setConfirmClearThemes(false); void handleClearAllThemes() }}>Confirm</Button>
+                <Button tone="secondary" size="sm" onClick={() => setConfirmClearThemes(false)}>Cancel</Button>
+              </>
+            ) : (
+              <Button tone="ghost" size="sm" onClick={() => setConfirmClearThemes(true)} className="text-[var(--text-tertiary)] hover:text-[var(--danger-text)]">Clear themes</Button>
+            )
+          )}
           <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
         </div>
       )}
