@@ -1082,11 +1082,18 @@ function AnalysisWorkspace({
                       <path d="M1.5 5.5l6.5 3 6.5-3" />
                     </svg>
                     <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 space-y-0.5">
                       {renamingId === theme.id ? (
                         <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
                       ) : (
                         <button type="button" onClick={() => startRename(theme)} title="Click to rename" className="block text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]">{theme.label}</button>
+                      )}
+                      {editingDescId === theme.id ? (
+                        <textarea autoFocus value={descValue} onChange={(e) => setDescValue(e.target.value)} onBlur={() => void commitDesc(theme.id)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) } if (e.key === 'Escape') setEditingDescId(null) }} rows={2} placeholder="Add description…" className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-xs text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]" />
+                      ) : (
+                        <button type="button" onClick={() => startEditDesc(theme)} className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic truncate max-w-full" title={theme.description ?? 'Click to add description'}>
+                          {theme.description ?? <span className="not-italic opacity-40">Add description…</span>}
+                        </button>
                       )}
                     </div>
                     <span className="shrink-0 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''} · {themeCount} answer{themeCount !== 1 ? 's' : ''}</span>
