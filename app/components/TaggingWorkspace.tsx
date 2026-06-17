@@ -40,7 +40,7 @@ type Answer = {
   tags: { id: string; label: string; color: string }[]
 }
 
-type AnswerSortBy = 'newest' | 'oldest' | 'name-az'
+type AnswerSortBy = 'newest' | 'oldest' | 'name-az' | 'longest' | 'shortest'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -807,7 +807,8 @@ function AnalysisWorkspace({
   const [aiTagOpen, setAiTagOpen] = useState(false)
   const [answerSearch, setAnswerSearch] = useState('')
   const [answerSort, setAnswerSort] = useState<AnswerSortBy>('newest')
-  const [showAllAnswers, setShowAllAnswers] = useState(false)
+  const [filterTag, setFilterTag] = useState<string>('untagged')
+  const [filterParticipant, setFilterParticipant] = useState<string>('')
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
   const [selectedAnswerIds, setSelectedAnswerIds] = useState<Set<string>>(new Set())
@@ -824,19 +825,23 @@ function AnalysisWorkspace({
   const ungroupedTags = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
   const untaggedAnswers = useMemo(() => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0), [answers, tagIdsByAnswer])
   const leafTagsForApply = useMemo(() => tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+  const uniqueParticipants = useMemo(() => [...new Set(answers.map((a) => a.participantName))].sort(), [answers])
 
   const displayedAnswers = useMemo(() => {
-    const base = showAllAnswers ? answers : untaggedAnswers
+    let base = answers
+    if (filterTag === 'untagged') base = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
+    else if (filterTag) base = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(filterTag))
+    if (filterParticipant) base = base.filter((a) => a.participantName === filterParticipant)
     const search = answerSearch.trim().toLowerCase()
-    const filtered = search
-      ? base.filter((a) => a.answer.toLowerCase().includes(search) || a.participantName.toLowerCase().includes(search))
-      : base
+    const filtered = search ? base.filter((a) => a.answer.toLowerCase().includes(search) || a.participantName.toLowerCase().includes(search)) : base
     return [...filtered].sort((a, b) => {
       if (answerSort === 'newest') return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
       if (answerSort === 'oldest') return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()
+      if (answerSort === 'longest') return b.answer.length - a.answer.length
+      if (answerSort === 'shortest') return a.answer.length - b.answer.length
       return a.participantName.localeCompare(b.participantName)
     })
-  }, [answers, untaggedAnswers, showAllAnswers, answerSearch, answerSort])
+  }, [answers, tagIdsByAnswer, filterTag, filterParticipant, answerSearch, answerSort])
 
   function toggleTagExpand(id: string) { setExpandedTagIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
   function toggleThemeExpand(id: string) { setExpandedThemeIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
@@ -1150,31 +1155,28 @@ function AnalysisWorkspace({
             {/* Header row: title + filter/sort icons */}
             <div className="flex items-center gap-1 px-4 py-2.5">
               <span className="text-sm font-semibold text-[var(--text)] shrink-0">
-                {showAllAnswers ? 'All answers' : 'Untagged answers'}
+                {filterTag === 'untagged' ? 'Untagged' : filterTag ? (tagById.get(filterTag)?.label ?? 'Filtered') : 'All answers'}
+                {filterParticipant && <span className="font-normal text-[var(--text-tertiary)]"> · {filterParticipant.split(' ')[0]}</span>}
                 {' '}
-                <span className="font-normal text-[var(--text-tertiary)]">
-                  {answerSearch && displayedAnswers.length !== (showAllAnswers ? answers : untaggedAnswers).length
-                    ? `${displayedAnswers.length} of ${(showAllAnswers ? answers : untaggedAnswers).length}`
-                    : (showAllAnswers ? answers : untaggedAnswers).length}
-                </span>
+                <span className="font-normal text-[var(--text-tertiary)]">{displayedAnswers.length}</span>
               </span>
               <div className="flex-1" />
-              {/* Filter icon button */}
+              {/* Filter icon — accent when any filter is active */}
               <button
                 type="button"
                 title="Filter answers"
-                onClick={() => setFilterOpen((v) => !v)}
-                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${filterOpen || answerSearch || showAllAnswers ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
+                onClick={() => { setFilterOpen((v) => !v); setSortOpen(false) }}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${filterOpen || filterTag !== 'untagged' || filterParticipant || answerSearch ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
               >
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
                   <path d="M1.5 4h13M4.5 8h7M7 12h2" />
                 </svg>
               </button>
-              {/* Sort icon button */}
+              {/* Sort icon — accent when non-default */}
               <button
                 type="button"
                 title="Sort answers"
-                onClick={() => setSortOpen((v) => !v)}
+                onClick={() => { setSortOpen((v) => !v); setFilterOpen(false) }}
                 className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${sortOpen || answerSort !== 'newest' ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
               >
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1185,36 +1187,58 @@ function AnalysisWorkspace({
             </div>
             {/* Filter expand */}
             {filterOpen && (
-              <div className="flex items-center gap-2 px-4 pb-3 border-t border-[var(--border-subtle)] pt-3">
-                <input
-                  type="search"
-                  value={answerSearch}
-                  onChange={(e) => { setAnswerSearch(e.target.value); setUntaggedVisibleCount(15); clearAnswerSelection() }}
-                  placeholder="Search by text or participant…"
-                  autoFocus
-                  className="h-8 flex-1 min-w-36 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
-                />
-                <button
-                  type="button"
-                  onClick={() => { setShowAllAnswers((v) => !v); setUntaggedVisibleCount(15) }}
-                  className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${showAllAnswers ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
-                >
-                  {showAllAnswers ? 'All answers' : 'Untagged only'}
-                </button>
+              <div className="space-y-3 px-4 pb-3 pt-3 border-t border-[var(--border-subtle)]">
+                {/* Participant row */}
+                <div className="flex items-start gap-3">
+                  <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] pt-0.5 w-24">Participant</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([['', 'All']] as [string, string][]).concat(uniqueParticipants.map((n) => [n, n])).map(([val, label]) => (
+                      <button key={val} type="button"
+                        onClick={() => { setFilterParticipant(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                        className={`rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterParticipant === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                      >{label}</button>
+                    ))}
+                  </div>
+                </div>
+                {/* Tag/status row */}
+                <div className="flex items-start gap-3">
+                  <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] pt-0.5 w-24">Show</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([['', 'All'], ['untagged', 'Untagged']] as [string, string][]).concat(tagDefinitions.map((t) => [t.id, t.label])).map(([val, label]) => {
+                      const tagDef = val && val !== 'untagged' ? tagById.get(val) : null
+                      return (
+                        <button key={val} type="button"
+                          onClick={() => { setFilterTag(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
+                        >
+                          {tagDef && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tagDef.color }} />}
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                {/* Text search */}
+                <div className="flex items-center gap-3">
+                  <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] w-24">Search</span>
+                  <input
+                    type="search"
+                    value={answerSearch}
+                    onChange={(e) => { setAnswerSearch(e.target.value); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+                    placeholder="Text or participant name…"
+                    className="h-8 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
+                  />
+                </div>
               </div>
             )}
             {/* Sort expand */}
             {sortOpen && (
-              <div className="flex items-center gap-1.5 px-4 pb-3 border-t border-[var(--border-subtle)] pt-3">
-                {([['newest', 'Newest first'], ['oldest', 'Oldest first'], ['name-az', 'Name A→Z']] as [AnswerSortBy, string][]).map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => { setAnswerSort(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
+              <div className="flex items-center gap-1.5 flex-wrap px-4 pb-3 border-t border-[var(--border-subtle)] pt-3">
+                {([['newest', 'Newest first'], ['oldest', 'Oldest first'], ['name-az', 'Name A→Z'], ['longest', 'Longest first'], ['shortest', 'Shortest first']] as [AnswerSortBy, string][]).map(([val, label]) => (
+                  <button key={val} type="button"
+                    onClick={() => { setAnswerSort(val); setUntaggedVisibleCount(15) }}
                     className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${answerSort === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
-                  >
-                    {label}
-                  </button>
+                  >{label}</button>
                 ))}
               </div>
             )}
@@ -1262,13 +1286,12 @@ function AnalysisWorkspace({
             <div className="divide-y divide-[var(--border-subtle)]">
               {displayedAnswers.length === 0 && (
                 <p className="px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">
-                  {answerSearch ? 'No answers match your search.' : showAllAnswers ? 'No answers yet.' : 'All answers are tagged.'}
+                  {answerSearch ? 'No answers match your search.' : filterTag === 'untagged' ? 'All answers are tagged.' : filterTag ? 'No answers with this tag.' : 'No answers yet.'}
                 </p>
               )}
               {displayedAnswers.slice(0, untaggedVisibleCount).map((answer) => {
                 const currentTagIds = tagIdsByAnswer[answer.answerId] ?? []
                 const currentTags = currentTagIds.map((id) => tagById.get(id)).filter(Boolean) as TagDefinition[]
-                const available = leafTagsForApply.filter((t) => !currentTagIds.includes(t.id))
                 const isSaving = savingAnswerId === answer.answerId
                 const isSelected = selectedAnswerIds.has(answer.answerId)
                 return (
@@ -1291,15 +1314,6 @@ function AnalysisWorkspace({
                         {currentTags.length > 0 && (
                           <div className="flex flex-wrap gap-1.5">
                             {currentTags.map((tag) => <AppliedTagChip key={tag.id} tag={tag} parentTag={tag.parentId ? tagById.get(tag.parentId) : undefined} size="sm" onRemove={() => onRemove(answer.answerId, tag.id)} />)}
-                          </div>
-                        )}
-                        {available.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {available.map((tag) => (
-                              <button key={tag.id} type="button" onClick={() => onApply(answer.answerId, tag.id)} className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-link)]">
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />+ {tag.label}
-                              </button>
-                            ))}
                           </div>
                         )}
                         {!isSelected && <TagAutocomplete tags={tagDefinitions} appliedTagIds={currentTagIds} onApply={(id) => onApply(answer.answerId, id)} onCreate={(label) => onCreateAndApply(answer.answerId, label)} disabled={isSaving || savingTagId === 'new'} />}
