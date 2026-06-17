@@ -829,6 +829,8 @@ function AIProposalPanel({
   studyId,
   questionId,
   tagDefinitions,
+  answers,
+  tagIdsByAnswer,
   onApply,
   onCancel,
 }: {
@@ -838,6 +840,8 @@ function AIProposalPanel({
   studyId: string
   questionId: string
   tagDefinitions: TagDefinition[]
+  answers: Answer[]
+  tagIdsByAnswer: Record<string, string[]>
   onApply: (themes: ProposedTheme[]) => Promise<void>
   onCancel: () => void
 }) {
@@ -846,6 +850,7 @@ function AIProposalPanel({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [editingDescId, setEditingDescId] = useState<string | null>(null)
   const [suggestingId, setSuggestingId] = useState<string | null>(null)
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
 
   const assignedTagIds = useMemo(() => new Set(themes.flatMap((t) => t.tagIds)), [themes])
   const unassignedTagIds = useMemo(() => [...allTagIds].filter((id) => !assignedTagIds.has(id)), [allTagIds, assignedTagIds])
@@ -990,6 +995,48 @@ function AIProposalPanel({
                 )
               })}
             </div>
+
+            {/* Comments for this theme */}
+            {(() => {
+              const themeTagSet = new Set(theme.tagIds)
+              const related = answers.filter((a) =>
+                (tagIdsByAnswer[a.answerId] ?? []).some((tid) => themeTagSet.has(tid))
+              )
+              if (related.length === 0) return null
+              const isOpen = expandedComments.has(theme.tempId)
+              return (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedComments((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(theme.tempId)) next.delete(theme.tempId)
+                      else next.add(theme.tempId)
+                      return next
+                    })}
+                    className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                  >
+                    <svg viewBox="0 0 16 16" className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="currentColor" aria-hidden>
+                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </svg>
+                    {related.length} comment{related.length !== 1 ? 's' : ''}
+                  </button>
+                  {isOpen && (
+                    <div className="mt-2 space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {related.map((a) => (
+                        <div key={a.answerId} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sunken)] px-3 py-2 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-[var(--text-secondary)]">{a.participantName}</span>
+                            <span className="text-xs text-[var(--text-tertiary)]">{new Date(a.submittedAt).toLocaleDateString()}</span>
+                          </div>
+                          <p className="text-sm text-[var(--text)] line-clamp-3">{a.answer}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Add existing unassigned tag */}
             {unassignedTagIds.length > 0 && (
@@ -1249,6 +1296,7 @@ function ManageTab({
   questionId,
   tagDefinitions,
   tagIdsByAnswer,
+  answers,
   savingTagId,
   onRename,
   onDelete,
@@ -1260,6 +1308,7 @@ function ManageTab({
   questionId: string
   tagDefinitions: TagDefinition[]
   tagIdsByAnswer: Record<string, string[]>
+  answers: Answer[]
   savingTagId: string | null
   onRename: (tagId: string, label: string, color: string) => void
   onDelete: (tagId: string, mode?: 'keep-subtags' | 'delete-all') => void
@@ -1637,6 +1686,8 @@ function ManageTab({
           studyId={studyId}
           questionId={questionId}
           tagDefinitions={tagDefinitions}
+          answers={answers}
+          tagIdsByAnswer={tagIdsByAnswer}
           onApply={applyProposal}
           onCancel={() => setAiProposal(null)}
         />
@@ -2222,6 +2273,7 @@ export default function TaggingWorkspace({
           questionId={questionId}
           tagDefinitions={tagDefinitions}
           tagIdsByAnswer={tagIdsByAnswer}
+          answers={answers}
           savingTagId={savingTagId}
           onRename={renameTag}
           onDelete={deleteTag}
