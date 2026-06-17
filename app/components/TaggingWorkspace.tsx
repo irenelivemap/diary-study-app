@@ -1,7 +1,9 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
 import {
   consolidateTagsWithAI,
   createQuestionTag,
@@ -1051,6 +1053,195 @@ function AIProposalPanel({
   )
 }
 
+// ─── ManageTab DnD helpers ────────────────────────────────────────────────────
+
+type ManageCtxType = {
+  selectedTagIds: Set<string>
+  toggleSelect: (id: string) => void
+  savingTagId: string | null
+  tagCounts: Map<string, number>
+  tagDefinitions: TagDefinition[]
+  renamingId: string | null
+  renameValue: string
+  setRenameValue: (v: string) => void
+  setRenamingId: (id: string | null) => void
+  commitRename: (tag: TagDefinition) => Promise<void>
+  editingDescId: string | null
+  descValue: string
+  setDescValue: (v: string) => void
+  setEditingDescId: (id: string | null) => void
+  commitDesc: (id: string) => Promise<void>
+  confirmDeleteId: string | null
+  setConfirmDeleteId: (id: string | null) => void
+  onDelete: (id: string, mode?: 'keep-subtags' | 'delete-all') => void
+  onRename: (id: string, label: string, color: string) => void
+  startRename: (tag: TagDefinition) => void
+  startEditDesc: (tag: TagDefinition) => void
+}
+
+const ManageCtx = createContext<ManageCtxType | null>(null)
+function useManageCtx() {
+  const ctx = useContext(ManageCtx)
+  if (!ctx) throw new Error('useManageCtx used outside ManageCtx.Provider')
+  return ctx
+}
+
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 10 16" className="h-4 w-2.5" fill="currentColor" aria-hidden>
+      <circle cx="2" cy="3" r="1.5" /><circle cx="8" cy="3" r="1.5" />
+      <circle cx="2" cy="8" r="1.5" /><circle cx="8" cy="8" r="1.5" />
+      <circle cx="2" cy="13" r="1.5" /><circle cx="8" cy="13" r="1.5" />
+    </svg>
+  )
+}
+
+function ThemeDropZone({ themeId, children }: { themeId: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `theme-${themeId}` })
+  return (
+    <div ref={setNodeRef} className={`transition-colors rounded-b-lg ${isOver ? 'bg-[var(--accent-subtle)] ring-2 ring-inset ring-[var(--accent-muted)]' : ''}`}>
+      {children}
+    </div>
+  )
+}
+
+function UngroupedDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'ungrouped' })
+  return (
+    <div ref={setNodeRef} className={`transition-colors rounded-b-xl ${isOver ? 'bg-[var(--accent-subtle)] ring-2 ring-inset ring-[var(--accent-muted)]' : ''}`}>
+      {children}
+    </div>
+  )
+}
+
+function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean }) {
+  const ctx = useManageCtx()
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `tag-${tag.id}` })
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
+    : undefined
+
+  const isRenaming = ctx.renamingId === tag.id
+  const isEditingDesc = ctx.editingDescId === tag.id
+  const isConfirmingDelete = ctx.confirmDeleteId === tag.id
+  const count = ctx.tagCounts.get(tag.id) ?? 0
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 px-4 py-3 ${isDragging ? 'opacity-40' : ''} ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
+    >
+      {/* Drag handle */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab touch-none text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] active:cursor-grabbing"
+        aria-label={`Drag ${tag.label} to a theme`}
+      >
+        <GripIcon />
+      </button>
+
+      {/* Selection checkbox */}
+      <input
+        type="checkbox"
+        checked={ctx.selectedTagIds.has(tag.id)}
+        onChange={() => ctx.toggleSelect(tag.id)}
+        aria-label={`Select ${tag.label}`}
+        className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+      />
+
+      {/* Color swatch */}
+      <input
+        type="color"
+        value={tag.color}
+        onChange={(e) => ctx.onRename(tag.id, tag.label, e.target.value)}
+        aria-label={`${tag.label} color`}
+        className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0"
+      />
+
+      <div className="flex-1 min-w-0 space-y-0.5">
+        {isRenaming ? (
+          <input
+            autoFocus
+            value={ctx.renameValue}
+            onChange={(e) => ctx.setRenameValue(e.target.value)}
+            onBlur={() => void ctx.commitRename(tag)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); void ctx.commitRename(tag) }
+              if (e.key === 'Escape') { ctx.setRenamingId(null); ctx.setRenameValue('') }
+            }}
+            className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => ctx.startRename(tag)}
+            title="Click to rename"
+            className="block text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
+          >
+            {tag.label}
+          </button>
+        )}
+        {isEditingDesc ? (
+          <textarea
+            autoFocus
+            value={ctx.descValue}
+            onChange={(e) => ctx.setDescValue(e.target.value)}
+            onBlur={() => void ctx.commitDesc(tag.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ctx.commitDesc(tag.id) }
+              if (e.key === 'Escape') { ctx.setEditingDescId(null) }
+            }}
+            rows={2}
+            placeholder="Add description…"
+            className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => ctx.startEditDesc(tag)}
+            className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic"
+            title="Click to edit description"
+          >
+            {tag.description || <span className="not-italic opacity-50">Add description…</span>}
+          </button>
+        )}
+      </div>
+
+      <span className="shrink-0 text-sm tabular-nums text-[var(--text-tertiary)]">
+        {count} {count === 1 ? 'answer' : 'answers'}
+      </span>
+
+      {isConfirmingDelete ? (
+        <div className="flex shrink-0 items-center gap-2">
+          {ctx.tagDefinitions.some((c) => c.parentId === tag.id) ? (
+            <>
+              <Button tone="secondary" size="sm" onClick={() => { ctx.onDelete(tag.id, 'keep-subtags'); ctx.setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Keep sub-tags</Button>
+              <Button tone="danger" size="sm" onClick={() => { ctx.onDelete(tag.id, 'delete-all'); ctx.setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Delete all</Button>
+            </>
+          ) : (
+            <Button tone="danger" size="sm" onClick={() => { ctx.onDelete(tag.id); ctx.setConfirmDeleteId(null) }}>Delete</Button>
+          )}
+          <Button tone="secondary" size="sm" onClick={() => ctx.setConfirmDeleteId(null)}>Cancel</Button>
+        </div>
+      ) : (
+        <IconButton
+          tone="trash"
+          label={`Delete ${tag.label}`}
+          onClick={() => count > 0 || ctx.tagDefinitions.some((c) => c.parentId === tag.id) ? ctx.setConfirmDeleteId(tag.id) : ctx.onDelete(tag.id)}
+          disabled={ctx.savingTagId === tag.id}
+          className="h-8 w-8 shrink-0"
+        >
+          <TrashIcon />
+        </IconButton>
+      )}
+    </div>
+  )
+}
+
 // ─── ManageTab ────────────────────────────────────────────────────────────────
 
 function ManageTab({
@@ -1195,11 +1386,21 @@ function ManageTab({
     [tagDefinitions],
   )
 
-  const themeOptions = useMemo(() => [
-    { value: '', label: 'Move to theme…' },
-    ...themes.map((t) => ({ value: t.id, label: t.label })),
-    { value: '__new__', label: 'New theme…' },
-  ], [themes])
+  // ── DnD ────────────────────────────────────────────────────────────────────
+  const [activeTagId, setActiveTagId] = useState<string | null>(null)
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveTagId(null)
+    const { active, over } = event
+    if (!over) return
+    const tagId = String(active.id).replace(/^tag-/, '')
+    const dest = String(over.id)
+    if (dest === 'ungrouped') {
+      void onMoveToTheme(tagId, null)
+    } else if (dest.startsWith('theme-')) {
+      void onMoveToTheme(tagId, dest.replace(/^theme-/, ''))
+    }
+  }
 
   function startRename(tag: TagDefinition) {
     setRenamingId(tag.id)
@@ -1230,24 +1431,6 @@ function ManageTab({
     await onCreate(label, newColor)
     setNewLabel('')
     setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
-  }
-
-  async function handleMoveToTheme(tagId: string, value: string) {
-    if (!value) return
-    if (value === '__new__') {
-      // Create a new theme then move into it
-      const color = DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length]
-      const newThemeLabel = 'New Theme ' + (themes.length + 1)
-      const result = await createQuestionTag(studyId, questionId, newThemeLabel, color)
-      if (result?.tag) {
-        await onMoveToTheme(tagId, result.tag.id)
-        // Start rename immediately
-        setRenamingId(result.tag.id)
-        setRenameValue(result.tag.label)
-      }
-    } else {
-      await onMoveToTheme(tagId, value)
-    }
   }
 
   async function handleAiConsolidate() {
@@ -1295,175 +1478,18 @@ function ManageTab({
     setAiProposal(null)
   }
 
-  function renderTagRow(tag: TagDefinition, isIndented = false) {
-    const count = tagCounts.get(tag.id) ?? 0
-    const isRenaming = renamingId === tag.id
-    const isEditingDesc = editingDescId === tag.id
-    const isConfirmingDelete = confirmDeleteId === tag.id
-
-    return (
-      <div
-        key={tag.id}
-        className={`flex items-center gap-3 px-4 py-3 ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
-      >
-        <input
-          type="checkbox"
-          checked={selectedTagIds.has(tag.id)}
-          onChange={() => toggleSelect(tag.id)}
-          aria-label={`Select ${tag.label}`}
-          className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
-        />
-        <input
-          type="color"
-          value={tag.color}
-          onChange={(e) => onRename(tag.id, tag.label, e.target.value)}
-          aria-label={`${tag.label} color`}
-          className="h-7 w-8 cursor-pointer rounded border border-[var(--border)] bg-white p-0.5 shrink-0"
-        />
-        <div className="flex-1 min-w-0 space-y-0.5">
-          {isRenaming ? (
-            <input
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onBlur={() => void commitRename(tag)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); void commitRename(tag) }
-                if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
-              }}
-              className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => startRename(tag)}
-              title="Click to rename"
-              className="block text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
-            >
-              {tag.label}
-            </button>
-          )}
-          {/* Description inline edit */}
-          {isEditingDesc ? (
-            <textarea
-              autoFocus
-              value={descValue}
-              onChange={(e) => setDescValue(e.target.value)}
-              onBlur={() => void commitDesc(tag.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(tag.id) }
-                if (e.key === 'Escape') { setEditingDescId(null) }
-              }}
-              rows={2}
-              placeholder="Add description…"
-              className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => startEditDesc(tag)}
-              className="block text-left text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] italic"
-              title="Click to edit description"
-            >
-              {tag.description || <span className="not-italic opacity-50">Add description…</span>}
-            </button>
-          )}
-        </div>
-        <span className="shrink-0 text-sm tabular-nums text-[var(--text-tertiary)]">
-          {count} {count === 1 ? 'answer' : 'answers'}
-        </span>
-
-        {/* Move to theme dropdown (only for leaf/ungrouped tags) */}
-        {isIndented || tag.parentId !== null ? (
-          <div className="shrink-0 w-36">
-            <SelectMenu
-              value=""
-              options={[
-                { value: '', label: 'Move to theme ▾' },
-                { value: '__none__', label: 'Remove from theme' },
-                ...themes.filter((t) => t.id !== tag.parentId).map((t) => ({ value: t.id, label: t.label })),
-                { value: '__new__', label: 'New theme…' },
-              ]}
-              onChange={async (v) => {
-                if (!v) return
-                if (v === '__none__') {
-                  await onMoveToTheme(tag.id, null)
-                } else {
-                  await handleMoveToTheme(tag.id, v)
-                }
-              }}
-              buttonClassName="h-8 text-xs"
-            />
-          </div>
-        ) : (
-          <div className="shrink-0 w-36">
-            <SelectMenu
-              value=""
-              options={themeOptions}
-              onChange={async (v) => {
-                if (!v) return
-                await handleMoveToTheme(tag.id, v)
-              }}
-              buttonClassName="h-8 text-xs"
-            />
-          </div>
-        )}
-
-        {isConfirmingDelete ? (
-          <div className="flex shrink-0 items-center gap-2">
-            {/* Theme with children — offer two delete modes */}
-            {tagDefinitions.some((c) => c.parentId === tag.id) ? (
-              <>
-                <Button
-                  tone="secondary"
-                  size="sm"
-                  onClick={() => { void onDelete(tag.id, 'keep-subtags'); setConfirmDeleteId(null) }}
-                  className="text-xs whitespace-nowrap"
-                >
-                  Keep sub-tags
-                </Button>
-                <Button
-                  tone="danger"
-                  size="sm"
-                  onClick={() => { void onDelete(tag.id, 'delete-all'); setConfirmDeleteId(null) }}
-                  className="text-xs whitespace-nowrap"
-                >
-                  Delete all
-                </Button>
-              </>
-            ) : (
-              <Button
-                tone="danger"
-                size="sm"
-                onClick={() => { void onDelete(tag.id); setConfirmDeleteId(null) }}
-              >
-                Delete
-              </Button>
-            )}
-            <Button
-              tone="secondary"
-              size="sm"
-              onClick={() => setConfirmDeleteId(null)}
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <IconButton
-            tone="trash"
-            label={`Delete ${tag.label}`}
-            onClick={() => count > 0 || tagDefinitions.some((c) => c.parentId === tag.id) ? setConfirmDeleteId(tag.id) : void onDelete(tag.id)}
-            disabled={savingTagId === tag.id}
-            className="h-8 w-8 shrink-0"
-          >
-            <TrashIcon />
-          </IconButton>
-        )}
-      </div>
-    )
+  const ctxValue: ManageCtxType = {
+    selectedTagIds, toggleSelect,
+    savingTagId, tagCounts, tagDefinitions,
+    renamingId, renameValue, setRenameValue, setRenamingId, commitRename,
+    editingDescId, descValue, setDescValue, setEditingDescId, commitDesc,
+    confirmDeleteId, setConfirmDeleteId, onDelete, onRename,
+    startRename, startEditDesc,
   }
 
   return (
+    <ManageCtx.Provider value={ctxValue}>
+    <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
     <div className="space-y-4">
       {/* New tag + AI group header */}
       <div className="flex gap-2 flex-wrap">
@@ -1716,7 +1742,9 @@ function ManageTab({
                       </div>
 
                       {/* Sub-tags */}
-                      {children.map((child) => renderTagRow(child, true))}
+                      <ThemeDropZone themeId={theme.id}>
+                        {children.map((child) => <TagRow key={child.id} tag={child} isIndented />)}
+                      </ThemeDropZone>
                     </div>
                   )
                 })}
@@ -1739,13 +1767,28 @@ function ManageTab({
                     Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}
                   </span>
                 </div>
-                {ungroupedTags.map((tag) => renderTagRow(tag, false))}
+                <UngroupedDropZone>
+                  {ungroupedTags.map((tag) => <TagRow key={tag.id} tag={tag} />)}
+                </UngroupedDropZone>
               </>
             )}
           </div>
         )}
       </div>
     </div>
+    <DragOverlay>
+      {activeTagId ? (() => {
+        const tag = tagDefinitions.find((t) => t.id === activeTagId)
+        return tag ? (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-white px-4 py-3 shadow-lg text-sm font-semibold text-[var(--text)] opacity-90">
+            <span className="h-3 w-3 rounded-full shrink-0" style={{ background: tag.color }} />
+            {tag.label}
+          </div>
+        ) : null
+      })() : null}
+    </DragOverlay>
+    </DndContext>
+    </ManageCtx.Provider>
   )
 }
 
