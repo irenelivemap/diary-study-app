@@ -32,6 +32,7 @@ import { ManageCtx, TagDragOverlay, TagRow, ThemeChildren, ThemeDropZone, Ungrou
 import type { ManageCtxType } from '@/app/components/tag-lab/ManageTagRows'
 import TagAnswers from '@/app/components/tag-lab/TagAnswers'
 import type { Answer, InsertionIndicator, ProposedTheme, SaveNotice, TagDefinition } from '@/app/components/tag-lab/types'
+import TagCreateRow from '@/app/components/tag-lab/TagCreateRow'
 import { DEFAULT_COLORS, isThemeTag, normalizeLabel, sortTags, tagGroup } from '@/app/components/tag-lab/utils'
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -616,23 +617,18 @@ function AnalysisWorkspace({
         )}
       </div>
 
-      {/* Add theme */}
-      <div className="space-y-2">
-        <div className="flex gap-2 items-center">
-          <TextInput
-            value={newThemeLabel}
-            onChange={(e) => setNewThemeLabel(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreateTheme() } }}
-            placeholder="New theme name"
-            className="h-9 flex-1 py-0"
-          />
-          <label className="relative h-5 w-5 shrink-0 cursor-pointer" title="Choose theme color">
-            <span className="block h-5 w-5 rounded-full ring-2 ring-[var(--border-strong)]" style={{ backgroundColor: newThemeColor }} />
-            <input type="color" value={newThemeColor} onChange={(e) => setNewThemeColor(e.target.value)} aria-label="Theme color" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-          </label>
-          <Button tone="primary" size="sm" onClick={() => void handleCreateTheme()} disabled={!newThemeLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">Add theme</Button>
-        </div>
-      </div>
+      <TagCreateRow
+        value={newThemeLabel}
+        color={newThemeColor}
+        placeholder="New theme name"
+        colorLabel="Theme color"
+        buttonLabel="Add theme"
+        busyLabel="Adding…"
+        busy={savingTagId === 'new'}
+        onValueChange={setNewThemeLabel}
+        onColorChange={setNewThemeColor}
+        onCreate={() => void handleCreateTheme()}
+      />
 
       {/* Tags */}
       <div className="space-y-2">
@@ -705,17 +701,18 @@ function AnalysisWorkspace({
         </UngroupedDropZone>
       </div>
 
-      {/* Add tag */}
-      <div className="space-y-2">
-        <div className="flex gap-2 items-center">
-          <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
-          <label className="relative h-5 w-5 shrink-0 cursor-pointer" title="Choose color">
-            <span className="block h-5 w-5 rounded-full ring-2 ring-[var(--border-strong)]" style={{ backgroundColor: newColor }} />
-            <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-          </label>
-          <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
-        </div>
-      </div>
+      <TagCreateRow
+        value={newLabel}
+        color={newColor}
+        placeholder="New tag name"
+        colorLabel="Tag color"
+        buttonLabel="Add tag"
+        busyLabel="Adding…"
+        busy={savingTagId === 'new'}
+        onValueChange={setNewLabel}
+        onColorChange={setNewColor}
+        onCreate={() => void handleCreate()}
+      />
 
       <AnswerPanel
         answers={answers}
