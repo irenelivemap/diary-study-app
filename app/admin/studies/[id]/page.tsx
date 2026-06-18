@@ -293,43 +293,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
                 }))}
               />
             </OverviewSection>
-
-            <OverviewSection
-              title="Data retention"
-              description="What diARI keeps or removes when you close, archive, remove, or delete."
-            >
-              <div className="p-5">
-                <div className="grid gap-3 md:grid-cols-2">
-                  {[
-                    {
-                      title: 'Close study',
-                      body: 'Stops new participant submissions. Responses, analysis, exports, reminders history, and read-only participant entries stay available.',
-                    },
-                    {
-                      title: 'Archive study',
-                      body: 'Moves the study to Past studies and hides it from participant dashboards. Research data is kept until you delete it permanently.',
-                    },
-                    {
-                      title: 'Remove participant',
-                      body: 'Blocks that participant from joining or continuing. You choose whether their existing responses stay in analysis or are deleted too.',
-                    },
-                    {
-                      title: 'Delete permanently',
-                      body: 'Deletes the study, responses, journeys, invitations, reminder logs, tags, and uploaded answer files. This cannot be undone.',
-                    },
-                  ].map((item) => (
-                    <div key={item.title} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-600">{item.body}</p>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-4 text-sm leading-relaxed text-slate-500">
-                  Use anonymized exports by default. Turn identifiers on only when you explicitly need them for operations like incentives or participant follow-up.
-                </p>
-              </div>
-            </OverviewSection>
-
           </div>
         </div>
       </main>
