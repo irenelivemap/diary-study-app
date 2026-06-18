@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
@@ -8,7 +8,6 @@ import {
   consolidateTagsWithAI,
   createQuestionTag,
   deleteQuestionTag,
-  mergeQuestionTags,
   setTagParent,
   suggestTagsBatchWithAI,
   suggestThemeName,
@@ -62,6 +61,14 @@ function formatDate(iso: string) {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return iso
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 2l4 4-4 4" />
+    </svg>
+  )
 }
 
 // ─── AppliedTagChip ───────────────────────────────────────────────────────────
@@ -144,7 +151,8 @@ function TagAutocomplete({
       const label = normalizeLabel(raw)
       if (!label) return
       const exact = leafTags.find((t) => t.label.toLowerCase() === label.toLowerCase())
-      exact ? onApply(exact.id) : onCreate(label)
+      if (exact) onApply(exact.id)
+      else onCreate(label)
     }
     setValue('')
     setOpen(false)
@@ -220,37 +228,6 @@ function TagAutocomplete({
   )
 }
 
-// ─── SegmentedControl ─────────────────────────────────────────────────────────
-
-function SegmentedControl<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  return (
-    <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={`whitespace-nowrap px-3 py-1.5 text-sm font-semibold transition-colors ${
-            value === opt.value
-              ? 'bg-[var(--accent)] text-[var(--text-on-accent)]'
-              : 'bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // ─── AIProposalPanel ──────────────────────────────────────────────────────────
 
 type ProposedTheme = {
@@ -264,9 +241,6 @@ function AIProposalPanel({
   proposal,
   tagById,
   allTagIds,
-  studyId,
-  questionId,
-  tagDefinitions,
   answers,
   tagIdsByAnswer,
   onApply,
@@ -275,9 +249,6 @@ function AIProposalPanel({
   proposal: ProposedTheme[]
   tagById: Map<string, TagDefinition>
   allTagIds: Set<string>
-  studyId: string
-  questionId: string
-  tagDefinitions: TagDefinition[]
   answers: Answer[]
   tagIdsByAnswer: Record<string, string[]>
   onApply: (themes: ProposedTheme[]) => Promise<void>
@@ -847,8 +818,22 @@ function AnalysisWorkspace({
     })
   }, [answers, tagIdsByAnswer, filterTag, filterParticipant, answerSearch, answerSort])
 
-  function toggleTagExpand(id: string) { setExpandedTagIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
-  function toggleThemeExpand(id: string) { setExpandedThemeIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  function toggleTagExpand(id: string) {
+    setExpandedTagIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function toggleThemeExpand(id: string) {
+    setExpandedThemeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   function expandAll() {
     setExpandedThemeIds(new Set(themes.map((t) => t.id)))
     setExpandedTagIds(new Set(tagDefinitions.filter((t) => {
@@ -868,17 +853,23 @@ function AnalysisWorkspace({
       return !isTheme
     }).every((t) => expandedTagIds.has(t.id)) &&
     (ungroupedTags.length === 0 || ungroupedOpen)
-  function toggleSelect(tagId: string) { setSelectedTagIds((p) => { const n = new Set(p); n.has(tagId) ? n.delete(tagId) : n.add(tagId); return n }) }
-  function isGroupSelected(ids: string[]) { return ids.length > 0 && ids.every((id) => selectedTagIds.has(id)) }
-  function isGroupIndeterminate(ids: string[]) { return ids.some((id) => selectedTagIds.has(id)) && !ids.every((id) => selectedTagIds.has(id)) }
-  function toggleGroupSelect(ids: string[]) {
-    if (isGroupSelected(ids)) setSelectedTagIds((p) => { const n = new Set(p); ids.forEach((id) => n.delete(id)); return n })
-    else setSelectedTagIds((p) => { const n = new Set(p); ids.forEach((id) => n.add(id)); return n })
+  function toggleSelect(tagId: string) {
+    setSelectedTagIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(tagId)) next.delete(tagId)
+      else next.add(tagId)
+      return next
+    })
   }
   function clearSelection() { setSelectedTagIds(new Set()); setBulkAction('idle'); setGroupName('') }
 
   function toggleAnswerSelect(answerId: string) {
-    setSelectedAnswerIds((prev) => { const n = new Set(prev); n.has(answerId) ? n.delete(answerId) : n.add(answerId); return n })
+    setSelectedAnswerIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(answerId)) next.delete(answerId)
+      else next.add(answerId)
+      return next
+    })
   }
   function clearAnswerSelection() { setSelectedAnswerIds(new Set()) }
   async function handleBulkApplyTag(tagId: string) {
@@ -1003,10 +994,6 @@ function AnalysisWorkspace({
     )
   }
 
-  const Chevron = ({ open }: { open: boolean }) => (
-    <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
-  )
-
   return (
     <ManageCtx.Provider value={ctxValue}>
     <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
@@ -1074,8 +1061,6 @@ function AnalysisWorkspace({
           proposal={aiProposal}
           tagById={new Map(tagDefinitions.map((t) => [t.id, t]))}
           allTagIds={aiProposalScope}
-          studyId={studyId} questionId={questionId}
-          tagDefinitions={tagDefinitions}
           answers={answers} tagIdsByAnswer={tagIdsByAnswer}
           onApply={applyProposal}
           onCancel={() => setAiProposal(null)}
@@ -1119,7 +1104,7 @@ function AnalysisWorkspace({
                     aria-expanded={isOpen}
                   >
                     <span className="shrink-0 mt-1 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)]">
-                      <Chevron open={isOpen} />
+                      <ChevronIcon open={isOpen} />
                     </span>
                     <label className="relative h-4 w-4 shrink-0 mt-1 cursor-pointer" title="Change color" onClick={(e) => e.stopPropagation()}>
                       <span className="block h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
@@ -1174,7 +1159,7 @@ function AnalysisWorkspace({
             {ungroupedTags.length > 0 && (
               <div>
                 <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg-sunken)]">
-                  <button type="button" onClick={() => setUngroupedOpen((o) => !o)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><Chevron open={ungroupedOpen} /></button>
+                  <button type="button" onClick={() => setUngroupedOpen((o) => !o)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><ChevronIcon open={ungroupedOpen} /></button>
                   <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}</span>
                 </div>
                 {ungroupedOpen && (
@@ -1494,7 +1479,9 @@ export default function TaggingWorkspace({
   const liveTagsRef = useRef<TagDefinition[]>(initialTags)
 
   const tagById = useMemo(() => new Map(tagDefinitions.map((t) => [t.id, t])), [tagDefinitions])
-  liveTagsRef.current = tagDefinitions
+  useEffect(() => {
+    liveTagsRef.current = tagDefinitions
+  }, [tagDefinitions])
 
   async function saveAnswerTags(answerId: string, nextTagIds: string[]) {
     const final = [...new Set(nextTagIds)].filter((id) => tagById.has(id)).slice(0, 12)
@@ -1629,7 +1616,6 @@ export default function TaggingWorkspace({
     const BATCH_SIZE = 15  // answers per AI call
     const CONCURRENCY = 5  // parallel AI calls at once
 
-    const leafTags = liveTagsRef.current.filter((t) => t.parentId !== null || !liveTagsRef.current.some((c) => c.parentId === t.id))
     const toProcess = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
     if (!toProcess.length) return
 
@@ -1665,7 +1651,7 @@ export default function TaggingWorkspace({
           const existingIds = tagIdsByAnswer[answer.answerId] ?? []
           const validTagIds = new Set(tagSnapshot.map((t) => t.id))
           const toAdd = res.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
-          let nextIds = [...existingIds, ...toAdd]
+          const nextIds = [...existingIds, ...toAdd]
 
           for (const label of res.new_tags) {
             const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]

@@ -2,10 +2,9 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Badge, Card, SwitchVisual, TextInput } from '@/app/components/ui'
+import { Card, SwitchVisual, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionTag } from '@/app/actions/analysis'
-import { phaseSoftBadgeClass } from '@/app/lib/phase-colors'
 import { entryQualityLabel } from '@/app/lib/entry-state'
 import { answerValue as normalizedAnswerValue, answerWasShown, parseMultipleChoiceAnswer } from '@/app/lib/answer-dataset'
 import WordCloudChart from '@/app/components/WordCloudChart'
@@ -68,6 +67,12 @@ type DataPoint = { label: string; value: number }
 type ScalePoint = { score: number; label: string; count: number }
 type ScaleBin = { label: string; start: number; end: number; count: number }
 type AnalysisResult = ReturnType<typeof buildAnalysis>
+type JourneyContinuity = {
+  journeyCount: number
+  completedCount: number
+  averageStages: number
+  stageCoverage: { partId: string; partName: string; count: number; percent: number }[]
+}
 
 function ExportMenu({
   onPng,
@@ -165,50 +170,6 @@ function topCounts(values: string[]) {
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
 }
 
-function multipleChoiceStats(question: Question, points: DataPoint[], respondentDenominator: number) {
-  const sorted = [...points].sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-  const top = sorted[0] ?? null
-  const runnerUp = sorted[1] ?? null
-  const topPct = respondentDenominator && top ? Math.round((top.value / respondentDenominator) * 100) : 0
-  const runnerUpPct = respondentDenominator && runnerUp ? Math.round((runnerUp.value / respondentDenominator) * 100) : 0
-  const tiedTopCount = top?.value ? sorted.filter((point) => point.value === top.value).length : 0
-  const optionCount = Math.max(
-    points.length,
-    question.options.filter((option) => option.trim() && option !== '__OTHER__').length
-  )
-
-  return {
-    topLabel: top?.label ?? '-',
-    topPct,
-    hasTie: tiedTopCount > 1,
-    tiedTopCount,
-    gapPct: Math.max(0, topPct - runnerUpPct),
-    usedOptions: points.filter((point) => point.value > 0).length,
-    optionCount,
-  }
-}
-
-function singleChoiceStats(points: DataPoint[]) {
-  const total = points.reduce((sum, point) => sum + point.value, 0)
-  const sorted = [...points]
-    .filter((point) => point.value > 0)
-    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-  const top = sorted[0] ?? null
-  const runnerUp = sorted[1] ?? null
-  const topPct = total && top ? Math.round((top.value / total) * 100) : 0
-  const runnerUpPct = total && runnerUp ? Math.round((runnerUp.value / total) * 100) : 0
-  const tiedTopCount = top?.value ? sorted.filter((point) => point.value === top.value).length : 0
-
-  return {
-    topLabel: top?.label ?? '-',
-    topPct,
-    hasTie: tiedTopCount > 1,
-    tiedTopCount,
-    gapPct: Math.max(0, topPct - runnerUpPct),
-    hasRunnerUp: !!runnerUp,
-  }
-}
-
 function average(values: number[]) {
   if (!values.length) return null
   return values.reduce((sum, value) => sum + value, 0) / values.length
@@ -261,10 +222,6 @@ function scaleBand(score: number, min: number, max: number) {
   if (score <= lowEnd) return 'low'
   if (score >= highStart) return 'high'
   return 'middle'
-}
-
-function shortText(value: string, max = 150) {
-  return value.length > max ? `${value.slice(0, max).trim()}...` : value
 }
 
 function csvEscape(value: string | number) {
@@ -405,6 +362,44 @@ function buildAnalysis(question: Question, rows: Row[]) {
     ? topCounts(values.flatMap(parseMultipleChoiceAnswer))
     : topCounts(values)
   return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] as string[] }
+}
+
+function buildJourneyContinuity(parts: Part[], rows: Row[]): JourneyContinuity | null {
+  const journeyRows = rows.filter((row) => row.journeyId || row.journeyLabel)
+  if (!journeyRows.length) return null
+
+  const stageParts = parts.filter((part) => part.flow === 'JOURNEY_STAGE')
+  const expectedStageIds = new Set((stageParts.length ? stageParts : parts).map((part) => part.id))
+  const journeys = new Map<string, Set<string>>()
+
+  for (const row of journeyRows) {
+    const key = row.journeyId || row.journeyLabel
+    if (!key) continue
+    const stageSet = journeys.get(key) ?? new Set<string>()
+    if (expectedStageIds.has(row.partId)) stageSet.add(row.partId)
+    journeys.set(key, stageSet)
+  }
+
+  const journeyCount = journeys.size
+  if (!journeyCount) return null
+
+  const completedCount = Array.from(journeys.values())
+    .filter((stageSet) => expectedStageIds.size > 0 && stageSet.size >= expectedStageIds.size)
+    .length
+  const averageStages = Array.from(journeys.values())
+    .reduce((sum, stageSet) => sum + stageSet.size, 0) / journeyCount
+  const stageCoverage = Array.from(expectedStageIds).map((partId) => {
+    const part = parts.find((candidate) => candidate.id === partId)
+    const count = Array.from(journeys.values()).filter((stageSet) => stageSet.has(partId)).length
+    return {
+      partId,
+      partName: part?.name ?? 'Stage',
+      count,
+      percent: Math.round((count / journeyCount) * 100),
+    }
+  })
+
+  return { journeyCount, completedCount, averageStages, stageCoverage }
 }
 
 function freeTextAnswers(question: Question, rows: Row[]): FreeTextAnswer[] {
@@ -1275,7 +1270,6 @@ function InlineBarChart({
   denominator?: number
 }) {
   const total = denominator ?? points.reduce((sum, p) => sum + p.value, 0)
-  const maxCount = Math.max(...points.map((p) => p.value), 1)
   const topCount = Math.max(...points.map((p) => p.value), 0)
 
   if (points.length === 0) return <p className="text-sm text-slate-500">No answers yet.</p>
@@ -1396,12 +1390,6 @@ function QuestionAnalysisCard({
   const svgRef = useRef<SVGSVGElement | null>(null)
   const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
   const textAnswers = useMemo(() => question.type === 'FREE_TEXT' ? freeTextAnswers(question, rows) : [], [question, rows])
-  const freeTextStateKey = useMemo(() => {
-    if (question.type !== 'FREE_TEXT') return question.id
-    const tagSignature = (question.tagDefinitions ?? []).map((tag) => `${tag.id}:${tag.label}:${tag.color}`).join('|')
-    const answerSignature = textAnswers.map((answer) => `${answer.answerId}:${answer.tags.map((tag) => tag.id).join('.')}`).join('|')
-    return `${question.id}:${tagSignature}:${answerSignature}`
-  }, [question, textAnswers])
   const filename = `${String(index + 1).padStart(2, '0')}_${slugify(question.text)}`
   const plotSubtitle =
     question.type === 'MULTIPLE_CHOICE'
@@ -1409,6 +1397,8 @@ function QuestionAnalysisCard({
       : question.type === 'SINGLE_CHOICE' || question.type === 'RATING' || question.type === 'YES_NO' || question.type === 'DATE_TIME'
         ? 'Percent of answered responses'
         : ''
+  const [plotTitle, setPlotTitle] = useState('')
+  const [plotSubtitleText, setPlotSubtitleText] = useState(plotSubtitle)
   const barPoints: DataPoint[] = question.type === 'RATING'
     ? (analysis.shouldBin
         ? (analysis.ratingBins ?? []).map((b) => ({ label: b.label, value: b.count }))
@@ -1573,24 +1563,50 @@ function QuestionAnalysisCard({
         </div>
       )}
 
+      {question.type !== 'FREE_TEXT' && (
+        <details className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--text-secondary)]">
+            Edit plot title and subtitle
+          </summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-[var(--text-tertiary)]">Title</span>
+              <TextInput
+                value={plotTitle}
+                onChange={(event) => setPlotTitle(event.target.value)}
+                placeholder={question.text}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-[var(--text-tertiary)]">Subtitle</span>
+              <TextInput
+                value={plotSubtitleText}
+                onChange={(event) => setPlotSubtitleText(event.target.value)}
+                placeholder={plotSubtitle}
+              />
+            </label>
+          </div>
+        </details>
+      )}
+
       <div hidden>
         {question.type === 'RATING' ? (
           <RatingScaleSvg
             question={question}
             analysis={analysis}
             svgRef={svgRef}
-            title=""
-            subtitle={plotSubtitle}
+            title={plotTitle}
+            subtitle={plotSubtitleText}
             yAxisMax={null}
             yAxisStep={null}
           />
         ) : question.type === 'YES_NO' ? (
-          <YesNoPieSvg analysis={analysis} svgRef={svgRef} title="" subtitle={plotSubtitle} />
+          <YesNoPieSvg analysis={analysis} svgRef={svgRef} title={plotTitle} subtitle={plotSubtitleText} />
         ) : question.type !== 'FREE_TEXT' ? (
           <PlotSvg
             svgRef={svgRef}
-            title=""
-            subtitle={plotSubtitle}
+            title={plotTitle}
+            subtitle={plotSubtitleText}
             points={analysis.points}
             denominator={analysis.answered}
           />
@@ -1641,6 +1657,10 @@ const [partId, setPartId] = useState('all')
   const answeredValues = coverageTotals.answered
   const possibleValues = coverageTotals.eligible
   const coverage = possibleValues ? Math.round((answeredValues / possibleValues) * 100) : 0
+  const journeyContinuity = useMemo(
+    () => buildJourneyContinuity(parts, filteredRows),
+    [parts, filteredRows]
+  )
   const qualityFlagCounts = filteredRows.reduce((counts, row) => {
     for (const flag of row.qualityFlags) counts.set(flag, (counts.get(flag) ?? 0) + 1)
     return counts
@@ -1713,6 +1733,30 @@ const [partId, setPartId] = useState('all')
           {filteredRows.length} entries · {new Set(filteredRows.map((r) => r.participantId)).size} participants · {coverage}% completion
           {coverageTotals.missing > 0 && ` · ${coverageTotals.missing} missing`}
         </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Answer completion</p>
+            <p className="mt-1 text-2xl font-semibold text-[var(--text)]">{coverage}%</p>
+            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{answeredValues} of {possibleValues} eligible answers</p>
+          </div>
+          <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Missing answers</p>
+            <p className="mt-1 text-2xl font-semibold text-[var(--text)]">{coverageTotals.missing}</p>
+            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{coverageTotals.notShown} hidden by conditions</p>
+          </div>
+          {journeyContinuity && (
+            <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 sm:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Journey continuity</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--text)]">
+                {journeyContinuity.completedCount} of {journeyContinuity.journeyCount} journeys with all stages submitted
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                Avg. {formatNumber(journeyContinuity.averageStages)} stages per journey · Stage coverage{' '}
+                {journeyContinuity.stageCoverage.map((stage) => `${stage.partName} ${stage.percent}%`).join(' / ')}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
 {qualityFlagEntries.length > 0 && (

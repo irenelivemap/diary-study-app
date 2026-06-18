@@ -389,7 +389,7 @@ export default async function DashboardPage() {
                               journey: openJourney,
                               strictOrder: strictJourneyOrder,
                             })
-                            const { canAnswer: canAnswerStage, entry, isClosed, isLocked, isRecommended, isSubmitted } = stageAction
+                            const { entry, isClosed, isLocked, isRecommended, isSubmitted } = stageAction
 
                             if (isSubmitted) {
                               return (
