@@ -37,7 +37,14 @@ Run:
 npm audit
 ```
 
-At the time of this handoff preparation, `npm audit fix` has applied the safe non-forced updates. `npm audit` still reports moderate vulnerabilities in transitive dependencies, specifically Prisma tooling/Hono and Next/PostCSS advisories. npm currently suggests `--force` fixes that would downgrade major framework/tooling versions, so do not apply them blindly. Review them in a dedicated dependency-maintenance PR and either upgrade when compatible patches are available or document the accepted risk when they only affect local tooling.
+At the time of this handoff preparation, `npm audit` reports zero vulnerabilities.
+
+The project uses npm `overrides` to force patched transitive versions for dependencies currently pinned by upstream packages:
+
+- `@hono/node-server@1.19.14`, used through Prisma tooling.
+- `postcss@8.5.15`, used through Next/Tailwind tooling.
+
+Keep these overrides until Prisma and Next ship compatible dependency updates that no longer need them. Re-check after framework upgrades.
 
 Also run:
 
