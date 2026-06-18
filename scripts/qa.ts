@@ -38,6 +38,7 @@ const steps: Step[] = [
   { name: 'Upload cleanup rules', command: npmCommand, args: ['run', 'qa:uploads'] },
   { name: 'Retention and deletion policy', command: npmCommand, args: ['run', 'qa:retention'] },
   { name: 'Analysis and data documentation', command: npmCommand, args: ['run', 'qa:analysis-docs'] },
+  { name: 'Tag lab architecture', command: npmCommand, args: ['run', 'qa:tag-lab'] },
   { name: 'Invite flow rules', command: npmCommand, args: ['run', 'qa:invites'] },
   { name: 'Seed QA fixtures', command: npmCommand, args: ['run', 'qa:seed'] },
   { name: 'Public smoke checks', command: npmCommand, args: ['run', 'smoke'], env: { QA_BASE_URL: baseUrl } },
