@@ -1,4 +1,4 @@
-# CTO Handoff Summary
+# Handoff Summary
 
 Last updated: 2026-06-18
 
@@ -15,9 +15,9 @@ The app has two main user roles:
 
 Handoff branch:
 
-`dependency-hardening`
+`main`
 
-This branch contains the earlier `ui-polish` work plus the later security, dependency, QA and tag-lab architecture improvements.
+The earlier `ui-polish` and `dependency-hardening` branches have been merged into `main`. The stale remote branches were removed after the merge.
 
 ## Main Improvements In This Branch
 
@@ -72,7 +72,9 @@ This full QA run included environment checks, access rules, reminder checks, dat
 
 ## Current GitHub/Vercel Status
 
-The previous red GitHub status was from Vercel and said:
+The current `main` branch has a green Vercel deployment status.
+
+During handoff preparation, the previous red GitHub status was from Vercel and said:
 
 `Deployment failed.`
 
@@ -80,21 +82,16 @@ The failure link redirected to Vercel Cron Jobs usage/pricing documentation. The
 
 `*/15 * * * *`
 
-That expression is not allowed on Vercel Hobby. The branch now uses the Hobby-compatible daily cron schedule.
+That expression is not allowed on Vercel Hobby. The app now uses the Hobby-compatible daily cron schedule.
 
 ## Recommended Next Steps
 
-1. Open a pull request from `dependency-hardening` into `main`.
-2. Confirm Vercel posts a green status for the latest commit.
-3. Run `npx prisma migrate deploy` against the target database.
-4. Merge the pull request into `main`.
-5. Delete stale branches after merge:
-   - `ui-polish`
-   - `upstream-dependency-upgrade`
-   - `dependency-hardening`
+1. Confirm the deployment environment is using the intended production database and environment variables.
+2. Run `npx prisma migrate deploy` after future schema changes.
+3. Confirm the reminder cadence matches the team expectation: daily on Vercel Hobby, or more frequent with Vercel Pro/external scheduling.
 
 ## Known Follow-Up Items
 
 - Decide whether daily reminder delivery is enough. If not, upgrade Vercel or use an external scheduler.
 - Consider protecting the `main` branch in GitHub so changes require a passing check before merge.
-- Consider enabling signed commits later. Current commits are unsigned, which is common in early projects but may be a CTO preference.
+- Consider enabling signed commits later. Current commits are unsigned, which is common in early projects but may be a technical reviewer preference.
