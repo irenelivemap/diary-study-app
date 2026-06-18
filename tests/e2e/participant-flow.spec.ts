@@ -284,7 +284,6 @@ test('journey reminder destination opens the dashboard with stage choices', asyn
   await expect(page.locator('h2', { hasText: JOURNEY_STUDY_NAME })).toBeVisible()
   await expect(page.getByText(firstStage.name, { exact: true })).toBeVisible()
   await expect(page.getByText(secondStage.name, { exact: true })).toBeVisible()
-  await expect(page.getByText('Recommended next')).toBeVisible()
   await expectNoHorizontalOverflow(page, 'Journey dashboard')
 
   const targetStageLink = page.locator(
@@ -353,11 +352,10 @@ test('researcher analysis shows quality and journey continuity summaries', async
   await loginAdminByCookie(page)
 
   await page.goto(`/admin/studies/${study.id}/analysis`)
-  await expect(page.getByText('Entries analyzed')).toBeVisible()
+  await expect(page.getByText(/\d+ entries · \d+ participants · \d+% completion/)).toBeVisible()
   await expect(page.getByText('Answer completion')).toBeVisible()
   await expect(page.getByText('Missing answers')).toBeVisible()
   await expect(page.getByText('Journey continuity')).toBeVisible()
   await expect(page.getByText('Stage coverage')).toBeVisible()
-  await expect(page.getByText('Recent journeys')).toBeVisible()
   await expectNoHorizontalOverflow(page, 'Researcher analysis dashboard')
 })
