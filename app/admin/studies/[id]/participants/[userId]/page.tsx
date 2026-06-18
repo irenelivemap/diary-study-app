@@ -161,9 +161,10 @@ export default async function ParticipantEntriesPage({
     ? participation.user.demographics as Record<string, unknown>
     : {}
   const demographics = { ...legacyDemographics, ...profileDemographics }
+  const includePilotEntries = participation.study.status === 'PREPARATION'
 
   const entries = await prisma.entry.findMany({
-    where: { studyId: id, userId, isPilot: false },
+    where: { studyId: id, userId, ...(includePilotEntries ? {} : { isPilot: false }) },
     include: {
       part: { select: { id: true, name: true, order: true } },
       answers: {

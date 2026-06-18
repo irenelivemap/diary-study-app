@@ -57,6 +57,7 @@ type Row = {
 type Props = {
   studyId: string
   studyName: string
+  includePilotByDefault?: boolean
   parts: Part[]
   participants: Participant[]
   questions: Question[]
@@ -1616,7 +1617,7 @@ function QuestionAnalysisCard({
   )
 }
 
-export default function AnalysisDashboard({ studyId, parts, participants, questions, rows }: Props) {
+export default function AnalysisDashboard({ studyId, includePilotByDefault = false, parts, participants, questions, rows }: Props) {
   const answerQuestions = useMemo(
     () => questions.filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT'),
     [questions]
@@ -1626,7 +1627,7 @@ const [partId, setPartId] = useState('all')
   const [questionType, setQuestionType] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [includePilotData, setIncludePilotData] = useState(false)
+  const [includePilotData, setIncludePilotData] = useState(includePilotByDefault)
 
   const questionTypes = Array.from(new Set(answerQuestions.map((question) => question.type)))
   const pilotRowCount = useMemo(() => rows.filter((row) => row.isPilot).length, [rows])

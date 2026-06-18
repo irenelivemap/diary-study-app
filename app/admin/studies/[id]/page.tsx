@@ -39,8 +39,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
       },
       _count: { select: { entries: { where: { isPilot: false } } } },
       entries: {
-        where: { isPilot: false },
-        take: 6,
+        take: 20,
         include: {
           user: { select: { id: true, name: true, email: true } },
           part: { select: { id: true, name: true, order: true } },
@@ -51,6 +50,8 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   })
   if (!study) notFound()
 
+  const includePilotEntries = study.status === 'PREPARATION'
+  const visibleEntries = study.entries.filter((entry) => includePilotEntries || !entry.isPilot)
   const dayKeys = Array.from({ length: 7 }, (_, i) => {
     const date = new Date()
     date.setDate(date.getDate() - (6 - i))
@@ -60,17 +61,17 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   const [entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, invitedUsers] = await Promise.all([
     prisma.entry.groupBy({
       by: ['date'],
-      where: { studyId: id, isPilot: false, date: { in: dayKeys } },
+      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }), date: { in: dayKeys } },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId'],
-      where: { studyId: id, isPilot: false },
+      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId', 'partId'],
-      where: { studyId: id, isPilot: false },
+      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
       _count: { id: true },
     }),
     invitedEmails.length
@@ -90,6 +91,10 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   const entryCountByParticipantPart = new Map(
     entriesByParticipantPartRaw.map((entry) => [`${entry.userId}:${entry.partId}`, entry._count.id])
   )
+  const entryCountByPart = new Map<string, number>()
+  for (const entry of entriesByParticipantPartRaw) {
+    entryCountByPart.set(entry.partId, (entryCountByPart.get(entry.partId) ?? 0) + entry._count.id)
+  }
   const invitedUsersByEmail = new Map(invitedUsers.map((user) => [user.email.toLowerCase(), user]))
   const invitedUserIds = invitedEmails
     .map((email) => invitedUsersByEmail.get(email)?.id)
@@ -108,7 +113,7 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     started: invitedUserIds.filter((userId) => participantsWithEntries.has(userId)).length,
     completed: invitedUserIds.filter(participantCompletedStudy).length,
   }
-  const recentEntries = study.entries.slice(0, 6)
+  const recentEntries = visibleEntries.slice(0, 6)
   const reminderDiagnostic = buildReminderDiagnostic(study.remindersEnabled, study.reminderLogs)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
   const partNameById = new Map(study.parts.map((part) => [part.id, part.name]))
@@ -166,7 +171,9 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">Response trend</h2>
-                  <p className="mt-0.5 text-sm text-slate-500">Entries submitted over the last 7 days.</p>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    {includePilotEntries ? 'Pilot entries submitted over the last 7 days.' : 'Fieldwork entries submitted over the last 7 days.'}
+                  </p>
                 </div>
               </div>
               <div className="flex h-48 items-end gap-2">
@@ -208,8 +215,8 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
                       <p className="mt-1 text-sm text-slate-500">{part.questions.length} questions</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-slate-950">{part._count.entries}</p>
-                      <p className="text-xs text-slate-500">entries</p>
+                      <p className="text-lg font-bold text-slate-950">{entryCountByPart.get(part.id) ?? 0}</p>
+                      <p className="text-xs text-slate-500">{includePilotEntries ? 'pilot entries' : 'entries'}</p>
                     </div>
                   </div>
                 ))}

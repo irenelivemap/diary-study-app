@@ -348,6 +348,10 @@ test('simple reminder destination opens the entry form and saves an answer', asy
 
   await expect(page.getByText('Entry submitted')).toBeVisible()
   await expect(page.getByText(answer)).toBeVisible()
+
+  await loginAdminByCookie(page)
+  await page.goto(`/admin/studies/${study.id}/data`)
+  await expect(page.getByText(answer)).toBeVisible()
 })
 
 test('journey reminder destination opens the dashboard with stage choices', async ({ page }) => {

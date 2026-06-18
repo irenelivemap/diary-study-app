@@ -40,6 +40,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
     },
   })
   if (!study) notFound()
+  const includePilotByDefault = study.status === 'PREPARATION'
 
   // Flatten into a serialisable structure
   const allQuestions = study.parts.flatMap((p) =>
@@ -72,6 +73,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
           studyId={id}
           studyName={study.name}
           studyVersion={study.version}
+          includePilotByDefault={includePilotByDefault}
           parts={parts}
           participants={participants}
           questions={allQuestions}

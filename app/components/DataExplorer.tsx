@@ -23,6 +23,7 @@ type Props = {
   studyId: string
   studyName: string
   studyVersion: number
+  includePilotByDefault?: boolean
   parts: Part[]
   participants: Participant[]
   questions: Question[]
@@ -89,7 +90,7 @@ function formatSubmittedTime(value: string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function DataExplorer({ studyId, studyName, studyVersion, parts, participants, questions, rows }: Props) {
+export default function DataExplorer({ studyId, studyName, studyVersion, includePilotByDefault = false, parts, participants, questions, rows }: Props) {
   const answerQuestions = questions.filter((q) => q.type !== 'CONTENT')
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set(parts.map((p) => p.id)))
   const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set(participants.map((p) => p.id)))
@@ -100,7 +101,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, parts, 
   const [anonymize, setAnonymize] = useState(true)
   const [entryToDelete, setEntryToDelete] = useState<DatasetRow | null>(null)
   const [search, setSearch] = useState('')
-  const [includePilotData, setIncludePilotData] = useState(false)
+  const [includePilotData, setIncludePilotData] = useState(includePilotByDefault)
   const pilotRowCount = useMemo(() => countPilotRows(rows), [rows])
   const datasetRows = useMemo(
     () => filterDatasetRowsByPilot(rows, includePilotData),

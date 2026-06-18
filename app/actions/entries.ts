@@ -394,5 +394,10 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   }
 
   revalidatePath('/dashboard')
+  revalidatePath(`/admin/studies/${studyId}`)
+  revalidatePath(`/admin/studies/${studyId}/data`)
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
+  revalidatePath(`/admin/studies/${studyId}/participants`)
+  revalidatePath(`/admin/studies/${studyId}/participants/${session.userId}`)
   redirect(`/entry/${entry.id}`)
 }

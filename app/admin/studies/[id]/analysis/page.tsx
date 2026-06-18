@@ -42,6 +42,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
     },
   })
   if (!study) notFound()
+  const includePilotByDefault = study.status === 'PREPARATION'
 
   const questions = study.parts.flatMap((part) =>
     part.questions.map((question) => ({
@@ -111,6 +112,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
         <AnalysisDashboard
           studyId={id}
           studyName={study.name}
+          includePilotByDefault={includePilotByDefault}
           parts={parts}
           participants={participants}
           questions={questions}

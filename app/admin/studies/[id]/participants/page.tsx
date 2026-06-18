@@ -43,15 +43,16 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
   })
   if (!study) notFound()
 
+  const includePilotEntries = study.status === 'PREPARATION'
   const [entriesByPartAndUser, latestEntryByUser] = await Promise.all([
     prisma.entry.groupBy({
       by: ['partId', 'userId'],
-      where: { studyId: id, isPilot: false },
+      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId'],
-      where: { studyId: id, isPilot: false },
+      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
       _max: { date: true },
     }),
   ])
@@ -121,7 +122,9 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                     Participant progress
                     <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{study.participants.length}</span>
                   </h2>
-                  <p className="text-sm text-slate-500 mt-0.5">Participant status and entry counts by part.</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {includePilotEntries ? 'Pilot entry counts by part while the study is in preparation.' : 'Participant status and fieldwork entry counts by part.'}
+                  </p>
                 </div>
                 <ButtonLink href={`/admin/studies/${id}/data`} tone="secondary" size="sm">
                   Open responses
