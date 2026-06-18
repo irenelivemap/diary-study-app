@@ -81,7 +81,7 @@ function cleanTagIds(tagIds: string[]) {
   ).slice(0, 12)
 }
 
-export async function createQuestionTag(studyId: string, questionId: string, label: string, color = DEFAULT_TAG_COLOR) {
+export async function createQuestionTag(studyId: string, questionId: string, label: string, color = DEFAULT_TAG_COLOR, isTheme = false) {
   await requireAdmin()
 
   const question = await prisma.question.findFirst({
@@ -93,10 +93,16 @@ export async function createQuestionTag(studyId: string, questionId: string, lab
   const finalLabel = cleanLabel(label)
   if (!finalLabel) return { error: 'Tag label is required.' }
 
+  const lastTag = await prisma.questionTag.findFirst({
+    where: { questionId, parentId: null },
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true },
+  })
+
   const tag = await prisma.questionTag.upsert({
     where: { questionId_label: { questionId, label: finalLabel } },
-    update: { color: cleanColor(color) },
-    create: { questionId, label: finalLabel, color: cleanColor(color) },
+    update: { color: cleanColor(color), isTheme },
+    create: { questionId, label: finalLabel, color: cleanColor(color), isTheme, sortOrder: (lastTag?.sortOrder ?? -1000) + 1000 },
   })
 
   revalidatePath(`/admin/studies/${studyId}/analysis`)
@@ -362,6 +368,46 @@ export async function setTagParent(studyId: string, tagId: string, parentId: str
   })
 
   revalidatePath(`/admin/studies/${studyId}/analysis`)
+  return { success: true }
+}
+
+export async function reorderQuestionTags(studyId: string, questionId: string, orderedTagIds: string[], parentId: string | null) {
+  await requireAdmin()
+
+  const ids = cleanTagIds(orderedTagIds)
+  if (ids.length === 0) return { error: 'No tags to reorder.' }
+
+  const question = await prisma.question.findFirst({
+    where: { id: questionId, studyId, type: 'FREE_TEXT' },
+    select: { id: true },
+  })
+  if (!question) return { error: 'Question not found.' }
+
+  if (parentId !== null) {
+    const parent = await prisma.questionTag.findFirst({
+      where: { id: parentId, questionId },
+      select: { id: true, parentId: true },
+    })
+    if (!parent) return { error: 'Parent tag not found.' }
+    if (parent.parentId !== null) return { error: 'Only one level of nesting allowed. The parent tag must be a top-level theme.' }
+    if (ids.includes(parentId)) return { error: 'A tag cannot be its own parent.' }
+  }
+
+  const tags = await prisma.questionTag.findMany({
+    where: { id: { in: ids }, questionId },
+    select: { id: true },
+  })
+  if (tags.length !== ids.length) return { error: 'Some tags were not found.' }
+
+  await prisma.$transaction(
+    ids.map((id, index) => prisma.questionTag.update({
+      where: { id },
+      data: { parentId, sortOrder: index * 1000 },
+    }))
+  )
+
+  revalidatePath(`/admin/studies/${studyId}/analysis`)
+  revalidatePath(`/admin/studies/${studyId}/analysis/${questionId}/tag`)
   return { success: true }
 }
 

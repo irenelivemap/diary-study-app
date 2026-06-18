@@ -205,6 +205,8 @@ model QuestionTag {
   color       String   @default("#4f46e5")
   description String?
   parentId    String?
+  sortOrder   Int      @default(0)
+  isTheme     Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   question   Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)

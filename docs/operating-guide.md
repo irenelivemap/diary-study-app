@@ -87,6 +87,8 @@ For stricter production checking:
 CHECK_PRODUCTION_ENV=true npm run qa:env
 ```
 
+Security handoff notes, dependency audit expectations and AI data-handling guidance live in [`SECURITY.md`](../SECURITY.md).
+
 ## Database Migrations
 
 After deploying code that includes a new Prisma migration, run:
@@ -263,6 +265,11 @@ Use the least destructive action that solves the problem:
 - Remove participant: blocks future participation. Choose whether to keep or delete their existing data.
 - Delete entry: removes one submitted entry from data, analysis, participant counts and exports.
 - Uploaded answer files attached to deleted entries are also removed from Blob storage when storage is configured.
+
+Interface principle:
+
+- Repeated list rows should keep structural controls visible when they explain the row model, such as expand/collapse, selection checkboxes and drag handles. Prefer selected-item bulk actions over repeated row-level destructive icons; when selected-state actions multiply, collapse them into a single `Actions` menu and keep destructive actions behind confirmation.
+- Drag-and-drop lists must follow the shared pattern in `DESIGN.md`: subtle dedicated handles, clear insertion lines, target-container feedback, post-drop highlight, keyboard reordering and section-local confirmations.
 
 ## Retention And Deletion Policy
 
