@@ -20,7 +20,13 @@ A reusable web platform for running diary studies. Researchers create studies wi
 
 ### 2. Configure environment
 
-Edit `.env`:
+Copy the example file and edit `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Minimum local values:
 
 ```bash
 DATABASE_URL="postgresql://user:password@host:5432/diary_study"
@@ -44,11 +50,19 @@ NEXT_PUBLIC_APP_URL="https://your-deployed-app.com"
 
 ### 3. Run database migrations
 
+For local development:
+
 ```bash
-npm run db:push   # apply schema (fast, no migration history)
-# or
-npm run db:migrate  # generate migration files (recommended for production)
+npm run db:migrate
 ```
+
+For production deployments, run checked-in migrations:
+
+```bash
+npx prisma migrate deploy
+```
+
+Do not use `prisma db push` against production. It bypasses migration history and makes schema changes harder to review or roll back.
 
 ### 4. Create your admin account
 
@@ -71,8 +85,13 @@ Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to 
 3. Add environment variables in the Vercel dashboard:
    - `DATABASE_URL` — your Neon/Supabase connection string
    - `SESSION_SECRET` — `openssl rand -base64 32`
+   - `NEXT_PUBLIC_APP_URL` — your stable production URL
+   - `CRON_SECRET` — `openssl rand -base64 32`, used to protect reminder cron calls
    - `BLOB_READ_WRITE_TOKEN` — from Vercel Blob (Storage tab)
-4. Deploy — migrations run automatically if you add `npm run db:push` as a build step
+   - `RESEND_API_KEY` and `EMAIL_FROM` — required for invitation/reminder emails
+   - `ANTHROPIC_API_KEY` — required for AI tagging/grouping when `AI_PROVIDER=anthropic`
+4. Deploy.
+5. Run database migrations with `npx prisma migrate deploy` as part of the deployment process or immediately after deploy.
 
 ## Running a study
 
@@ -88,11 +107,21 @@ Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to 
 - Follow the full operating checklist in [`docs/operating-guide.md`](docs/operating-guide.md).
 - Use HTTPS in production.
 - Generate a strong `SESSION_SECRET` and never reuse the development placeholder.
+- Generate a separate strong `CRON_SECRET` for reminder automation.
 - Verify your email sending domain before relying on reminders.
 - Set `NEXT_PUBLIC_APP_URL` to the deployed app URL so reminder links point to the right place.
+- Decide whether AI-assisted analysis is approved for participant data before enabling `ANTHROPIC_API_KEY`.
 - Confirm consent text, contact email, active parts, and preview flow before inviting participants.
 - Export a test CSV and confirm it contains the columns you need.
 - Keep database backups enabled in your hosting provider.
+
+## AI-assisted analysis and participant data
+
+The analysis tag lab can use AI to suggest answer tags and group tags into themes. By default this uses Anthropic when `AI_PROVIDER` is unset or set to `anthropic`.
+
+That means free-text participant answers and existing tag labels may be sent to Anthropic during AI tagging/grouping. Confirm this is acceptable under your company privacy, consent and data-processing rules before using the feature with real participant data.
+
+For local experimentation, developers can set `AI_PROVIDER=ollama` to use a local OpenAI-compatible Ollama endpoint instead.
 
 ## Smoke checks
 

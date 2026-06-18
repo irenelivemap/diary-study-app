@@ -15,7 +15,7 @@ export default async function TaggingPage({ params }: { params: Promise<{ id: st
   const [question, study] = await Promise.all([
     prisma.question.findFirst({
       where: { id: questionId, studyId: id },
-      include: { tagDefinitions: { orderBy: { label: 'asc' } } },
+      include: { tagDefinitions: { orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] } },
     }),
     prisma.study.findUnique({
       where: { id },
@@ -46,6 +46,8 @@ export default async function TaggingPage({ params }: { params: Promise<{ id: st
     color: tag.color,
     parentId: tag.parentId ?? null,
     description: tag.description ?? null,
+    sortOrder: tag.sortOrder,
+    isTheme: tag.isTheme,
   }))
 
   const answers = entries.flatMap((entry) => {

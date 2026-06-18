@@ -2,12 +2,24 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
-import type { DragEndEvent } from '@dnd-kit/core'
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 import {
   consolidateTagsWithAI,
   createQuestionTag,
   deleteQuestionTag,
+  reorderQuestionTags,
   setTagParent,
   suggestTagsBatchWithAI,
   suggestThemeName,
@@ -26,6 +38,8 @@ type TagDefinition = {
   color: string
   parentId: string | null
   description: string | null
+  sortOrder: number
+  isTheme: boolean
 }
 
 type Answer = {
@@ -40,10 +54,14 @@ type Answer = {
 }
 
 type AnswerSortBy = 'newest' | 'oldest' | 'name-az' | 'longest' | 'shortest'
+type InsertionIndicator = { tagId: string; position: 'before' | 'after' } | null
+type SaveNotice = { tone: 'success' | 'error'; message: string } | null
+type FilterOption = { value: string; label: string; color?: string }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_COLORS = ['#4f46e5', '#0d9488', '#d97706', '#7c3aed', '#e11d48', '#0891b2']
+const UNTAGGED_FILTER = '__without_tags__'
 
 function readableTextColor(hex: string) {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#0f172a'
@@ -57,6 +75,18 @@ function normalizeLabel(label: string) {
   return label.trim().replace(/\s+/g, ' ').slice(0, 40)
 }
 
+function sortTags(tags: TagDefinition[]) {
+  return [...tags].sort((a, b) => (a.sortOrder - b.sortOrder) || a.label.localeCompare(b.label))
+}
+
+function tagGroup(tags: TagDefinition[], parentId: string | null) {
+  return sortTags(tags.filter((tag) => tag.parentId === parentId))
+}
+
+function isThemeTag(tag: TagDefinition) {
+  return tag.isTheme
+}
+
 function formatDate(iso: string) {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return iso
@@ -68,6 +98,102 @@ function ChevronIcon({ open }: { open: boolean }) {
     <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M4 2l4 4-4 4" />
     </svg>
+  )
+}
+
+function MultiSelectMenu({
+  values,
+  options,
+  placeholder,
+  onToggle,
+  onClear,
+  buttonClassName = '',
+}: {
+  values: string[]
+  options: FilterOption[]
+  placeholder: string
+  onToggle: (value: string) => void
+  onClear: () => void
+  buttonClassName?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const valueSet = useMemo(() => new Set(values), [values])
+  const selectedOptions = options.filter((option) => valueSet.has(option.value))
+  const label = selectedOptions.length === 0
+    ? placeholder
+    : selectedOptions.length === 1
+      ? selectedOptions[0].label
+      : `${selectedOptions.length} filters selected`
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setOpen(false)
+        }}
+        className={`interactive-press flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-[var(--bg-sunken)] px-3 text-left text-sm text-[var(--text)] ${
+          open ? 'border-[var(--accent)] bg-white ring-2 ring-[var(--accent-ring)]' : 'border-[var(--border-strong)] hover:bg-white'
+        } ${buttonClassName}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="truncate">{label}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className={`shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div role="listbox" aria-multiselectable="true" className="control-menu absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto p-1">
+          {values.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="mb-1 flex min-h-9 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]"
+            >
+              Clear filters
+            </button>
+          )}
+          {options.map((option) => {
+            const selected = valueSet.has(option.value)
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => onToggle(option.value)}
+                className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                  selected
+                    ? 'bg-[var(--accent-subtle)] font-semibold text-[var(--accent-active)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'
+                }`}
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-[var(--accent)] bg-[var(--accent)] text-white' : 'border-[var(--border-strong)] bg-white'}`}>
+                  {selected && (
+                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M2.5 6.2 4.8 8.5 9.5 3.5" />
+                    </svg>
+                  )}
+                </span>
+                {option.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />}
+                <span className="truncate">{option.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -134,8 +260,7 @@ function TagAutocomplete({
 
   // Only show leaf tags (sub-tags and standalone) in the autocomplete — not themes
   const leafTags = useMemo(() => tags.filter((t) => {
-    const isTheme = t.parentId === null && tags.some((c) => c.parentId === t.id)
-    return !isTheme
+    return !isThemeTag(t)
   }), [tags])
 
   const suggestions = useMemo(() => {
@@ -235,6 +360,7 @@ type ProposedTheme = {
   name: string
   description: string
   tagIds: string[]
+  color: string
 }
 
 function AIProposalPanel({
@@ -290,7 +416,7 @@ function AIProposalPanel({
     const result = await suggestThemeName(labels)
     setSuggestingId(null)
     if ('name' in result && result.name) {
-      setThemes((prev) => prev.map((t) => t.tempId === theme.tempId ? {
+    setThemes((prev) => prev.map((t) => t.tempId === theme.tempId ? {
         ...t,
         name: result.name,
         description: result.description ?? t.description,
@@ -312,11 +438,12 @@ function AIProposalPanel({
         </p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {themes.map((theme) => (
-          <div key={theme.tempId} className="rounded-lg border border-[var(--border)] bg-white p-4 space-y-3">
+          <div key={theme.tempId} className="overflow-hidden rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--shadow-sm)]">
             {/* Theme name row */}
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-3 border-l-4 bg-white px-4 py-3.5" style={{ borderLeftColor: theme.color }}>
+              <span className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded-md ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
               {renamingId === theme.tempId ? (
                 <input
                   autoFocus
@@ -326,18 +453,19 @@ function AIProposalPanel({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === 'Escape') setRenamingId(null)
                   }}
-                  className="flex-1 rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm font-semibold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+                  className="flex-1 rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setRenamingId(theme.tempId)}
-                  className="flex-1 text-left text-sm font-semibold text-[var(--text)] hover:text-[var(--text-link)]"
+                  className="flex-1 text-left text-[15px] font-bold leading-snug text-[var(--text)] hover:text-[var(--text-link)]"
                   title="Click to rename"
                 >
                   {theme.name || <span className="text-[var(--text-tertiary)] italic">Unnamed theme</span>}
                 </button>
               )}
+              <span className="mt-1 shrink-0 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{theme.tagIds.length} tag{theme.tagIds.length !== 1 ? 's' : ''}</span>
               <Button
                 tone="secondary"
                 size="sm"
@@ -357,56 +485,54 @@ function AIProposalPanel({
               </Button>
             </div>
 
-            {/* Description */}
-            {editingDescId === theme.tempId ? (
-              <textarea
-                autoFocus
-                value={theme.description}
-                onChange={(e) => updateDesc(theme.tempId, e.target.value)}
-                onBlur={() => setEditingDescId(null)}
-                rows={2}
-                className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1.5 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setEditingDescId(theme.tempId)}
-                className="w-full text-left text-sm text-[var(--text-secondary)] hover:text-[var(--text)] italic"
-                title="Click to edit description"
-              >
-                {theme.description || <span className="text-[var(--text-tertiary)] not-italic">Add description…</span>}
-              </button>
-            )}
+            <div className="space-y-3 bg-[var(--bg-sunken)] px-4 py-3">
+              {/* Description */}
+              {editingDescId === theme.tempId ? (
+                <textarea
+                  autoFocus
+                  value={theme.description}
+                  onChange={(e) => updateDesc(theme.tempId, e.target.value)}
+                  onBlur={() => setEditingDescId(null)}
+                  rows={2}
+                  className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1.5 text-sm text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingDescId(theme.tempId)}
+                  className="w-full text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text)] italic"
+                  title="Click to edit description"
+                >
+                  {theme.description || <span className="text-[var(--text-tertiary)] not-italic">Add description…</span>}
+                </button>
+              )}
 
-            {/* Sub-tag chips */}
-            <div className="flex flex-wrap gap-2">
-              {theme.tagIds.map((tagId) => {
-                const tag = tagById.get(tagId)
-                if (!tag) return null
-                return (
-                  <span
-                    key={tagId}
-                    className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-sunken)] border border-[var(--border)] px-2.5 py-0.5 text-sm text-[var(--text-secondary)]"
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.color }} />
-                    {tag.label}
-                    <button
-                      type="button"
-                      onClick={() => removeSubTag(theme.tempId, tagId)}
-                      aria-label={`Remove ${tag.label} from theme`}
-                      className="ml-0.5 rounded-full p-0.5 opacity-50 hover:opacity-100"
-                    >
-                      <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-                        <path d="M4 4l8 8M12 4l-8 8" />
-                      </svg>
-                    </button>
-                  </span>
-                )
-              })}
-            </div>
+              {/* Sub-tags */}
+              <div className="divide-y divide-[var(--border-subtle)]">
+                {theme.tagIds.map((tagId) => {
+                  const tag = tagById.get(tagId)
+                  if (!tag) return null
+                  return (
+                    <div key={tagId} className="flex items-center gap-3 py-2.5">
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ backgroundColor: tag.color }} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text)]">{tag.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeSubTag(theme.tempId, tagId)}
+                        aria-label={`Remove ${tag.label} from theme`}
+                        className="rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--danger-text)]"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                          <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
 
-            {/* Comments for this theme */}
-            {(() => {
+              {/* Comments for this theme */}
+              {(() => {
               const themeTagSet = new Set(theme.tagIds)
               const related = answers.filter((a) =>
                 (tagIdsByAnswer[a.answerId] ?? []).some((tid) => themeTagSet.has(tid))
@@ -445,21 +571,22 @@ function AIProposalPanel({
                   )}
                 </div>
               )
-            })()}
+              })()}
 
-            {/* Add existing unassigned tag */}
-            {unassignedTagIds.length > 0 && (
-              <SelectMenu
-                value=""
-                options={[
-                  { value: '', label: '+ Add existing tag to this theme' },
-                  ...unassignedTagIds.map((id) => ({ value: id, label: tagById.get(id)?.label ?? id })),
-                ]}
-                onChange={(v) => { if (v) addTagToTheme(theme.tempId, v) }}
-                buttonClassName="h-8 text-sm"
-                className="w-64"
-              />
-            )}
+              {/* Add existing unassigned tag */}
+              {unassignedTagIds.length > 0 && (
+                <SelectMenu
+                  value=""
+                  options={[
+                    { value: '', label: '+ Add existing tag to this theme' },
+                    ...unassignedTagIds.map((id) => ({ value: id, label: tagById.get(id)?.label ?? id })),
+                  ]}
+                  onChange={(v) => { if (v) addTagToTheme(theme.tempId, v) }}
+                  buttonClassName="h-8 text-sm bg-white"
+                  className="w-64"
+                />
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -527,14 +654,15 @@ type ManageCtxType = {
   setDescValue: (v: string) => void
   setEditingDescId: (id: string | null) => void
   commitDesc: (id: string) => Promise<void>
-  confirmDeleteId: string | null
-  setConfirmDeleteId: (id: string | null) => void
-  onDelete: (id: string, mode?: 'keep-subtags' | 'delete-all') => void
   onRename: (id: string, label: string, color: string) => void
   startRename: (tag: TagDefinition) => void
   startEditDesc: (tag: TagDefinition) => void
   expandedTagIds: Set<string>
   toggleTagExpand: (id: string) => void
+  insertionIndicator: InsertionIndicator
+  activeDragIds: string[]
+  landedTagIds: Set<string>
+  onKeyboardReorder: (tagId: string, direction: 'up' | 'down') => void
 }
 
 const ManageCtx = createContext<ManageCtxType | null>(null)
@@ -554,10 +682,23 @@ function GripIcon() {
   )
 }
 
-function ThemeDropZone({ themeId, children }: { themeId: string; children: React.ReactNode }) {
+function ThemeDropZone({ themeId, themeLabel, active, children }: { themeId: string; themeLabel: string; active: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `theme-${themeId}` })
   return (
-    <div ref={setNodeRef} className={`transition-colors rounded-b-lg ${isOver ? 'bg-[var(--accent-subtle)] ring-2 ring-inset ring-[var(--accent-muted)]' : ''}`}>
+    <div ref={setNodeRef} className={`relative rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--shadow-sm)] transition-colors ${isOver || active ? 'bg-[var(--accent-subtle)] ring-2 ring-inset ring-[var(--accent-muted)]' : ''}`}>
+      {(isOver || active) && (
+        <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-md border border-[var(--accent-muted)] bg-white px-2 py-1 text-xs font-semibold text-[var(--text-link)] shadow-[var(--shadow-sm)]">
+          Move to {themeLabel}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+function ThemeChildren({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-b-xl bg-[var(--bg-sunken)] px-4 py-1">
       {children}
     </div>
   )
@@ -566,7 +707,12 @@ function ThemeDropZone({ themeId, children }: { themeId: string; children: React
 function UngroupedDropZone({ children }: { children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'ungrouped' })
   return (
-    <div ref={setNodeRef} className={`transition-colors rounded-b-xl ${isOver ? 'bg-[var(--accent-subtle)] ring-2 ring-inset ring-[var(--accent-muted)]' : ''}`}>
+    <div ref={setNodeRef} className={`relative space-y-2 transition-colors ${isOver ? 'rounded-xl bg-[var(--accent-subtle)] ring-2 ring-inset ring-[var(--accent-muted)]' : ''}`}>
+      {isOver && (
+        <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-md border border-[var(--accent-muted)] bg-white px-2 py-1 text-xs font-semibold text-[var(--text-link)] shadow-[var(--shadow-sm)]">
+          Move back to tags
+        </div>
+      )}
       {children}
     </div>
   )
@@ -574,52 +720,71 @@ function UngroupedDropZone({ children }: { children: React.ReactNode }) {
 
 function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean }) {
   const ctx = useManageCtx()
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `tag-${tag.id}` })
-
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
-    : undefined
+  const [showDragHandle, setShowDragHandle] = useState(false)
+  const { attributes, listeners, setNodeRef: setDraggableNodeRef, isDragging } = useDraggable({ id: `tag-${tag.id}` })
+  const { setNodeRef: setDroppableNodeRef } = useDroppable({ id: `row-${tag.id}` })
+  const setRowRef = (node: HTMLDivElement | null) => {
+    setDraggableNodeRef(node)
+    setDroppableNodeRef(node)
+  }
 
   const isRenaming = ctx.renamingId === tag.id
   const isEditingDesc = ctx.editingDescId === tag.id
-  const isConfirmingDelete = ctx.confirmDeleteId === tag.id
   const count = ctx.tagCounts.get(tag.id) ?? 0
+  const insertionPosition = ctx.insertionIndicator?.tagId === tag.id ? ctx.insertionIndicator.position : null
+  const isPartOfDrag = ctx.activeDragIds.includes(tag.id)
+  const isLanding = ctx.landedTagIds.has(tag.id)
+  const isExpanded = ctx.expandedTagIds.has(tag.id)
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className={`group flex items-center gap-3 px-4 py-3 ${isDragging ? 'opacity-40' : ''} ${isIndented ? 'pl-10 border-l-2 border-[var(--border-subtle)] ml-4' : ''}`}
+      onMouseEnter={() => setShowDragHandle(true)}
+      onMouseLeave={() => setShowDragHandle(false)}
+      className={`group relative ${isIndented ? '' : 'lg:-ml-11 lg:pl-11'}`}
     >
-      {/* Expand chevron — mirrors theme row; click to show/hide answers */}
-      <button
-        type="button"
-        onClick={() => ctx.toggleTagExpand(tag.id)}
-        aria-label={ctx.expandedTagIds.has(tag.id) ? 'Collapse answers' : 'Expand answers'}
-        className="shrink-0 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text)]"
+      {insertionPosition && (
+        <div
+          className={`pointer-events-none absolute left-0 right-0 z-20 lg:right-0 ${isIndented ? 'lg:left-0' : 'lg:left-11'} ${insertionPosition === 'before' ? '-top-1.5' : '-bottom-1.5'}`}
+          aria-hidden
+        >
+          <div className="h-1 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_var(--accent-subtle)]" />
+        </div>
+      )}
+      <div
+        ref={setRowRef}
+        className={`flex items-center gap-3 transition-[background-color,border-color,box-shadow,opacity] duration-200 ${isIndented ? `border-b border-[var(--border-subtle)] px-0 py-2.5 ${isLanding ? 'bg-[var(--accent-subtle)] shadow-[inset_0_0_0_1px_var(--accent-muted)]' : 'bg-transparent'}` : `rounded-xl border px-4 py-3 ${isLanding ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] shadow-[inset_0_0_0_1px_var(--accent-muted)]' : 'border-[var(--border)] bg-white'}`} ${isDragging || isPartOfDrag ? 'opacity-40' : ''}`}
       >
-        <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${ctx.expandedTagIds.has(tag.id) ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
-      </button>
-
-      {/* Drag handle — reveals on hover */}
+      {/* Drag handle — always visible because moving tags is a primary organizing action */}
       <button
         type="button"
         {...attributes}
         {...listeners}
-        title="Drag to move to a theme"
-        className="shrink-0 cursor-grab touch-none text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-        aria-label={`Drag ${tag.label} to a theme`}
+        title="Drag topic. Use Alt+Up or Alt+Down to reorder with the keyboard."
+        onKeyDown={(event) => {
+          if (!event.altKey) return
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            ctx.onKeyboardReorder(tag.id, 'up')
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            ctx.onKeyboardReorder(tag.id, 'down')
+          }
+        }}
+        className={`inline-flex h-8 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg border border-transparent bg-transparent text-[var(--text-tertiary)] shadow-none transition-colors hover:border-[var(--border)] hover:bg-white hover:text-[var(--text)] hover:opacity-100 focus-visible:border-[var(--border-focus)] focus-visible:bg-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] active:cursor-grabbing ${isIndented ? '' : 'lg:absolute lg:left-1.5 lg:top-1/2 lg:z-10 lg:-translate-y-1/2'} ${ctx.activeDragIds.length === 0 ? 'group-hover:opacity-60' : ''} ${isPartOfDrag || (showDragHandle && ctx.activeDragIds.length === 0) ? 'opacity-60' : 'opacity-0'}`}
+        aria-label={`Drag ${tag.label}`}
+        aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       >
         <GripIcon />
       </button>
 
-      {/* Selection checkbox — hidden until hovered or something is already selected */}
+      {/* Selection checkbox — always visible because deletion and bulk actions use selection */}
       <input
         type="checkbox"
         checked={ctx.selectedTagIds.has(tag.id)}
         onChange={() => ctx.toggleSelect(tag.id)}
         aria-label={`Select ${tag.label}`}
-        className={`h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)] transition-opacity ${ctx.selectedTagIds.size > 0 || ctx.selectedTagIds.has(tag.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+        className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
       />
 
       {/* Color dot */}
@@ -651,59 +816,45 @@ function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: boolean 
             <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
           </button>
         )}
-        {isEditingDesc ? (
-          <textarea
-            autoFocus
-            value={ctx.descValue}
-            onChange={(e) => ctx.setDescValue(e.target.value)}
-            onBlur={() => void ctx.commitDesc(tag.id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ctx.commitDesc(tag.id) }
-              if (e.key === 'Escape') { ctx.setEditingDescId(null) }
-            }}
-            rows={2}
-            placeholder="Add description…"
-            className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => ctx.startEditDesc(tag)}
-            className="group/desc inline-flex items-center gap-1 text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text)] italic"
-          >
-            {tag.description || <span className="not-italic opacity-50">Add description…</span>}
-            <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/desc:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
-          </button>
+        {isExpanded && (
+          isEditingDesc ? (
+            <textarea
+              autoFocus
+              value={ctx.descValue}
+              onChange={(e) => ctx.setDescValue(e.target.value)}
+              onBlur={() => void ctx.commitDesc(tag.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ctx.commitDesc(tag.id) }
+                if (e.key === 'Escape') { ctx.setEditingDescId(null) }
+              }}
+              rows={2}
+              placeholder="Add description…"
+              className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => ctx.startEditDesc(tag)}
+              className="group/desc inline-flex items-center gap-1 text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text)] italic"
+            >
+              {tag.description || <span className="not-italic opacity-50">Add description…</span>}
+              <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/desc:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
+            </button>
+          )
         )}
       </div>
 
-      <span className="shrink-0 text-xs tabular-nums text-[var(--text-tertiary)] whitespace-nowrap">
+      <button
+        type="button"
+        onClick={() => ctx.toggleTagExpand(tag.id)}
+        className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs tabular-nums transition-colors ${isExpanded ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-transparent text-[var(--text-tertiary)] hover:border-[var(--border)] hover:bg-white hover:text-[var(--text)]'}`}
+        aria-label={isExpanded ? `Collapse answers for ${tag.label}` : `Expand answers for ${tag.label}`}
+      >
+        <svg viewBox="0 0 12 12" className={`h-3 w-3 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 2l4 4-4 4" /></svg>
         {count} {count === 1 ? 'answer' : 'answers'}
-      </span>
+      </button>
 
-      {isConfirmingDelete ? (
-        <div className="flex shrink-0 items-center gap-2">
-          {ctx.tagDefinitions.some((c) => c.parentId === tag.id) ? (
-            <>
-              <Button tone="secondary" size="sm" onClick={() => { ctx.onDelete(tag.id, 'keep-subtags'); ctx.setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Keep sub-tags</Button>
-              <Button tone="danger" size="sm" onClick={() => { ctx.onDelete(tag.id, 'delete-all'); ctx.setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Delete all</Button>
-            </>
-          ) : (
-            <Button tone="danger" size="sm" onClick={() => { ctx.onDelete(tag.id); ctx.setConfirmDeleteId(null) }}>Delete</Button>
-          )}
-          <Button tone="secondary" size="sm" onClick={() => ctx.setConfirmDeleteId(null)}>Cancel</Button>
-        </div>
-      ) : (
-        <IconButton
-          tone="trash"
-          label={`Delete ${tag.label}`}
-          onClick={() => count > 0 || ctx.tagDefinitions.some((c) => c.parentId === tag.id) ? ctx.setConfirmDeleteId(tag.id) : ctx.onDelete(tag.id)}
-          disabled={ctx.savingTagId === tag.id}
-          className="h-8 w-8 shrink-0"
-        >
-          <TrashIcon />
-        </IconButton>
-      )}
+      </div>
     </div>
   )
 }
@@ -733,6 +884,7 @@ function AnalysisWorkspace({
   onDelete,
   onCreate,
   onMoveToTheme,
+  onReorderTags,
   onUpdateDescription,
 }: {
   studyId: string
@@ -748,46 +900,61 @@ function AnalysisWorkspace({
   batchSummary: { total: number; tagsApplied: number; firstError?: string } | null
   batchMode: 'apply' | 'explore'
   setBatchMode: (m: 'apply' | 'explore') => void
-  onRunBatch: () => void
+  onRunBatch: (answerIds: string[], modeOverride?: 'apply' | 'explore') => void
   onClearBatchSummary: () => void
   onApply: (answerId: string, tagId: string) => void
   onCreateAndApply: (answerId: string, label: string) => void
   onRemove: (answerId: string, tagId: string) => void
   onRename: (tagId: string, label: string, color: string) => void
   onDelete: (tagId: string, mode?: 'keep-subtags' | 'delete-all') => void
-  onCreate: (label: string, color: string) => Promise<TagDefinition | null>
+  onCreate: (label: string, color: string, isTheme?: boolean) => Promise<TagDefinition | null>
   onMoveToTheme: (tagId: string, parentId: string | null) => Promise<void>
+  onReorderTags: (orderedTagIds: string[], parentId: string | null) => Promise<boolean>
   onUpdateDescription: (tagId: string, description: string) => Promise<void>
 }) {
   const [newLabel, setNewLabel] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_COLORS[0])
+  const [newThemeLabel, setNewThemeLabel] = useState('')
+  const [newThemeColor, setNewThemeColor] = useState(DEFAULT_COLORS[1])
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editingDescId, setEditingDescId] = useState<string | null>(null)
   const [descValue, setDescValue] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [consolidating, setConsolidating] = useState(false)
-  const [confirmClearThemes, setConfirmClearThemes] = useState(false)
   const [aiProposal, setAiProposal] = useState<ProposedTheme[] | null>(null)
   const [aiProposalScope, setAiProposalScope] = useState<Set<string>>(new Set())
   const [aiError, setAiError] = useState<string | null>(null)
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
+  const [selectedThemeIds, setSelectedThemeIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<'idle' | 'confirm-delete' | 'grouping'>('idle')
+  const [themeBulkAction, setThemeBulkAction] = useState<'idle' | 'confirm-delete'>('idle')
   const [groupName, setGroupName] = useState('')
   const [namingSuggesting, setNamingSuggesting] = useState(false)
   const [expandedTagIds, setExpandedTagIds] = useState<Set<string>>(new Set())
   const [expandedThemeIds, setExpandedThemeIds] = useState<Set<string>>(new Set())
-  const [ungroupedOpen, setUngroupedOpen] = useState(true)
+  const [insertionIndicator, setInsertionIndicator] = useState<InsertionIndicator>(null)
+  const [themeDropTargetId, setThemeDropTargetId] = useState<string | null>(null)
+  const [saveNotice, setSaveNotice] = useState<SaveNotice>(null)
+  const [landedTagIds, setLandedTagIds] = useState<Set<string>>(new Set())
   const [untaggedVisibleCount, setUntaggedVisibleCount] = useState(15)
-  const [aiTagOpen, setAiTagOpen] = useState(false)
   const [answerSearch, setAnswerSearch] = useState('')
   const [answerSort, setAnswerSort] = useState<AnswerSortBy>('newest')
-  const [filterTag, setFilterTag] = useState<string>('')
-  const [filterParticipant, setFilterParticipant] = useState<string>('')
+  const [filterTagIds, setFilterTagIds] = useState<string[]>([])
+  const [filterParticipants, setFilterParticipants] = useState<string[]>([])
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
   const [selectedAnswerIds, setSelectedAnswerIds] = useState<Set<string>>(new Set())
   const [activeTagId, setActiveTagId] = useState<string | null>(null)
+  const [activeDragIds, setActiveDragIds] = useState<string[]>([])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor)
+  )
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args)
+    return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
+  }
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -796,17 +963,54 @@ function AnalysisWorkspace({
     }
     return counts
   }, [tagIdsByAnswer])
-  const themes = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
-  const ungroupedTags = useMemo(() => tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
-  const untaggedAnswers = useMemo(() => answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0), [answers, tagIdsByAnswer])
-  const leafTagsForApply = useMemo(() => tagDefinitions.filter((t) => t.parentId !== null || !tagDefinitions.some((c) => c.parentId === t.id)), [tagDefinitions])
+  const themes = useMemo(() => sortTags(tagDefinitions.filter((t) => isThemeTag(t))), [tagDefinitions])
+  const ungroupedTags = useMemo(() => sortTags(tagDefinitions.filter((t) => t.parentId === null && !isThemeTag(t))), [tagDefinitions])
+  const topicTags = useMemo(() => sortTags(tagDefinitions.filter((t) => !isThemeTag(t))), [tagDefinitions])
+  const leafTagsForApply = useMemo(() => tagDefinitions.filter((t) => !isThemeTag(t)), [tagDefinitions])
   const uniqueParticipants = useMemo(() => [...new Set(answers.map((a) => a.participantName))].sort(), [answers])
+  const participantFilterOptions = useMemo<FilterOption[]>(
+    () => uniqueParticipants.map((name) => ({ value: name, label: name })),
+    [uniqueParticipants]
+  )
+  const answerTagFilterOptions = useMemo<FilterOption[]>(() => [
+    { value: UNTAGGED_FILTER, label: 'Without tags' },
+    ...themes.flatMap((theme) =>
+      tagDefinitions
+        .filter((tag) => tag.parentId === theme.id)
+        .map((tag) => ({ value: tag.id, label: `${theme.label} › ${tag.label}`, color: tag.color }))
+    ),
+    ...ungroupedTags.map((tag) => ({ value: tag.id, label: tag.label, color: tag.color })),
+  ], [themes, tagDefinitions, ungroupedTags])
+  const answerTagFilterSet = useMemo(() => new Set(filterTagIds), [filterTagIds])
+  const selectedAnswerTagFilters = useMemo(
+    () => answerTagFilterOptions.filter((option) => answerTagFilterSet.has(option.value)),
+    [answerTagFilterOptions, answerTagFilterSet]
+  )
+  const participantSummary = useMemo(() => {
+    if (filterParticipants.length === 0) return ''
+    if (filterParticipants.length === 1) return filterParticipants[0].split(' ')[0]
+    return `${filterParticipants.length} participants`
+  }, [filterParticipants])
+  const answerListTitle = useMemo(() => {
+    if (selectedAnswerTagFilters.length === 0) return 'All answers'
+    if (selectedAnswerTagFilters.length === 1) return selectedAnswerTagFilters[0].label
+    return `${selectedAnswerTagFilters.length} filters`
+  }, [selectedAnswerTagFilters])
 
   const displayedAnswers = useMemo(() => {
     let base = answers
-    if (filterTag === 'untagged') base = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
-    else if (filterTag) base = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(filterTag))
-    if (filterParticipant) base = base.filter((a) => a.participantName === filterParticipant)
+    if (filterTagIds.length > 0) {
+      const selectedFilters = new Set(filterTagIds)
+      base = answers.filter((a) => {
+        const answerTagIds = tagIdsByAnswer[a.answerId] ?? []
+        if (selectedFilters.has(UNTAGGED_FILTER) && answerTagIds.length === 0) return true
+        return answerTagIds.some((id) => selectedFilters.has(id))
+      })
+    }
+    if (filterParticipants.length > 0) {
+      const selectedParticipants = new Set(filterParticipants)
+      base = base.filter((a) => selectedParticipants.has(a.participantName))
+    }
     const search = answerSearch.trim().toLowerCase()
     const filtered = search ? base.filter((a) => a.answer.toLowerCase().includes(search) || a.participantName.toLowerCase().includes(search)) : base
     return [...filtered].sort((a, b) => {
@@ -816,7 +1020,30 @@ function AnalysisWorkspace({
       if (answerSort === 'shortest') return a.answer.length - b.answer.length
       return a.participantName.localeCompare(b.participantName)
     })
-  }, [answers, tagIdsByAnswer, filterTag, filterParticipant, answerSearch, answerSort])
+  }, [answers, tagIdsByAnswer, filterTagIds, filterParticipants, answerSearch, answerSort])
+
+  const aiTagTargetIds = useMemo(
+    () => selectedAnswerIds.size > 0 ? Array.from(selectedAnswerIds) : displayedAnswers.map((answer) => answer.answerId),
+    [displayedAnswers, selectedAnswerIds]
+  )
+  const leafTagCount = leafTagsForApply.length
+  const selectedTopicIds = useMemo(() => topicTags.filter((tag) => selectedTagIds.has(tag.id)).map((tag) => tag.id), [selectedTagIds, topicTags])
+  const allTopicsSelected = topicTags.length > 0 && topicTags.every((tag) => selectedTagIds.has(tag.id))
+  const someTopicsSelected = topicTags.some((tag) => selectedTagIds.has(tag.id))
+  const allThemesSelected = themes.length > 0 && themes.every((theme) => selectedThemeIds.has(theme.id))
+  const someThemesSelected = themes.some((theme) => selectedThemeIds.has(theme.id))
+
+  useEffect(() => {
+    if (!saveNotice) return
+    const timeout = window.setTimeout(() => setSaveNotice(null), 3200)
+    return () => window.clearTimeout(timeout)
+  }, [saveNotice])
+
+  useEffect(() => {
+    if (landedTagIds.size === 0) return
+    const timeout = window.setTimeout(() => setLandedTagIds(new Set()), 1800)
+    return () => window.clearTimeout(timeout)
+  }, [landedTagIds])
 
   function toggleTagExpand(id: string) {
     setExpandedTagIds((prev) => {
@@ -834,25 +1061,6 @@ function AnalysisWorkspace({
       return next
     })
   }
-  function expandAll() {
-    setExpandedThemeIds(new Set(themes.map((t) => t.id)))
-    setExpandedTagIds(new Set(tagDefinitions.filter((t) => {
-      const isTheme = t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)
-      return !isTheme
-    }).map((t) => t.id)))
-    setUngroupedOpen(true)
-  }
-  function collapseAll() {
-    setExpandedThemeIds(new Set())
-    setExpandedTagIds(new Set())
-    setUngroupedOpen(false)
-  }
-  const allExpanded = themes.every((t) => expandedThemeIds.has(t.id)) &&
-    tagDefinitions.filter((t) => {
-      const isTheme = t.parentId === null && tagDefinitions.some((c) => c.parentId === t.id)
-      return !isTheme
-    }).every((t) => expandedTagIds.has(t.id)) &&
-    (ungroupedTags.length === 0 || ungroupedOpen)
   function toggleSelect(tagId: string) {
     setSelectedTagIds((prev) => {
       const next = new Set(prev)
@@ -861,7 +1069,41 @@ function AnalysisWorkspace({
       return next
     })
   }
+  function toggleSelectAllTopics() {
+    setSelectedTagIds((prev) => {
+      const next = new Set(prev)
+      if (allTopicsSelected) {
+        for (const tag of topicTags) next.delete(tag.id)
+      } else {
+        for (const tag of topicTags) next.add(tag.id)
+      }
+      return next
+    })
+    setBulkAction('idle')
+  }
+  function toggleThemeSelect(themeId: string) {
+    setSelectedThemeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(themeId)) next.delete(themeId)
+      else next.add(themeId)
+      return next
+    })
+    setThemeBulkAction('idle')
+  }
+  function toggleSelectAllThemes() {
+    setSelectedThemeIds((prev) => {
+      const next = new Set(prev)
+      if (allThemesSelected) {
+        for (const theme of themes) next.delete(theme.id)
+      } else {
+        for (const theme of themes) next.add(theme.id)
+      }
+      return next
+    })
+    setThemeBulkAction('idle')
+  }
   function clearSelection() { setSelectedTagIds(new Set()); setBulkAction('idle'); setGroupName('') }
+  function clearThemeSelection() { setSelectedThemeIds(new Set()); setThemeBulkAction('idle') }
 
   function toggleAnswerSelect(answerId: string) {
     setSelectedAnswerIds((prev) => {
@@ -872,6 +1114,40 @@ function AnalysisWorkspace({
     })
   }
   function clearAnswerSelection() { setSelectedAnswerIds(new Set()) }
+  function toggleParticipantFilter(value: string) {
+    setFilterParticipants((prev) => {
+      const next = prev.includes(value) ? prev.filter((name) => name !== value) : [...prev, value]
+      return next
+    })
+    setUntaggedVisibleCount(15)
+    clearAnswerSelection()
+  }
+  function clearParticipantFilters() {
+    setFilterParticipants([])
+    setUntaggedVisibleCount(15)
+    clearAnswerSelection()
+  }
+  function toggleAnswerTagFilter(value: string) {
+    setFilterTagIds((prev) => {
+      const next = prev.includes(value) ? prev.filter((id) => id !== value) : [...prev, value]
+      return next
+    })
+    setUntaggedVisibleCount(15)
+    clearAnswerSelection()
+  }
+  function clearAnswerTagFilters() {
+    setFilterTagIds([])
+    setUntaggedVisibleCount(15)
+    clearAnswerSelection()
+  }
+  function handleAiTagClick() {
+    if (batchSummary) {
+      onClearBatchSummary()
+    }
+    const mode = leafTagCount === 0 ? 'explore' : 'apply'
+    setBatchMode(mode)
+    onRunBatch(aiTagTargetIds, mode)
+  }
   async function handleBulkApplyTag(tagId: string) {
     for (const answerId of Array.from(selectedAnswerIds)) await onApply(answerId, tagId)
   }
@@ -883,9 +1159,13 @@ function AnalysisWorkspace({
     for (const id of Array.from(selectedTagIds)) await onDelete(id, tagDefinitions.some((c) => c.parentId === id) ? 'keep-subtags' : undefined)
     clearSelection()
   }
+  async function handleBulkDeleteThemes() {
+    for (const id of Array.from(selectedThemeIds)) await onDelete(id, 'keep-subtags')
+    clearThemeSelection()
+  }
   async function handleGroupSelected() {
     const label = normalizeLabel(groupName); if (!label) return
-    const result = await createQuestionTag(studyId, questionId, label, DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
+    const result = await createQuestionTag(studyId, questionId, label, DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length], true)
     if (!result?.tag) return
     for (const tagId of Array.from(selectedTagIds)) await onMoveToTheme(tagId, result.tag.id)
     clearSelection()
@@ -898,19 +1178,21 @@ function AnalysisWorkspace({
     setNamingSuggesting(false)
     if ('name' in result && result.name) setGroupName(result.name)
   }
-  async function handleBulkMoveToTheme(themeId: string) {
-    for (const tagId of Array.from(selectedTagIds)) await onMoveToTheme(tagId, themeId)
-    clearSelection()
-  }
   async function handleBulkAiGroup() {
-    const sel = tagDefinitions.filter((t) => selectedTagIds.has(t.id)); if (sel.length < 2) return
+    const sel = topicTags.filter((t) => selectedTagIds.has(t.id)); if (sel.length < 2) return
     setConsolidating(true); setAiError(null); setAiProposal(null)
     const result = await consolidateTagsWithAI(studyId, questionId, sel.map((t) => ({ id: t.id, label: t.label })))
     setConsolidating(false)
     if ('error' in result && result.error) { setAiError(result.error as string); return }
     if (result.themes.length === 0) { setAiError('AI returned no theme groupings.'); return }
     setAiProposalScope(new Set(sel.map((t) => t.id)))
-    setAiProposal(result.themes.map((theme, i) => ({ tempId: `temp-${i}-${Date.now()}`, name: theme.name, description: theme.description, tagIds: theme.tagIds })))
+    setAiProposal(result.themes.map((theme, i) => ({
+      tempId: `temp-${i}-${Date.now()}`,
+      name: theme.name,
+      description: theme.description,
+      tagIds: theme.tagIds,
+      color: tagDefinitions.find((tag) => theme.tagIds.includes(tag.id))?.color ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length],
+    })))
     clearSelection()
   }
   async function handleCreate() {
@@ -918,11 +1200,16 @@ function AnalysisWorkspace({
     await onCreate(label, newColor)
     setNewLabel(''); setNewColor(DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length])
   }
-  async function handleClearAllThemes() {
-    for (const theme of themes) await onDelete(theme.id, 'keep-subtags')
+  async function handleCreateTheme() {
+    const label = normalizeLabel(newThemeLabel); if (!label) return
+    const theme = await onCreate(label, newThemeColor, true)
+    if (!theme) return
+    setExpandedThemeIds((prev) => new Set(prev).add(theme.id))
+    setNewThemeLabel('')
+    setNewThemeColor(DEFAULT_COLORS[(tagDefinitions.length + 1) % DEFAULT_COLORS.length])
   }
   async function handleAiConsolidate() {
-    const leafTags = tagDefinitions.filter((t) => t.parentId === null && !tagDefinitions.some((c) => c.parentId === t.id))
+    const leafTags = tagDefinitions.filter((t) => t.parentId === null && !isThemeTag(t))
     if (leafTags.length < 2) return
     setConsolidating(true); setAiError(null); setAiProposal(null)
     const result = await consolidateTagsWithAI(studyId, questionId, leafTags.map((t) => ({ id: t.id, label: t.label })))
@@ -930,13 +1217,19 @@ function AnalysisWorkspace({
     if ('error' in result && result.error) { setAiError(result.error as string); return }
     if (result.themes.length === 0) { setAiError('AI returned no theme groupings.'); return }
     setAiProposalScope(new Set(leafTags.map((t) => t.id)))
-    setAiProposal(result.themes.map((theme, i) => ({ tempId: `temp-${i}-${Date.now()}`, name: theme.name, description: theme.description, tagIds: theme.tagIds })))
+    setAiProposal(result.themes.map((theme, i) => ({
+      tempId: `temp-${i}-${Date.now()}`,
+      name: theme.name,
+      description: theme.description,
+      tagIds: theme.tagIds,
+      color: tagDefinitions.find((tag) => theme.tagIds.includes(tag.id))?.color ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length],
+    })))
   }
   async function applyProposal(proposals: ProposedTheme[]) {
     for (const theme of proposals) {
       if (!theme.tagIds.length) continue
       // Use onCreate so the new theme is added to local tagDefinitions state immediately
-      const newTheme = await onCreate(normalizeLabel(theme.name) || 'Theme', DEFAULT_COLORS[proposals.indexOf(theme) % DEFAULT_COLORS.length])
+      const newTheme = await onCreate(normalizeLabel(theme.name) || 'Theme', theme.color, true)
       if (!newTheme) continue
       for (const tagId of theme.tagIds) await onMoveToTheme(tagId, newTheme.id)
       if (theme.description) await onUpdateDescription(newTheme.id, theme.description)
@@ -951,13 +1244,108 @@ function AnalysisWorkspace({
   }
   function startEditDesc(tag: TagDefinition) { setEditingDescId(tag.id); setDescValue(tag.description ?? '') }
   async function commitDesc(tagId: string) { await onUpdateDescription(tagId, descValue); setEditingDescId(null); setDescValue('') }
+  function dragIdsFor(tagId: string) {
+    return selectedTagIds.has(tagId)
+      ? sortTags(tagDefinitions.filter((tag) => selectedTagIds.has(tag.id))).map((tag) => tag.id)
+      : [tagId]
+  }
+  function saveReorder(orderedTagIds: string[], parentId: string | null) {
+    void onReorderTags(orderedTagIds, parentId).then((ok) => {
+      if (!ok) setSaveNotice({ tone: 'error', message: 'Could not save tag order. The list was restored.' })
+    })
+  }
+  function markLanded(tagIds: string[]) {
+    setLandedTagIds(new Set(tagIds))
+  }
+  function moveBlockToParent(dragIds: string[], parentId: string | null, insertAt?: { overTagId: string; position: 'before' | 'after' }) {
+    const dragged = sortTags(tagDefinitions.filter((tag) => dragIds.includes(tag.id)))
+    if (dragged.length === 0) return
+    const group = tagGroup(tagDefinitions, parentId).filter((tag) => !dragIds.includes(tag.id))
+    let insertIndex = group.length
+    if (insertAt) {
+      const overIndex = group.findIndex((tag) => tag.id === insertAt.overTagId)
+      if (overIndex === -1) return
+      insertIndex = overIndex + (insertAt.position === 'after' ? 1 : 0)
+    }
+    const next = [...group]
+    next.splice(insertIndex, 0, ...dragged.map((tag) => ({ ...tag, parentId })))
+    markLanded(dragIds)
+    saveReorder(next.map((tag) => tag.id), parentId)
+  }
+  function handleKeyboardReorder(tagId: string, direction: 'up' | 'down') {
+    const tag = tagDefinitions.find((item) => item.id === tagId)
+    if (!tag) return
+    const group = tagGroup(tagDefinitions, tag.parentId)
+    const index = group.findIndex((item) => item.id === tagId)
+    const nextIndex = direction === 'up' ? index - 1 : index + 1
+    if (index < 0 || nextIndex < 0 || nextIndex >= group.length) return
+    const next = [...group]
+    const [moved] = next.splice(index, 1)
+    next.splice(nextIndex, 0, moved)
+    markLanded([tagId])
+    setSaveNotice({ tone: 'success', message: `Moved ${tag.label} ${direction}.` })
+    saveReorder(next.map((item) => item.id), tag.parentId)
+  }
+  function insertionFromDrag(event: DragOverEvent | DragEndEvent): InsertionIndicator {
+    const { active, over } = event
+    if (!over) return null
+    const tagId = String(active.id).replace(/^tag-/, '')
+    const dest = String(over.id)
+    if (!dest.startsWith('row-')) return null
+    const overTagId = dest.replace(/^row-/, '')
+    if (activeDragIds.includes(overTagId) || overTagId === tagId) return null
+    const activeRect = active.rect.current.translated
+    const activeCenter = activeRect ? activeRect.top + activeRect.height / 2 : over.rect.top
+    const overCenter = over.rect.top + over.rect.height / 2
+    return { tagId: overTagId, position: activeCenter > overCenter ? 'after' : 'before' }
+  }
+  function handleDragStart(event: DragStartEvent) {
+    const tagId = String(event.active.id).replace(/^tag-/, '')
+    setActiveTagId(tagId)
+    setActiveDragIds(dragIdsFor(tagId))
+    setSaveNotice(null)
+  }
+  function handleDragOver(event: DragOverEvent) {
+    const dest = event.over ? String(event.over.id) : ''
+    setThemeDropTargetId(dest.startsWith('theme-') ? dest.replace(/^theme-/, '') : null)
+    setInsertionIndicator(insertionFromDrag(event))
+  }
   function handleDragEnd(event: DragEndEvent) {
     setActiveTagId(null)
+    const dragIds = activeDragIds.length > 0 ? activeDragIds : [String(event.active.id).replace(/^tag-/, '')]
+    setActiveDragIds([])
+    setInsertionIndicator(null)
+    setThemeDropTargetId(null)
     const { active, over } = event; if (!over) return
     const tagId = String(active.id).replace(/^tag-/, '')
     const dest = String(over.id)
-    if (dest === 'ungrouped') void onMoveToTheme(tagId, null)
-    else if (dest.startsWith('theme-')) void onMoveToTheme(tagId, dest.replace(/^theme-/, ''))
+    const activeTag = tagDefinitions.find((tag) => tag.id === tagId)
+    if (!activeTag) return
+
+    if (dest.startsWith('row-')) {
+      const overTagId = dest.replace(/^row-/, '')
+      if (dragIds.includes(overTagId) || overTagId === tagId) return
+      const overTag = tagDefinitions.find((tag) => tag.id === overTagId)
+      if (!overTag) return
+
+      const parentId = overTag.parentId
+      if (parentId) setExpandedThemeIds((prev) => new Set(prev).add(parentId))
+      const position = insertionFromDrag(event)?.position ?? 'after'
+      moveBlockToParent(dragIds, parentId, { overTagId, position })
+      return
+    }
+
+    if (dest === 'ungrouped' || dest.startsWith('theme-')) {
+      const parentId = dest === 'ungrouped' ? null : dest.replace(/^theme-/, '')
+      if (parentId) {
+        const themeName = tagDefinitions.find((tag) => tag.id === parentId)?.label ?? 'theme'
+        setExpandedThemeIds((prev) => new Set(prev).add(parentId))
+        setSaveNotice({ tone: 'success', message: `Moved ${dragIds.length === 1 ? activeTag.label : `${dragIds.length} tags`} to ${themeName}.` })
+      } else {
+        setSaveNotice({ tone: 'success', message: `Moved ${dragIds.length === 1 ? activeTag.label : `${dragIds.length} tags`} back to Tags.` })
+      }
+      moveBlockToParent(dragIds, parentId)
+    }
   }
 
   const ctxValue: ManageCtxType = {
@@ -965,9 +1353,13 @@ function AnalysisWorkspace({
     savingTagId, tagCounts, tagDefinitions,
     renamingId, renameValue, setRenameValue, setRenamingId, commitRename,
     editingDescId, descValue, setDescValue, setEditingDescId, commitDesc,
-    confirmDeleteId, setConfirmDeleteId, onDelete, onRename,
+    onRename,
     startRename, startEditDesc,
     expandedTagIds, toggleTagExpand,
+    insertionIndicator,
+    activeDragIds,
+    landedTagIds,
+    onKeyboardReorder: handleKeyboardReorder,
   }
 
   function TagAnswers({ tag, indent }: { tag: TagDefinition; indent: boolean }) {
@@ -996,190 +1388,284 @@ function AnalysisWorkspace({
 
   return (
     <ManageCtx.Provider value={ctxValue}>
-    <DndContext onDragStart={(e) => setActiveTagId(String(e.active.id).replace(/^tag-/, ''))} onDragEnd={handleDragEnd}>
+    <DndContext
+      id="tag-lab-dnd"
+      sensors={sensors}
+      autoScroll
+      collisionDetection={collisionDetection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragCancel={() => { setActiveTagId(null); setActiveDragIds([]); setThemeDropTargetId(null); setInsertionIndicator(null) }}
+      onDragEnd={handleDragEnd}
+    >
     <div className="space-y-4">
 
-      {/* Header: AI group + clear themes — hidden when selection bar is active */}
-      {selectedTagIds.size === 0 && (
-        <div className="flex items-center gap-2 justify-end">
-          {themes.length > 0 && (
-            confirmClearThemes ? (
-              <>
-                <span className="text-sm text-[var(--danger-text)]">Remove all {themes.length} theme{themes.length !== 1 ? 's' : ''}? Sub-tags will stay ungrouped.</span>
-                <Button tone="danger" size="sm" onClick={() => { setConfirmClearThemes(false); void handleClearAllThemes() }}>Confirm</Button>
-                <Button tone="secondary" size="sm" onClick={() => setConfirmClearThemes(false)}>Cancel</Button>
-              </>
-            ) : (
-              <Button tone="ghost" size="sm" onClick={() => setConfirmClearThemes(true)} className="text-[var(--text-tertiary)] hover:text-[var(--danger-text)]">Clear themes</Button>
-            )
-          )}
-          <Button tone="secondary" size="sm" onClick={() => void handleAiConsolidate()} disabled={consolidating || ungroupedTags.length < 2} className="whitespace-nowrap">{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
-        </div>
-      )}
-
-      {/* Selection bar */}
-      {selectedTagIds.size > 0 && (
-        <div className="flex items-center gap-2 flex-wrap rounded-xl border border-[var(--accent-muted)] bg-[var(--accent-subtle)] px-4 py-2.5">
-          <span className="text-sm font-semibold text-[var(--text)]">{selectedTagIds.size} selected</span>
-          <span className="text-[var(--text-tertiary)]">·</span>
-          {bulkAction === 'idle' && (
-            <>
-              <Button tone="danger" size="sm" onClick={() => setBulkAction('confirm-delete')}>Delete</Button>
-              {themes.length > 0 && <SelectMenu value="" options={[{ value: '', label: 'Move to theme…' }, ...themes.map((t) => ({ value: t.id, label: t.label }))]} onChange={(v) => { if (v) void handleBulkMoveToTheme(v) }} buttonClassName="h-8 text-sm" />}
-              <Button tone="secondary" size="sm" onClick={() => setBulkAction('grouping')}>Group into theme</Button>
-              <Button tone="secondary" size="sm" onClick={() => void handleBulkAiGroup()} disabled={consolidating || selectedTagIds.size < 2}>{consolidating ? '✦ Grouping…' : '✦ Group with AI'}</Button>
-            </>
-          )}
-          {bulkAction === 'confirm-delete' && (
-            <>
-              <span className="text-sm text-[var(--danger-text)]">Delete {selectedTagIds.size} tag{selectedTagIds.size !== 1 ? 's' : ''}?{Array.from(selectedTagIds).some((id) => tagDefinitions.some((c) => c.parentId === id)) && ' Themes will be removed; sub-tags ungrouped.'}</span>
-              <Button tone="danger" size="sm" onClick={() => void handleBulkDelete()}>Confirm</Button>
-              <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
-            </>
-          )}
-          {bulkAction === 'grouping' && (
-            <>
-              <TextInput value={groupName} onChange={(e) => setGroupName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleGroupSelected() } }} placeholder="Theme name…" className="h-8 py-0 w-44" />
-              <Button tone="secondary" size="sm" onClick={() => void handleSuggestGroupName()} disabled={namingSuggesting}>{namingSuggesting ? '…' : '✦ AI name'}</Button>
-              <Button tone="primary" size="sm" onClick={() => void handleGroupSelected()} disabled={!groupName.trim()}>Create theme</Button>
-              <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
-            </>
-          )}
-          <div className="flex-1" />
-          <button type="button" onClick={clearSelection} aria-label="Clear selection" className="rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--text)]">
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
-          </button>
-        </div>
-      )}
+      <div className="space-y-2">
+        {selectedTagIds.size > 0 && bulkAction === 'grouping' && (
+          <div className="flex items-center justify-end gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2">
+            <TextInput value={groupName} onChange={(e) => setGroupName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleGroupSelected() } }} placeholder="Theme name…" className="h-8 py-0 w-44 bg-white" />
+            <Button tone="secondary" size="sm" onClick={() => void handleSuggestGroupName()} disabled={namingSuggesting}>{namingSuggesting ? '…' : '✦ AI name'}</Button>
+            <Button tone="primary" size="sm" onClick={() => void handleGroupSelected()} disabled={!groupName.trim()}>Create theme</Button>
+            <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
+          </div>
+        )}
+      </div>
 
       {/* AI error */}
       {aiError && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>AI error: {aiError}</p>}
-
-      {/* AI proposal */}
-      {aiProposal && (
-        <AIProposalPanel
-          proposal={aiProposal}
-          tagById={new Map(tagDefinitions.map((t) => [t.id, t]))}
-          allTagIds={aiProposalScope}
-          answers={answers} tagIdsByAnswer={tagIdsByAnswer}
-          onApply={applyProposal}
-          onCancel={() => setAiProposal(null)}
-        />
+      {saveNotice && (
+        <p
+          role="status"
+          className="rounded-lg border px-3 py-2 text-sm"
+          style={{
+            background: saveNotice.tone === 'error' ? 'var(--danger-bg)' : 'var(--success-bg)',
+            color: saveNotice.tone === 'error' ? 'var(--danger-text)' : 'var(--success-text)',
+            borderColor: saveNotice.tone === 'error' ? 'var(--danger-border)' : 'var(--success-border)',
+          }}
+        >
+          {saveNotice.message}
+        </p>
       )}
 
-      {/* Tag structure */}
-      <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
-        {tagDefinitions.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-[var(--text-tertiary)]">No tags yet. Add one above or use AI to tag answers below.</p>
-        ) : (
-          <>
-          <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)]">
-            <span className="text-xs text-[var(--text-tertiary)]">
-              {themes.length > 0 && <>{themes.length} theme{themes.length !== 1 ? 's' : ''} · </>}
-              {ungroupedTags.length + tagDefinitions.filter((t) => t.parentId !== null).length} tag{ungroupedTags.length + tagDefinitions.filter((t) => t.parentId !== null).length !== 1 ? 's' : ''}
-            </span>
-            <button
-              type="button"
-              onClick={allExpanded ? collapseAll : expandAll}
-              className="text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--text-link)] transition-colors"
-            >
-              {allExpanded ? 'Collapse all' : 'Expand all'}
-            </button>
+      {/* Themes */}
+      <div className="space-y-2">
+        <div className={`flex items-center gap-2 py-1 pr-1 ${themes.length > 0 ? 'pl-[52px]' : 'pl-1'}`}>
+          {themes.length > 0 ? (
+            <>
+              <input
+                type="checkbox"
+                checked={allThemesSelected}
+                ref={(el) => { if (el) el.indeterminate = someThemesSelected && !allThemesSelected }}
+                onChange={toggleSelectAllThemes}
+                aria-label="Select all themes"
+                className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+              />
+              <span className="text-sm font-semibold text-[var(--text)]">All themes</span>
+            </>
+          ) : (
+            <span className="text-sm font-semibold text-[var(--text)]">Themes</span>
+          )}
+          {themes.length > 0 && (
+            <div className="h-8 w-8 shrink-0">
+              {selectedThemeIds.size > 0 && themeBulkAction === 'idle' && (
+                <IconButton
+                  type="button"
+                  onClick={() => setThemeBulkAction('confirm-delete')}
+                  label="Delete selected themes"
+                  tone="trash"
+                  className="h-8 w-8 rounded-lg"
+                >
+                  <TrashIcon />
+                </IconButton>
+              )}
+            </div>
+          )}
+          <div className="flex-1" />
+        </div>
+        {selectedThemeIds.size > 0 && themeBulkAction === 'confirm-delete' && (
+          <div className="flex items-center justify-end gap-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2">
+            <span className="text-sm text-[var(--danger-text)]">Delete {selectedThemeIds.size} selected theme{selectedThemeIds.size !== 1 ? 's' : ''}? Tags will stay ungrouped.</span>
+            <Button tone="danger" size="sm" onClick={() => void handleBulkDeleteThemes()}>Confirm</Button>
+            <Button tone="secondary" size="sm" onClick={() => setThemeBulkAction('idle')}>Cancel</Button>
           </div>
-          <div className="divide-y divide-[var(--border-subtle)]">
-
-            {/* Themes */}
+        )}
+        {themes.length === 0 && !aiProposal ? (
+          <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-white px-5 py-9 text-center shadow-[var(--shadow-sm)]">
+            <p className="text-sm font-semibold text-[var(--text-secondary)]">No themes yet.</p>
+          </div>
+        ) : themes.length > 0 ? (
+          <div className="space-y-2">
             {themes.map((theme) => {
-              const children = tagDefinitions.filter((t) => t.parentId === theme.id)
-              const isOpen = expandedThemeIds.has(theme.id)
-              const themeCount = children.reduce((s, c) => s + (tagCounts.get(c.id) ?? 0), 0)
-              return (
-                <div key={theme.id}>
-                  <div
-                    className="flex items-start gap-3 px-4 py-3 bg-[var(--bg-sunken)] cursor-pointer select-none hover:brightness-[0.97]"
-                    onClick={() => toggleThemeExpand(theme.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleThemeExpand(theme.id) } }}
-                    aria-expanded={isOpen}
-                  >
-                    <span className="shrink-0 mt-1 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)]">
-                      <ChevronIcon open={isOpen} />
-                    </span>
-                    <label className="relative h-4 w-4 shrink-0 mt-1 cursor-pointer" title="Change color" onClick={(e) => e.stopPropagation()}>
-                      <span className="block h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
-                      <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                    </label>
-                    <div className="flex-1 min-w-0 space-y-0.5" onClick={(e) => e.stopPropagation()}>
-                      {renamingId === theme.id ? (
-                        <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
+            const children = sortTags(tagDefinitions.filter((t) => t.parentId === theme.id))
+            const isOpen = expandedThemeIds.has(theme.id)
+            const themeSelected = selectedThemeIds.has(theme.id)
+            return (
+              <ThemeDropZone key={theme.id} themeId={theme.id} themeLabel={theme.label} active={themeDropTargetId === theme.id}>
+                <div
+                  className={`group/theme flex items-start gap-3 border-l-4 bg-white px-4 py-3.5 cursor-pointer select-none transition-colors hover:bg-[var(--bg-sunken)]/45 ${isOpen ? 'rounded-t-xl border-b border-[var(--border-subtle)]' : 'rounded-xl'}`}
+                  style={{ borderLeftColor: theme.color }}
+                  onClick={() => toggleThemeExpand(theme.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleThemeExpand(theme.id) } }}
+                  aria-expanded={isOpen}
+                >
+                  <span className="shrink-0 mt-1 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)]">
+                    <ChevronIcon open={isOpen} />
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={themeSelected}
+                    onChange={() => toggleThemeSelect(theme.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Select ${theme.label}`}
+                    className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+                  />
+                  <label className="relative mt-0.5 h-[18px] w-[18px] shrink-0 cursor-pointer" title="Change theme color" onClick={(e) => e.stopPropagation()}>
+                    <span className="block h-[18px] w-[18px] rounded-md ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
+                    <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                  </label>
+                  <div className="flex-1 min-w-0 space-y-1" onClick={(e) => e.stopPropagation()}>
+                    {renamingId === theme.id ? (
+                      <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
+                    ) : (
+                      <button type="button" onClick={() => startRename(theme)} className="group/name flex w-fit max-w-full items-center gap-1 text-left text-[15px] font-bold leading-snug text-[var(--text)] hover:text-[var(--text-link)]">
+                        {theme.label}
+                        <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
+                      </button>
+                    )}
+                    {isOpen && (
+                      editingDescId === theme.id ? (
+                        <textarea
+                          autoFocus
+                          value={descValue}
+                          onChange={(e) => setDescValue(e.target.value)}
+                          onBlur={() => void commitDesc(theme.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) }
+                            if (e.key === 'Escape') setEditingDescId(null)
+                          }}
+                          rows={2}
+                          placeholder="Add description…"
+                          className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1.5 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
+                        />
                       ) : (
-                        <button type="button" onClick={() => startRename(theme)} className="group/name inline-flex items-center gap-1 text-left text-sm font-bold text-[var(--text)] hover:text-[var(--text-link)]">
-                          {theme.label}
-                          <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
+                        <button
+                          type="button"
+                          onClick={() => startEditDesc(theme)}
+                          className="group/desc flex max-w-full items-start gap-1 text-left text-sm italic leading-relaxed text-[var(--text-secondary)] hover:text-[var(--text)]"
+                        >
+                          <span>{theme.description ?? <span className="not-italic opacity-50">Add description…</span>}</span>
+                          <svg viewBox="0 0 12 12" className="mt-1 h-2.5 w-2.5 shrink-0 opacity-0 transition-opacity group-hover/desc:opacity-50" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
                         </button>
-                      )}
-                      {editingDescId === theme.id ? (
-                        <textarea autoFocus value={descValue} onChange={(e) => setDescValue(e.target.value)} onBlur={() => void commitDesc(theme.id)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) } if (e.key === 'Escape') setEditingDescId(null) }} rows={2} placeholder="Add description…" className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1 text-xs text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]" />
-                      ) : (
-                        <button type="button" onClick={() => startEditDesc(theme)} className="group/desc inline-flex items-center gap-1 text-left text-xs text-[var(--text-secondary)] hover:text-[var(--text)] italic truncate max-w-full">
-                          <span className="truncate">{theme.description ?? <span className="not-italic opacity-40">Add description…</span>}</span>
-                          <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/desc:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
-                        </button>
-                      )}
-                    </div>
-                    <span className="shrink-0 mt-1 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''} · {themeCount} answer{themeCount !== 1 ? 's' : ''}</span>
-                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {confirmDeleteId === theme.id ? (
-                        <div className="flex items-center gap-2">
-                          <Button tone="secondary" size="sm" onClick={() => { void onDelete(theme.id, 'keep-subtags'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Remove theme, keep tags</Button>
-                          <Button tone="danger" size="sm" onClick={() => { void onDelete(theme.id, 'delete-all'); setConfirmDeleteId(null) }} className="text-xs whitespace-nowrap">Delete all</Button>
-                          <Button tone="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
-                        </div>
-                      ) : (
-                        <IconButton tone="trash" label={`Delete theme ${theme.label}`} onClick={() => setConfirmDeleteId(theme.id)} className="h-8 w-8"><TrashIcon /></IconButton>
-                      )}
-                    </div>
+                      )
+                    )}
                   </div>
-                  {isOpen && (
-                    <ThemeDropZone themeId={theme.id}>
-                      {children.map((tag) => (
+                  <span className="shrink-0 mt-1 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''}</span>
+                </div>
+                {isOpen && (
+                  <ThemeChildren>
+                    {children.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-[var(--border-strong)] bg-white px-4 py-3 text-sm text-[var(--text-tertiary)]">
+                        Drag tags here.
+                      </p>
+                    ) : (
+                      children.map((tag) => (
                         <div key={tag.id}>
                           <TagRow tag={tag} isIndented />
                           {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent />}
                         </div>
-                      ))}
-                    </ThemeDropZone>
-                  )}
-                </div>
-              )
-            })}
-
-            {/* Ungrouped */}
-            {ungroupedTags.length > 0 && (
-              <div>
-                <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg-sunken)]">
-                  <button type="button" onClick={() => setUngroupedOpen((o) => !o)} className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--text)]"><ChevronIcon open={ungroupedOpen} /></button>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Ungrouped — {ungroupedTags.length} tag{ungroupedTags.length !== 1 ? 's' : ''}</span>
-                </div>
-                {ungroupedOpen && (
-                  <UngroupedDropZone>
-                    {ungroupedTags.map((tag) => (
-                      <div key={tag.id}>
-                        <TagRow tag={tag} />
-                        {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent={false} />}
-                      </div>
-                    ))}
-                  </UngroupedDropZone>
+                      ))
+                    )}
+                  </ThemeChildren>
                 )}
-              </div>
-            )}
+              </ThemeDropZone>
+            )
+          })}
           </div>
-          </>
+        ) : null}
+        {aiProposal && (
+          <AIProposalPanel
+            proposal={aiProposal}
+            tagById={new Map(tagDefinitions.map((t) => [t.id, t]))}
+            allTagIds={aiProposalScope}
+            answers={answers} tagIdsByAnswer={tagIdsByAnswer}
+            onApply={applyProposal}
+            onCancel={() => setAiProposal(null)}
+          />
         )}
       </div>
 
-      {/* New tag + AI tag all */}
+      {/* Add theme */}
+      <div className="space-y-2">
+        <div className="flex gap-2 items-center">
+          <TextInput
+            value={newThemeLabel}
+            onChange={(e) => setNewThemeLabel(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreateTheme() } }}
+            placeholder="New theme name"
+            className="h-9 flex-1 py-0"
+          />
+          <label className="relative h-5 w-5 shrink-0 cursor-pointer" title="Choose theme color">
+            <span className="block h-5 w-5 rounded-full ring-2 ring-[var(--border-strong)]" style={{ backgroundColor: newThemeColor }} />
+            <input type="color" value={newThemeColor} onChange={(e) => setNewThemeColor(e.target.value)} aria-label="Theme color" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+          </label>
+          <Button tone="primary" size="sm" onClick={() => void handleCreateTheme()} disabled={!newThemeLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">Add theme</Button>
+        </div>
+      </div>
+
+      {/* Tags */}
+      <div className="space-y-2">
+        <div className={`flex items-center gap-2 py-1 pr-1 ${topicTags.length > 0 ? 'pl-4' : 'pl-1'}`}>
+          {topicTags.length > 0 ? (
+            <>
+              <input
+                type="checkbox"
+                checked={allTopicsSelected}
+                ref={(el) => { if (el) el.indeterminate = someTopicsSelected && !allTopicsSelected }}
+                onChange={toggleSelectAllTopics}
+                aria-label="Select all tags"
+                className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+              />
+              <span className="text-sm font-semibold text-[var(--text)]">All tags</span>
+            </>
+          ) : (
+            <span className="text-sm font-semibold text-[var(--text)]">Tags</span>
+          )}
+          {topicTags.length > 0 && (
+            <div className="h-8 w-8 shrink-0">
+              {selectedTagIds.size > 0 && bulkAction === 'idle' && (
+                <IconButton
+                  type="button"
+                  onClick={() => setBulkAction('confirm-delete')}
+                  label="Delete selected tags"
+                  tone="trash"
+                  className="h-8 w-8 rounded-lg"
+                >
+                  <TrashIcon />
+                </IconButton>
+              )}
+            </div>
+          )}
+          <div className="flex-1" />
+          {(topicTags.length > 0 || consolidating) && (
+            <Button
+              tone="secondary"
+              size="sm"
+              onClick={() => selectedTopicIds.length > 0 ? void handleBulkAiGroup() : void handleAiConsolidate()}
+              disabled={consolidating || (selectedTopicIds.length > 0 ? selectedTopicIds.length < 2 : ungroupedTags.length < 2)}
+              className="w-48 whitespace-nowrap"
+            >
+              {consolidating ? '✦ Grouping…' : selectedTopicIds.length > 0 ? '✦ AI group selected' : '✦ AI group all'}
+            </Button>
+          )}
+        </div>
+        {selectedTagIds.size > 0 && bulkAction === 'confirm-delete' && (
+          <div className="flex items-center justify-end gap-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2">
+            <span className="text-sm text-[var(--danger-text)]">Delete {selectedTagIds.size} selected tag{selectedTagIds.size !== 1 ? 's' : ''}?</span>
+            <Button tone="danger" size="sm" onClick={() => void handleBulkDelete()}>Confirm</Button>
+            <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
+          </div>
+        )}
+        <UngroupedDropZone>
+          {aiProposal ? (
+            <p className="rounded-lg border border-dashed border-[var(--border-subtle)] px-5 py-4 text-center text-sm text-[var(--text-tertiary)]">
+              Tags remain available here. Drag a tag from a theme back into this area to ungroup it.
+            </p>
+          ) : ungroupedTags.length > 0 ? (
+            ungroupedTags.map((tag) => (
+              <div key={tag.id}>
+                <TagRow tag={tag} />
+                {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent={false} />}
+              </div>
+            ))
+          ) : (
+            <p className="rounded-lg border border-dashed border-[var(--border-subtle)] px-5 py-5 text-center text-sm text-[var(--text-tertiary)]">No tags yet.</p>
+          )}
+        </UngroupedDropZone>
+      </div>
+
+      {/* Add tag */}
       <div className="space-y-2">
         <div className="flex gap-2 items-center">
           <TextInput value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreate() } }} placeholder="New tag name" className="h-9 py-0 flex-1 min-w-40" />
@@ -1188,35 +1674,10 @@ function AnalysisWorkspace({
             <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} aria-label="Tag color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
           </label>
           <Button tone="primary" size="sm" onClick={() => void handleCreate()} disabled={!newLabel.trim() || savingTagId === 'new'} className="shrink-0 whitespace-nowrap">{savingTagId === 'new' ? 'Adding…' : 'Add tag'}</Button>
-          <div className="w-px h-6 bg-[var(--border)] shrink-0" />
-          {batchRunning
-            ? <span className="text-sm text-[var(--text-tertiary)] whitespace-nowrap shrink-0">Tagging…</span>
-            : batchSummary
-              ? <Button tone="secondary" size="sm" onClick={() => { onClearBatchSummary(); setAiTagOpen(true) }} className="shrink-0 whitespace-nowrap">✦ Tag again</Button>
-              : <Button tone="secondary" size="sm" onClick={() => setAiTagOpen((v) => !v)} className="shrink-0 whitespace-nowrap">✦ AI tag all</Button>
-          }
         </div>
-        {aiTagOpen && !batchRunning && (
-          <div className="flex items-center gap-3 flex-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3">
-            <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-sm bg-white">
-              {(['explore', 'apply'] as const).map((m) => (
-                <button key={m} type="button" onClick={() => setBatchMode(m)} className={`px-3 py-1.5 transition-colors ${batchMode === m ? 'bg-[var(--accent)] text-white font-semibold' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'}`}>
-                  {m === 'explore' ? 'Explore' : 'Apply existing'}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-[var(--text-tertiary)]">{batchMode === 'explore' ? 'AI will create new tags from the answers' : 'AI will match answers to existing tags'}</span>
-            <div className="flex-1" />
-            <Button tone="ghost" size="sm" onClick={() => setAiTagOpen(false)}>Cancel</Button>
-            {batchMode === 'apply' && tagDefinitions.length === 0
-              ? <span className="text-xs text-[var(--text-tertiary)]">No tags yet — switch to Explore mode to create them</span>
-              : <Button tone="primary" size="sm" onClick={() => { setAiTagOpen(false); onRunBatch() }} className="whitespace-nowrap">Tag {untaggedAnswers.length} answers</Button>
-            }
-          </div>
-        )}
       </div>
 
-      {/* Answers panel (untagged by default, all when toggled) */}
+      {/* Answers panel */}
       {answers.length > 0 && (
         <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
           <div className="border-b border-[var(--border-subtle)]">
@@ -1234,18 +1695,22 @@ function AnalysisWorkspace({
                 className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
               />
               <span className="text-sm font-semibold text-[var(--text)] shrink-0">
-                {filterTag === 'untagged' ? 'Untagged' : filterTag ? (tagById.get(filterTag)?.label ?? 'Filtered') : 'All answers'}
-                {filterParticipant && <span className="font-normal text-[var(--text-tertiary)]"> · {filterParticipant.split(' ')[0]}</span>}
-                {' '}
-                <span className="font-normal text-[var(--text-tertiary)]">{displayedAnswers.length}</span>
+                {answerListTitle}
+                {participantSummary && <span className="font-normal text-[var(--text-tertiary)]"> · {participantSummary}</span>}
               </span>
               <div className="flex-1" />
+              {batchRunning
+                ? <span className="text-sm text-[var(--text-tertiary)] whitespace-nowrap shrink-0">Tagging…</span>
+                : batchSummary
+                  ? <Button tone="secondary" size="sm" onClick={handleAiTagClick} className="shrink-0 whitespace-nowrap">✦ Tag again</Button>
+                  : <Button tone="secondary" size="sm" onClick={handleAiTagClick} disabled={aiTagTargetIds.length === 0} className="shrink-0 whitespace-nowrap">{selectedAnswerIds.size > 0 ? '✦ AI tag selected' : '✦ AI tag all'}</Button>
+              }
               {/* Filter icon — accent when any filter is active */}
               <button
                 type="button"
                 title="Filter answers"
                 onClick={() => { setFilterOpen((v) => !v); setSortOpen(false) }}
-                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${filterOpen || filterTag !== 'untagged' || filterParticipant || answerSearch ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${filterOpen || filterTagIds.length > 0 || filterParticipants.length > 0 || answerSearch ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'}`}
               >
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
                   <path d="M1.5 4h13M4.5 8h7M7 12h2" />
@@ -1264,66 +1729,38 @@ function AnalysisWorkspace({
                 </svg>
               </button>
             </div>
-            {/* Filter expand */}
             {filterOpen && (
-              <div className="space-y-3 px-4 pb-3 pt-3 border-t border-[var(--border-subtle)]">
-                {/* Participant row */}
-                <div className="flex items-start gap-3">
-                  <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] pt-0.5 w-24">Participant</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {([['', 'All']] as [string, string][]).concat(uniqueParticipants.map((n) => [n, n])).map(([val, label]) => (
-                      <button key={val} type="button"
-                        onClick={() => { setFilterParticipant(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
-                        className={`rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterParticipant === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
-                      >{label}</button>
-                    ))}
-                  </div>
+              <div className="grid gap-3 border-t border-[var(--border-subtle)] px-4 pb-3 pt-3 md:grid-cols-[minmax(180px,240px)_minmax(220px,1fr)]">
+                <div className="space-y-1">
+                  <span className="block text-xs font-medium text-[var(--text-tertiary)]">Participant</span>
+                  <MultiSelectMenu
+                    values={filterParticipants}
+                    options={participantFilterOptions}
+                    placeholder="All participants"
+                    onToggle={toggleParticipantFilter}
+                    onClear={clearParticipantFilters}
+                    buttonClassName="h-8 rounded-lg bg-white text-sm"
+                  />
                 </div>
-                {/* Tag/status row */}
-                <div className="flex items-start gap-3">
-                  <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] pt-0.5 w-24">Show</span>
-                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
-                    {/* All + Untagged */}
-                    {(['', 'untagged'] as const).map((val) => (
-                      <button key={val} type="button"
-                        onClick={() => { setFilterTag(val); setUntaggedVisibleCount(15); clearAnswerSelection() }}
-                        className={`rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === val ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
-                      >{val === '' ? 'All' : 'Untagged'}</button>
-                    ))}
-                    {/* Tags grouped by theme — shows "Theme › Tag" for context */}
-                    {themes.map((theme) =>
-                      tagDefinitions.filter((t) => t.parentId === theme.id).map((tag) => (
-                        <button key={tag.id} type="button"
-                          onClick={() => { setFilterTag(tag.id); setUntaggedVisibleCount(15); clearAnswerSelection() }}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === tag.id ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
-                          <span className="text-[var(--text-tertiary)]">{theme.label} ›</span>
-                          {tag.label}
-                        </button>
-                      ))
-                    )}
-                    {/* Ungrouped standalone tags */}
-                    {ungroupedTags.map((tag) => (
-                      <button key={tag.id} type="button"
-                        onClick={() => { setFilterTag(tag.id); setUntaggedVisibleCount(15); clearAnswerSelection() }}
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-medium transition-colors ${filterTag === tag.id ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]' : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-strong)]'}`}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
-                        {tag.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  <span className="block text-xs font-medium text-[var(--text-tertiary)]">Tagged with</span>
+                  <MultiSelectMenu
+                    values={filterTagIds}
+                    options={answerTagFilterOptions}
+                    placeholder="All answers"
+                    onToggle={toggleAnswerTagFilter}
+                    onClear={clearAnswerTagFilters}
+                    buttonClassName="h-8 rounded-lg bg-white text-sm"
+                  />
                 </div>
-                {/* Text search */}
-                <div className="flex items-center gap-3">
-                  <span className="shrink-0 text-xs font-medium text-[var(--text-tertiary)] w-24">Search</span>
+                <div className="space-y-1 md:col-span-2">
+                  <span className="block text-xs font-medium text-[var(--text-tertiary)]">Search</span>
                   <input
                     type="search"
                     value={answerSearch}
                     onChange={(e) => { setAnswerSearch(e.target.value); setUntaggedVisibleCount(15); clearAnswerSelection() }}
                     placeholder="Text or participant name…"
-                    className="h-8 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
+                    className="h-8 w-full rounded-lg border border-[var(--border)] bg-white px-2.5 py-0 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-focus)] focus:ring-2 focus:ring-[var(--accent-ring)]"
                   />
                 </div>
               </div>
@@ -1352,7 +1789,7 @@ function AnalysisWorkspace({
             <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
               {batchSummary.firstError && <p className="mb-2 rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>Error: {batchSummary.firstError}</p>}
               {batchSummary.tagsApplied > 0
-                ? <p className="text-sm font-semibold" style={{ color: 'var(--success-text)' }}>Done — {batchSummary.tagsApplied} tags applied across {batchSummary.total} answers</p>
+                ? <p className="text-sm font-semibold" style={{ color: 'var(--success-text)' }}>Done — {batchSummary.tagsApplied} tag assignment{batchSummary.tagsApplied !== 1 ? 's' : ''} across {batchSummary.total} answer{batchSummary.total !== 1 ? 's' : ''}</p>
                 : <p className="text-sm text-[var(--text-secondary)]">Processed {batchSummary.total} answers but found nothing new to tag.{batchMode === 'apply' && tagDefinitions.length === 0 && ' No existing tags — try Explore mode.'}</p>
               }
             </div>
@@ -1383,7 +1820,7 @@ function AnalysisWorkspace({
             <div className="divide-y divide-[var(--border-subtle)]">
               {displayedAnswers.length === 0 && (
                 <p className="px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">
-                  {answerSearch ? 'No answers match your search.' : filterTag === 'untagged' ? 'All answers are tagged.' : filterTag ? 'No answers with this tag.' : 'No answers yet.'}
+                  {answerSearch ? 'No answers match your search.' : filterTagIds.includes(UNTAGGED_FILTER) && filterTagIds.length === 1 ? 'Every answer has a tag.' : filterTagIds.length > 0 ? 'No answers match these tags.' : 'No answers yet.'}
                 </p>
               )}
               {displayedAnswers.slice(0, untaggedVisibleCount).map((answer) => {
@@ -1439,9 +1876,19 @@ function AnalysisWorkspace({
     <DragOverlay>
       {activeTagId ? (() => {
         const tag = tagDefinitions.find((t) => t.id === activeTagId)
+        const dragCount = activeDragIds.length
         return tag ? (
-          <div className="flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-white px-4 py-3 shadow-lg text-sm font-semibold text-[var(--text)] opacity-90">
-            <span className="h-3 w-3 rounded-full shrink-0" style={{ background: tag.color }} />{tag.label}
+          <div className="relative pl-11">
+            <span className="absolute left-0 top-1/2 flex h-8 w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--text-tertiary)] shadow-[var(--shadow-sm)]">
+              <GripIcon />
+            </span>
+            <div className="flex min-w-72 items-center gap-3 rounded-xl border border-[var(--border-strong)] bg-white px-4 py-3 text-sm text-[var(--text)] opacity-95 shadow-[var(--shadow-lg)]">
+              <span className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: tag.color }} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{dragCount > 1 ? `${dragCount} selected tags` : tag.label}</p>
+                <p className="text-xs text-[var(--text-tertiary)]">{dragCount > 1 ? 'Move as a group' : 'Moving topic'}</p>
+              </div>
+            </div>
           </div>
         ) : null
       })() : null}
@@ -1510,10 +1957,12 @@ export default function TaggingWorkspace({
       color: result.tag.color,
       parentId: null,
       description: null,
+      sortOrder: result.tag.sortOrder,
+      isTheme: result.tag.isTheme,
     }
     setTagDefinitions((prev) => {
       const without = prev.filter((t) => t.id !== newTag.id && t.label !== newTag.label)
-      return [...without, newTag].sort((a, b) => a.label.localeCompare(b.label))
+      return sortTags([...without, newTag])
     })
     const current = tagIdsByAnswer[answerId] ?? []
     if (!current.includes(newTag.id)) {
@@ -1531,11 +1980,11 @@ export default function TaggingWorkspace({
     await saveAnswerTags(answerId, (tagIdsByAnswer[answerId] ?? []).filter((id) => id !== tagId))
   }
 
-  async function createTag(label: string, color: string): Promise<TagDefinition | null> {
+  async function createTag(label: string, color: string, isTheme = false): Promise<TagDefinition | null> {
     const finalLabel = normalizeLabel(label)
     if (!finalLabel) return null
     setSavingTagId('new')
-    const result = await createQuestionTag(studyId, questionId, finalLabel, color)
+    const result = await createQuestionTag(studyId, questionId, finalLabel, color, isTheme)
     setSavingTagId(null)
     if (!result?.tag) return null
     const newTag: TagDefinition = {
@@ -1544,10 +1993,12 @@ export default function TaggingWorkspace({
       color: result.tag.color,
       parentId: null,
       description: null,
+      sortOrder: result.tag.sortOrder,
+      isTheme: result.tag.isTheme,
     }
     setTagDefinitions((prev) => {
       const without = prev.filter((t) => t.id !== newTag.id && t.label !== newTag.label)
-      return [...without, newTag].sort((a, b) => a.label.localeCompare(b.label))
+      return sortTags([...without, newTag])
     })
     router.refresh()
     return newTag
@@ -1560,7 +2011,7 @@ export default function TaggingWorkspace({
     if (result?.tag) {
       setTagDefinitions((prev) =>
         prev.map((t) => t.id === tagId ? { ...t, label: result.tag.label, color: result.tag.color } : t)
-          .sort((a, b) => a.label.localeCompare(b.label))
+          .sort((a, b) => (a.parentId ?? '').localeCompare(b.parentId ?? '') || (a.sortOrder - b.sortOrder) || a.label.localeCompare(b.label))
       )
       router.refresh()
     }
@@ -1605,6 +2056,25 @@ export default function TaggingWorkspace({
     }
   }
 
+  async function reorderTags(orderedTagIds: string[], parentId: string | null) {
+    const previous = tagDefinitions
+    const orderById = new Map(orderedTagIds.map((id, index) => [id, index * 1000]))
+    setTagDefinitions((prev) => prev.map((tag) => (
+      orderById.has(tag.id)
+        ? { ...tag, parentId, sortOrder: orderById.get(tag.id)! }
+        : tag
+    )))
+
+    const result = await reorderQuestionTags(studyId, questionId, orderedTagIds, parentId)
+    if (result?.success) {
+      router.refresh()
+      return true
+    } else {
+      setTagDefinitions(previous)
+      return false
+    }
+  }
+
   async function updateDescription(tagId: string, description: string) {
     const result = await updateTagDescription(studyId, tagId, description)
     if (result?.success) {
@@ -1612,12 +2082,14 @@ export default function TaggingWorkspace({
     }
   }
 
-  async function runBatchTag() {
+  async function runBatchTag(answerIds: string[], modeOverride?: 'apply' | 'explore') {
     const BATCH_SIZE = 15  // answers per AI call
     const CONCURRENCY = 5  // parallel AI calls at once
 
-    const toProcess = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).length === 0)
+    const targetIds = new Set(answerIds)
+    const toProcess = answers.filter((a) => targetIds.has(a.answerId))
     if (!toProcess.length) return
+    const mode = modeOverride ?? batchMode
 
     setBatchRunning(true)
     setBatchSummary(null)
@@ -1633,13 +2105,13 @@ export default function TaggingWorkspace({
     // Process batches with limited concurrency
     for (let i = 0; i < batches.length; i += CONCURRENCY) {
       const round = batches.slice(i, i + CONCURRENCY)
-      const tagSnapshot = liveTagsRef.current.filter((t) => t.parentId !== null || !liveTagsRef.current.some((c) => c.parentId === t.id))
+      const tagSnapshot = liveTagsRef.current.filter((t) => !isThemeTag(t))
 
       await Promise.all(round.map(async (batch) => {
         const result = await suggestTagsBatchWithAI(
           batch.map((a) => ({ id: a.answerId, text: a.answer })),
           tagSnapshot.map((t) => ({ id: t.id, label: t.label })),
-          batchMode,
+          mode,
         )
 
         if (result.error && !firstError) firstError = result.error
@@ -1657,8 +2129,8 @@ export default function TaggingWorkspace({
             const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
             const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
             if (tagResult?.tag) {
-              const newTag: TagDefinition = { id: tagResult.tag.id, label: tagResult.tag.label, color: tagResult.tag.color, parentId: null, description: null }
-              const updated = [...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label), newTag].sort((a, b) => a.label.localeCompare(b.label))
+              const newTag: TagDefinition = { id: tagResult.tag.id, label: tagResult.tag.label, color: tagResult.tag.color, parentId: null, description: null, sortOrder: tagResult.tag.sortOrder, isTheme: tagResult.tag.isTheme }
+              const updated = sortTags([...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label), newTag])
               liveTagsRef.current = updated
               setTagDefinitions(updated)
               if (!nextIds.includes(newTag.id)) nextIds.push(newTag.id)
@@ -1696,7 +2168,7 @@ export default function TaggingWorkspace({
       batchSummary={batchSummary}
       batchMode={batchMode}
       setBatchMode={setBatchMode}
-      onRunBatch={() => void runBatchTag()}
+      onRunBatch={(answerIds, modeOverride) => void runBatchTag(answerIds, modeOverride)}
       onClearBatchSummary={() => setBatchSummary(null)}
       onApply={applyTag}
       onCreateAndApply={createAndApplyTag}
@@ -1705,6 +2177,7 @@ export default function TaggingWorkspace({
       onDelete={deleteTag}
       onCreate={createTag}
       onMoveToTheme={moveTagToTheme}
+      onReorderTags={reorderTags}
       onUpdateDescription={updateDescription}
     />
   )
