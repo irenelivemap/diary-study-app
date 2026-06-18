@@ -1,19 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 import {
   consolidateTagsWithAI,
   createQuestionTag,
-  deleteQuestionTag,
-  reorderQuestionTags,
-  setTagParent,
-  suggestTagsBatchWithAI,
   suggestThemeName,
-  updateAnswerTags,
-  updateQuestionTag,
-  updateTagDescription,
 } from '@/app/actions/analysis'
 import { Button } from '@/app/components/ui'
 import AIProposalPanel from '@/app/components/tag-lab/AIProposalPanel'
@@ -27,6 +19,7 @@ import TagCreateRow from '@/app/components/tag-lab/TagCreateRow'
 import { BulkDeleteConfirm, TagSectionHeader } from '@/app/components/tag-lab/TagSectionControls'
 import ThemeCard from '@/app/components/tag-lab/ThemeCard'
 import { useTagDragReorder } from '@/app/components/tag-lab/useTagDragReorder'
+import { useTagLabData } from '@/app/components/tag-lab/useTagLabData'
 import { DEFAULT_COLORS, isThemeTag, normalizeLabel, sortTags } from '@/app/components/tag-lab/utils'
 
 // ─── AnalysisWorkspace ───────────────────────────────────────────────────────
@@ -519,274 +512,34 @@ export default function TaggingWorkspace({
   initialTags: TagDefinition[]
   answers: Answer[]
 }) {
-  const router = useRouter()
-  const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(initialTags)
-  const [tagIdsByAnswer, setTagIdsByAnswer] = useState<Record<string, string[]>>(() =>
-    Object.fromEntries(answers.map((a) => [a.answerId, a.tags.map((t) => t.id)]))
-  )
-  const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null)
-  const [savingTagId, setSavingTagId] = useState<string | null>(null)
-
-  const [batchMode, setBatchMode] = useState<'apply' | 'explore'>('explore')
-  const [batchRunning, setBatchRunning] = useState(false)
-  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
-  const [batchSummary, setBatchSummary] = useState<{ total: number; tagsApplied: number; firstError?: string } | null>(null)
-  const liveTagsRef = useRef<TagDefinition[]>(initialTags)
-
-  const tagById = useMemo(() => new Map(tagDefinitions.map((t) => [t.id, t])), [tagDefinitions])
-  useEffect(() => {
-    liveTagsRef.current = tagDefinitions
-  }, [tagDefinitions])
-
-  async function saveAnswerTags(answerId: string, nextTagIds: string[]) {
-    const final = [...new Set(nextTagIds)].filter((id) => tagById.has(id)).slice(0, 12)
-    setTagIdsByAnswer((prev) => ({ ...prev, [answerId]: final }))
-    setSavingAnswerId(answerId)
-    const result = await updateAnswerTags(studyId, answerId, final)
-    setSavingAnswerId(null)
-    if (result?.tagIds) setTagIdsByAnswer((prev) => ({ ...prev, [answerId]: result.tagIds }))
-  }
-
-  async function applyTag(answerId: string, tagId: string) {
-    const current = tagIdsByAnswer[answerId] ?? []
-    if (current.includes(tagId)) return
-    await saveAnswerTags(answerId, [...current, tagId])
-  }
-
-  async function createAndApplyTag(answerId: string, label: string) {
-    const color = DEFAULT_COLORS[tagDefinitions.length % DEFAULT_COLORS.length]
-    setSavingTagId('new')
-    const result = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
-    setSavingTagId(null)
-    if (!result?.tag) return
-    const newTag: TagDefinition = {
-      id: result.tag.id,
-      label: result.tag.label,
-      color: result.tag.color,
-      parentId: null,
-      description: null,
-      sortOrder: result.tag.sortOrder,
-      isTheme: result.tag.isTheme,
-    }
-    setTagDefinitions((prev) => {
-      const without = prev.filter((t) => t.id !== newTag.id && t.label !== newTag.label)
-      return sortTags([...without, newTag])
-    })
-    const current = tagIdsByAnswer[answerId] ?? []
-    if (!current.includes(newTag.id)) {
-      const nextIds = [...current, newTag.id]
-      setTagIdsByAnswer((prev) => ({ ...prev, [answerId]: nextIds }))
-      setSavingAnswerId(answerId)
-      const saveResult = await updateAnswerTags(studyId, answerId, nextIds)
-      setSavingAnswerId(null)
-      if (saveResult?.tagIds) setTagIdsByAnswer((prev) => ({ ...prev, [answerId]: saveResult.tagIds }))
-    }
-    router.refresh()
-  }
-
-  async function removeTag(answerId: string, tagId: string) {
-    await saveAnswerTags(answerId, (tagIdsByAnswer[answerId] ?? []).filter((id) => id !== tagId))
-  }
-
-  async function createTag(label: string, color: string, isTheme = false): Promise<TagDefinition | null> {
-    const finalLabel = normalizeLabel(label)
-    if (!finalLabel) return null
-    setSavingTagId('new')
-    const result = await createQuestionTag(studyId, questionId, finalLabel, color, isTheme)
-    setSavingTagId(null)
-    if (!result?.tag) return null
-    const newTag: TagDefinition = {
-      id: result.tag.id,
-      label: result.tag.label,
-      color: result.tag.color,
-      parentId: null,
-      description: null,
-      sortOrder: result.tag.sortOrder,
-      isTheme: result.tag.isTheme,
-    }
-    setTagDefinitions((prev) => {
-      const without = prev.filter((t) => t.id !== newTag.id && t.label !== newTag.label)
-      return sortTags([...without, newTag])
-    })
-    router.refresh()
-    return newTag
-  }
-
-  async function renameTag(tagId: string, label: string, color: string) {
-    setSavingTagId(tagId)
-    const result = await updateQuestionTag(studyId, tagId, { label, color })
-    setSavingTagId(null)
-    if (result?.tag) {
-      setTagDefinitions((prev) =>
-        prev.map((t) => t.id === tagId ? { ...t, label: result.tag.label, color: result.tag.color } : t)
-          .sort((a, b) => (a.parentId ?? '').localeCompare(b.parentId ?? '') || (a.sortOrder - b.sortOrder) || a.label.localeCompare(b.label))
-      )
-      router.refresh()
-    }
-  }
-
-  async function deleteTag(tagId: string, mode?: 'keep-subtags' | 'delete-all') {
-    setSavingTagId(tagId)
-    if (mode === 'keep-subtags') {
-      // Unparent all children first
-      const children = tagDefinitions.filter((t) => t.parentId === tagId)
-      for (const child of children) {
-        await setTagParent(studyId, child.id, null)
-      }
-      setTagDefinitions((prev) => prev.map((t) => t.parentId === tagId ? { ...t, parentId: null } : t))
-    } else if (mode === 'delete-all') {
-      // Delete children first
-      const children = tagDefinitions.filter((t) => t.parentId === tagId)
-      for (const child of children) {
-        await deleteQuestionTag(studyId, child.id)
-      }
-      setTagDefinitions((prev) => prev.filter((t) => t.parentId !== tagId))
-      setTagIdsByAnswer((prev) =>
-        Object.fromEntries(Object.entries(prev).map(([aid, ids]) => [aid, ids.filter((id) => !children.some((c) => c.id === id))]))
-      )
-    }
-    const result = await deleteQuestionTag(studyId, tagId)
-    setSavingTagId(null)
-    if (result?.success) {
-      setTagDefinitions((prev) => prev.filter((t) => t.id !== tagId))
-      setTagIdsByAnswer((prev) =>
-        Object.fromEntries(Object.entries(prev).map(([aid, ids]) => [aid, ids.filter((id) => id !== tagId)]))
-      )
-      router.refresh()
-    }
-  }
-
-  async function moveTagToTheme(tagId: string, parentId: string | null) {
-    const result = await setTagParent(studyId, tagId, parentId)
-    if (result?.success) {
-      setTagDefinitions((prev) => prev.map((t) => t.id === tagId ? { ...t, parentId } : t))
-      router.refresh()
-    }
-  }
-
-  async function reorderTags(orderedTagIds: string[], parentId: string | null) {
-    const previous = tagDefinitions
-    const orderById = new Map(orderedTagIds.map((id, index) => [id, index * 1000]))
-    setTagDefinitions((prev) => prev.map((tag) => (
-      orderById.has(tag.id)
-        ? { ...tag, parentId, sortOrder: orderById.get(tag.id)! }
-        : tag
-    )))
-
-    const result = await reorderQuestionTags(studyId, questionId, orderedTagIds, parentId)
-    if (result?.success) {
-      router.refresh()
-      return true
-    } else {
-      setTagDefinitions(previous)
-      return false
-    }
-  }
-
-  async function updateDescription(tagId: string, description: string) {
-    const result = await updateTagDescription(studyId, tagId, description)
-    if (result?.success) {
-      setTagDefinitions((prev) => prev.map((t) => t.id === tagId ? { ...t, description: description || null } : t))
-    }
-  }
-
-  async function runBatchTag(answerIds: string[], modeOverride?: 'apply' | 'explore') {
-    const BATCH_SIZE = 15  // answers per AI call
-    const CONCURRENCY = 5  // parallel AI calls at once
-
-    const targetIds = new Set(answerIds)
-    const toProcess = answers.filter((a) => targetIds.has(a.answerId))
-    if (!toProcess.length) return
-    const mode = modeOverride ?? batchMode
-
-    setBatchRunning(true)
-    setBatchSummary(null)
-    setBatchProgress({ done: 0, total: toProcess.length })
-
-    // Split into batches
-    const batches: typeof toProcess[] = []
-    for (let i = 0; i < toProcess.length; i += BATCH_SIZE) batches.push(toProcess.slice(i, i + BATCH_SIZE))
-
-    let tagsApplied = 0
-    let firstError: string | undefined
-
-    // Process batches with limited concurrency
-    for (let i = 0; i < batches.length; i += CONCURRENCY) {
-      const round = batches.slice(i, i + CONCURRENCY)
-      const tagSnapshot = liveTagsRef.current.filter((t) => !isThemeTag(t))
-
-      await Promise.all(round.map(async (batch) => {
-        const result = await suggestTagsBatchWithAI(
-          batch.map((a) => ({ id: a.answerId, text: a.answer })),
-          tagSnapshot.map((t) => ({ id: t.id, label: t.label })),
-          mode,
-        )
-
-        if (result.error && !firstError) firstError = result.error
-
-        for (const answer of batch) {
-          const res = result.results[answer.answerId]
-          if (!res) { setBatchProgress((p) => ({ ...p, done: p.done + 1 })); continue }
-
-          const existingIds = tagIdsByAnswer[answer.answerId] ?? []
-          const validTagIds = new Set(tagSnapshot.map((t) => t.id))
-          const toAdd = res.apply.filter((id) => validTagIds.has(id) && !existingIds.includes(id))
-          const nextIds = [...existingIds, ...toAdd]
-
-          for (const label of res.new_tags) {
-            const color = DEFAULT_COLORS[liveTagsRef.current.length % DEFAULT_COLORS.length]
-            const tagResult = await createQuestionTag(studyId, questionId, normalizeLabel(label), color)
-            if (tagResult?.tag) {
-              const newTag: TagDefinition = { id: tagResult.tag.id, label: tagResult.tag.label, color: tagResult.tag.color, parentId: null, description: null, sortOrder: tagResult.tag.sortOrder, isTheme: tagResult.tag.isTheme }
-              const updated = sortTags([...liveTagsRef.current.filter((t) => t.id !== newTag.id && t.label !== newTag.label), newTag])
-              liveTagsRef.current = updated
-              setTagDefinitions(updated)
-              if (!nextIds.includes(newTag.id)) nextIds.push(newTag.id)
-            }
-          }
-
-          if (nextIds.length > existingIds.length) {
-            tagsApplied += nextIds.length - existingIds.length
-            setTagIdsByAnswer((prev) => ({ ...prev, [answer.answerId]: nextIds }))
-            await updateAnswerTags(studyId, answer.answerId, nextIds)
-          }
-
-          setBatchProgress((p) => ({ ...p, done: p.done + 1 }))
-        }
-      }))
-    }
-
-    setBatchRunning(false)
-    setBatchSummary({ total: toProcess.length, tagsApplied, firstError })
-    router.refresh()
-  }
+  const tagLabData = useTagLabData({ studyId, questionId, initialTags, answers })
 
   return (
     <AnalysisWorkspace
       studyId={studyId}
       questionId={questionId}
-      tagDefinitions={tagDefinitions}
-      tagIdsByAnswer={tagIdsByAnswer}
+      tagDefinitions={tagLabData.tagDefinitions}
+      tagIdsByAnswer={tagLabData.tagIdsByAnswer}
       answers={answers}
-      tagById={tagById}
-      savingAnswerId={savingAnswerId}
-      savingTagId={savingTagId}
-      batchRunning={batchRunning}
-      batchProgress={batchProgress}
-      batchSummary={batchSummary}
-      batchMode={batchMode}
-      setBatchMode={setBatchMode}
-      onRunBatch={(answerIds, modeOverride) => void runBatchTag(answerIds, modeOverride)}
-      onClearBatchSummary={() => setBatchSummary(null)}
-      onApply={applyTag}
-      onCreateAndApply={createAndApplyTag}
-      onRemove={removeTag}
-      onRename={renameTag}
-      onDelete={deleteTag}
-      onCreate={createTag}
-      onMoveToTheme={moveTagToTheme}
-      onReorderTags={reorderTags}
-      onUpdateDescription={updateDescription}
+      tagById={tagLabData.tagById}
+      savingAnswerId={tagLabData.savingAnswerId}
+      savingTagId={tagLabData.savingTagId}
+      batchRunning={tagLabData.batchRunning}
+      batchProgress={tagLabData.batchProgress}
+      batchSummary={tagLabData.batchSummary}
+      batchMode={tagLabData.batchMode}
+      setBatchMode={tagLabData.setBatchMode}
+      onRunBatch={(answerIds, modeOverride) => void tagLabData.runBatchTag(answerIds, modeOverride)}
+      onClearBatchSummary={tagLabData.clearBatchSummary}
+      onApply={tagLabData.applyTag}
+      onCreateAndApply={tagLabData.createAndApplyTag}
+      onRemove={tagLabData.removeTag}
+      onRename={tagLabData.renameTag}
+      onDelete={tagLabData.deleteTag}
+      onCreate={tagLabData.createTag}
+      onMoveToTheme={tagLabData.moveTagToTheme}
+      onReorderTags={tagLabData.reorderTags}
+      onUpdateDescription={tagLabData.updateDescription}
     />
   )
 }
