@@ -10,6 +10,7 @@ function LoginContent() {
   const [state, action, pending] = useActionState(login, null)
   const searchParams = useSearchParams()
   const next = searchParams.get('next') ?? ''
+  const resetSuccess = searchParams.get('reset') === 'success'
   const inviteToken = next.match(/^\/join\/([^/?#]+)/)?.[1] ?? ''
   const externalParticipantId = (() => {
     try {
@@ -64,6 +65,11 @@ function LoginContent() {
 
           <form action={action} className="space-y-4">
             {next && <input type="hidden" name="next" value={next} />}
+            {resetSuccess && (
+              <div className="text-sm text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-100">
+                Your password has been updated. Sign in with your new password.
+              </div>
+            )}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
               <TextInput id="email" name="email" type="email" required autoComplete="email"
@@ -71,7 +77,12 @@ function LoginContent() {
                 className="h-12" />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700">Password</label>
+                <Link href="/forgot-password" className="text-sm font-medium text-indigo-600 hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <TextInput id="password" name="password" type="password" required autoComplete="current-password"
                 placeholder="••••••••"
                 className="h-12" />

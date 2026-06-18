@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt } from '@/app/lib/session'
 
-const publicRoutes = ['/login', '/signup']
+const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password']
 const publicPrefixes = ['/join/']
 
 export async function proxy(req: NextRequest) {

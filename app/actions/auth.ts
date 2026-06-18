@@ -10,6 +10,13 @@ import { demographicsFromFormData } from '@/app/lib/demographics'
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 import { REMOVED_INVITE_PREFIX, isRemovedInviteToken } from '@/app/lib/invitation-access'
 import {
+  PASSWORD_RESET_TOKEN_TTL_MS,
+  createPasswordResetToken,
+  passwordResetTokenHash,
+  passwordResetUrl,
+  sendPasswordResetEmail,
+} from '@/app/lib/password-reset'
+import {
   checkLoginRateLimit,
   clearLoginRateLimit,
   loginRateLimitKeys,
@@ -74,6 +81,86 @@ export async function login(prevState: { error?: string } | null, formData: Form
   await createSession({ userId: user.id, role: user.role, name: user.name, email: user.email })
 
   redirect(nextPath ?? (user.role === 'ADMIN' ? '/admin' : '/dashboard'))
+}
+
+export async function requestPasswordReset(
+  prevState: { error?: string; success?: boolean } | null,
+  formData: FormData
+) {
+  const email = normalizeEmail(formData.get('email'))
+  if (!email || !isValidEmail(email)) return { error: 'Enter a valid email address.' }
+
+  const user = await prisma.user.findUnique({ where: { email } })
+  if (user) {
+    const token = createPasswordResetToken()
+    const tokenHash = passwordResetTokenHash(token)
+    await prisma.$transaction([
+      prisma.passwordResetToken.deleteMany({
+        where: {
+          userId: user.id,
+          usedAt: null,
+        },
+      }),
+      prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt: new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS),
+        },
+      }),
+    ])
+
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl: passwordResetUrl(token),
+    })
+  }
+
+  return { success: true }
+}
+
+export async function resetPassword(
+  prevState: { error?: string } | null,
+  formData: FormData
+) {
+  const token = String(formData.get('token') ?? '').trim()
+  const password = String(formData.get('password') ?? '')
+  const confirmPassword = String(formData.get('confirmPassword') ?? '')
+
+  if (!token) return { error: 'This reset link is missing its token.' }
+  if (password.length < 8) return { error: 'Password must be at least 8 characters.' }
+  if (password !== confirmPassword) return { error: 'Passwords do not match.' }
+
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: passwordResetTokenHash(token) },
+    include: { user: { select: { id: true, email: true } } },
+  })
+
+  if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
+    return { error: 'This reset link has expired. Request a new password reset link.' }
+  }
+
+  const hashed = await bcrypt.hash(password, 12)
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { password: hashed },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: { usedAt: new Date() },
+    }),
+    prisma.passwordResetToken.deleteMany({
+      where: {
+        userId: resetToken.userId,
+        id: { not: resetToken.id },
+      },
+    }),
+  ])
+
+  await clearLoginRateLimit(await loginRateLimitKeys(resetToken.user.email))
+  redirect('/login?reset=success')
 }
 
 export async function signup(prevState: { error?: string } | null, formData: FormData) {

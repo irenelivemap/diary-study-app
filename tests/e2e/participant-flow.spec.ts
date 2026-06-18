@@ -4,6 +4,8 @@ import type { Page } from '@playwright/test'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { SignJWT } from 'jose'
+import bcrypt from 'bcryptjs'
+import { passwordResetTokenHash } from '@/app/lib/password-reset'
 
 const QA_PARTICIPANT_EMAIL = process.env.QA_PARTICIPANT_EMAIL || 'qa.participant@diari.test'
 const QA_PARTICIPANT_PASSWORD = process.env.QA_PARTICIPANT_PASSWORD || 'qa-participant-123'
@@ -256,6 +258,52 @@ test('participant-specific invite asks mismatched signed-in users to switch acco
   await expect(page.getByText(`This invite is for ${invitedEmail}. You are signed in as ${QA_PARTICIPANT_EMAIL}.`)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sign out and continue' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Join study' })).toHaveCount(0)
+})
+
+test('participant can request and use a password reset link', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const email = `qa.reset.${projectSlug}.${testInfo.workerIndex}.${Date.now()}@diari.test`
+  const originalPassword = 'qa-reset-original-123'
+  const user = await db.user.create({
+    data: {
+      email,
+      name: 'QA Reset Participant',
+      password: await bcrypt.hash(originalPassword, 12),
+      role: 'PARTICIPANT',
+    },
+  })
+  cleanupEmails.push(email)
+
+  await page.goto('/login')
+  await page.getByRole('link', { name: 'Forgot password?' }).click()
+  await expect(page).toHaveURL(/\/forgot-password/)
+  await page.getByLabel('Email address').fill(email)
+  await page.getByRole('button', { name: 'Send reset link' }).click()
+  await expect(page.getByText('If an account exists for that email')).toBeVisible()
+
+  const resetToken = `qa-password-reset-token-${Date.now()}`
+  await db.passwordResetToken.deleteMany({ where: { userId: user.id } })
+  await db.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: passwordResetTokenHash(resetToken),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  })
+
+  const newPassword = `qa-participant-reset-${Date.now()}`
+  await page.goto(`/reset-password?token=${resetToken}`)
+  await page.getByLabel('New password').fill(newPassword)
+  await page.getByLabel('Confirm password').fill(newPassword)
+  await page.getByRole('button', { name: 'Update password' }).click()
+  await expect(page).toHaveURL(/\/login\?reset=success/)
+  await expect(page.getByText('Your password has been updated')).toBeVisible()
+
+  await page.getByLabel('Email address').fill(email)
+  await page.getByLabel('Password').fill(newPassword)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/dashboard/)
 })
 
 test('profile keeps a participant on the participant side when going back', async ({ page }) => {
