@@ -105,17 +105,18 @@ export default function WordCloudChart({
 }) {
   const [posFilter, setPosFilter] = useState<POSFilter>('all')
   const [topN, setTopN] = useState(25)
-  const [excludedWords, setExcludedWords] = useState<string[]>([])
+  const [excludedWords, setExcludedWords] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const stored = window.localStorage.getItem(`wc-ex-${questionId}`)
+      return stored ? JSON.parse(stored) as string[] : []
+    } catch {
+      return []
+    }
+  })
   const [words, setWords] = useState<CloudWord[]>([])
   const [loading, setLoading] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(`wc-ex-${questionId}`)
-      if (stored) setExcludedWords(JSON.parse(stored) as string[])
-    } catch {}
-  }, [questionId])
 
   const processWords = useCallback(async () => {
     setLoading(true)
@@ -181,7 +182,11 @@ export default function WordCloudChart({
     setLoading(false)
   }, [answers, posFilter, topN, excludedWords])
 
-  useEffect(() => { void processWords() }, [processWords])
+  useEffect(() => {
+    // Word classification is async because compromise is loaded only when needed.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void processWords()
+  }, [processWords])
 
   const placements = useMemo(() => {
     if (!words.length) return []
