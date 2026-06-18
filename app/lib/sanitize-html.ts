@@ -1,16 +1,55 @@
-const UNSAFE_TAGS = /<\/?(script|style|iframe|object|embed|svg|math|link|meta|base|form|input|button|textarea|select)[^>]*>/gi
-const EVENT_ATTRS = /\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi
-const JS_URLS = /\s+(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi
-const DANGEROUS_CSS = /\s+style\s*=\s*(["'])[\s\S]*?(expression\s*\(|javascript:|url\s*\()[\s\S]*?\1/gi
+import sanitizeHtmlLibrary from 'sanitize-html'
+
+const options: sanitizeHtmlLibrary.IOptions = {
+  allowedTags: [
+    'a',
+    'b',
+    'br',
+    'div',
+    'em',
+    'font',
+    'i',
+    'li',
+    'ol',
+    'p',
+    'span',
+    'strong',
+    'u',
+    'ul',
+  ],
+  allowedAttributes: {
+    a: ['href', 'target', 'rel'],
+    font: ['color', 'size'],
+    span: ['style'],
+    p: ['style'],
+    div: ['style'],
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowedSchemesByTag: {
+    a: ['http', 'https', 'mailto'],
+  },
+  allowedStyles: {
+    '*': {
+      color: [
+        /^#[0-9a-f]{3,8}$/i,
+        /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i,
+        /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0|1|0?\.\d+)\s*\)$/i,
+      ],
+      'font-size': [
+        /^\d+(\.\d+)?(px|em|rem|%)$/i,
+        /^(small|medium|large|x-large|xx-large|smaller|larger)$/i,
+      ],
+      'text-align': [/^(left|right|center)$/i],
+    },
+  },
+  transformTags: {
+    a: sanitizeHtmlLibrary.simpleTransform('a', { rel: 'noopener noreferrer' }),
+  },
+}
 
 export function sanitizeHtml(value: string | null | undefined) {
   if (!value) return ''
-  return String(value)
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(UNSAFE_TAGS, '')
-    .replace(EVENT_ATTRS, '')
-    .replace(JS_URLS, '')
-    .replace(DANGEROUS_CSS, '')
+  return sanitizeHtmlLibrary(String(value), options)
 }
 
 export function plainTextFromHtml(value: string | null | undefined) {

@@ -61,4 +61,9 @@ const loginRateLimit = readFileSync(join(root, 'app/lib/login-rate-limit.ts'), '
 assert.match(loginRateLimit, /x-forwarded-for/, 'Login rate limiting should include the client IP forwarded by the platform.')
 assert.match(loginRateLimit, /MAX_FAILED_ATTEMPTS\s*=\s*5/, 'Login rate limiting should block repeated password guesses.')
 
+const htmlSanitizer = readFileSync(join(root, 'app/lib/sanitize-html.ts'), 'utf8')
+assert.match(htmlSanitizer, /sanitize-html/, 'Rich-text HTML should be sanitized by a maintained library.')
+assert.match(htmlSanitizer, /allowedTags/, 'Rich-text HTML sanitizer should use an explicit allowlist.')
+assert.match(htmlSanitizer, /allowedSchemes/, 'Rich-text HTML sanitizer should restrict link URL schemes.')
+
 console.log('Access audit passed.')

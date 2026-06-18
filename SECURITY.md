@@ -56,9 +56,12 @@ Patch-level updates for Next, React, Vercel Blob, Resend, Playwright and related
 
 ## Known hardening gaps
 
-- Rich-text HTML is sanitized by local code. Consider replacing it with a maintained sanitizer library before handling high-risk HTML input.
 - Screenshot uploads can contain sensitive participant information. Study consent/instructions should explicitly tell participants what not to upload.
 
 ## Login protection
 
 Sign-in attempts are throttled with a database-backed limiter, keyed by hashed email address and hashed client IP address. Five failed attempts in a 15-minute window trigger a 15-minute block. Successful sign-in clears the matching email limiter record while keeping IP-level protection intact.
+
+## Rich text sanitization
+
+Study setup supports limited rich-text formatting for question text and answer options. Saved and rendered HTML is sanitized with the maintained `sanitize-html` package. The allowed formatting is intentionally narrow: basic inline formatting, lists, line breaks, safe links and restricted color/font-size styles.
