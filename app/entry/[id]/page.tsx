@@ -35,14 +35,28 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   const entry = await prisma.entry.findUnique({
     where: { id },
     include: {
-      part: true,
+      part: { select: { id: true, name: true, flow: true } },
       study: {
-        include: {
-          parts: { where: { isActive: true }, orderBy: { order: 'asc' } },
+        select: {
+          id: true,
+          name: true,
+          journeyName: true,
+          participantEntryAccess: true,
+          isArchived: true,
+          status: true,
+          parts: {
+            where: { isActive: true },
+            orderBy: { order: 'asc' },
+            select: { id: true, name: true, flow: true },
+          },
         },
       },
       user: { select: { name: true, email: true } },
-      answers: { include: { question: true } },
+      answers: {
+        include: {
+          question: { select: { id: true, text: true, type: true, order: true } },
+        },
+      },
       journey: { include: { entries: { select: { partId: true } } } },
     },
   })

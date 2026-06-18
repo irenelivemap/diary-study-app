@@ -20,12 +20,16 @@ export default async function NewEntryPage({
 
   const participation = await prisma.studyParticipant.findUnique({
     where: { studyId_userId: { studyId, userId: session.userId } },
+    select: {
+      consentedAt: true,
+      joinedAt: true,
+      user: { select: { timezone: true } },
+    },
   })
   if (!participation) redirect('/dashboard')
   if (!participation.consentedAt) redirect('/dashboard')
 
-  const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { timezone: true } })
-  const userTimezone = normalizeTimezone(user?.timezone)
+  const userTimezone = normalizeTimezone(participation.user.timezone)
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: userTimezone || undefined,
     year: 'numeric',
