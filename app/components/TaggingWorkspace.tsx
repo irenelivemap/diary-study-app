@@ -28,22 +28,15 @@ import {
 import { Button } from '@/app/components/ui'
 import AIProposalPanel from '@/app/components/tag-lab/AIProposalPanel'
 import AnswerPanel from '@/app/components/tag-lab/AnswerPanel'
-import { ManageCtx, TagDragOverlay, TagRow, ThemeChildren, ThemeDropZone, UngroupedDropZone } from '@/app/components/tag-lab/ManageTagRows'
+import { ManageCtx, TagDragOverlay, TagRow, UngroupedDropZone } from '@/app/components/tag-lab/ManageTagRows'
 import type { ManageCtxType } from '@/app/components/tag-lab/ManageTagRows'
 import { AiErrorMessage, SaveNoticeMessage, SelectedTagsGroupingBar } from '@/app/components/tag-lab/OrganizationFeedback'
 import TagAnswers from '@/app/components/tag-lab/TagAnswers'
 import type { Answer, InsertionIndicator, ProposedTheme, SaveNotice, TagDefinition } from '@/app/components/tag-lab/types'
 import TagCreateRow from '@/app/components/tag-lab/TagCreateRow'
 import { BulkDeleteConfirm, TagSectionHeader } from '@/app/components/tag-lab/TagSectionControls'
+import ThemeCard from '@/app/components/tag-lab/ThemeCard'
 import { DEFAULT_COLORS, isThemeTag, normalizeLabel, sortTags, tagGroup } from '@/app/components/tag-lab/utils'
-
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 2l4 4-4 4" />
-    </svg>
-  )
-}
 
 // ─── AnalysisWorkspace ───────────────────────────────────────────────────────
 
@@ -488,90 +481,36 @@ function AnalysisWorkspace({
         ) : themes.length > 0 ? (
           <div className="space-y-2">
             {themes.map((theme) => {
-            const children = sortTags(tagDefinitions.filter((t) => t.parentId === theme.id))
             const isOpen = expandedThemeIds.has(theme.id)
             const themeSelected = selectedThemeIds.has(theme.id)
             return (
-              <ThemeDropZone key={theme.id} themeId={theme.id} themeLabel={theme.label} active={themeDropTargetId === theme.id}>
-                <div
-                  className={`group/theme flex items-start gap-3 border-l-4 bg-white px-4 py-3.5 cursor-pointer select-none transition-colors hover:bg-[var(--bg-sunken)]/45 ${isOpen ? 'rounded-t-xl border-b border-[var(--border-subtle)]' : 'rounded-xl'}`}
-                  style={{ borderLeftColor: theme.color }}
-                  onClick={() => toggleThemeExpand(theme.id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleThemeExpand(theme.id) } }}
-                  aria-expanded={isOpen}
-                >
-                  <span className="shrink-0 mt-1 flex h-5 w-5 items-center justify-center text-[var(--text-tertiary)]">
-                    <ChevronIcon open={isOpen} />
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={themeSelected}
-                    onChange={() => toggleThemeSelect(theme.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={`Select ${theme.label}`}
-                    className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
-                  />
-                  <label className="relative mt-0.5 h-[18px] w-[18px] shrink-0 cursor-pointer" title="Change theme color" onClick={(e) => e.stopPropagation()}>
-                    <span className="block h-[18px] w-[18px] rounded-md ring-1 ring-black/10" style={{ backgroundColor: theme.color }} />
-                    <input type="color" value={theme.color} onChange={(e) => onRename(theme.id, theme.label, e.target.value)} aria-label={`${theme.label} color`} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                  </label>
-                  <div className="flex-1 min-w-0 space-y-1" onClick={(e) => e.stopPropagation()}>
-                    {renamingId === theme.id ? (
-                      <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={() => void commitRename(theme)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commitRename(theme) } if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') } }} className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-0.5 text-sm font-bold text-[var(--text)] outline-none ring-2 ring-[var(--accent-ring)]" />
-                    ) : (
-                      <button type="button" onClick={() => startRename(theme)} className="group/name flex w-fit max-w-full items-center gap-1 text-left text-[15px] font-bold leading-snug text-[var(--text)] hover:text-[var(--text-link)]">
-                        {theme.label}
-                        <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-50 transition-opacity" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
-                      </button>
-                    )}
-                    {isOpen && (
-                      editingDescId === theme.id ? (
-                        <textarea
-                          autoFocus
-                          value={descValue}
-                          onChange={(e) => setDescValue(e.target.value)}
-                          onBlur={() => void commitDesc(theme.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void commitDesc(theme.id) }
-                            if (e.key === 'Escape') setEditingDescId(null)
-                          }}
-                          rows={2}
-                          placeholder="Add description…"
-                          className="w-full rounded-lg border border-[var(--border-focus)] bg-white px-2 py-1.5 text-sm text-[var(--text-secondary)] outline-none ring-2 ring-[var(--accent-ring)]"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEditDesc(theme)}
-                          className="group/desc flex max-w-full items-start gap-1 text-left text-sm italic leading-relaxed text-[var(--text-secondary)] hover:text-[var(--text)]"
-                        >
-                          <span>{theme.description ?? <span className="not-italic opacity-50">Add description…</span>}</span>
-                          <svg viewBox="0 0 12 12" className="mt-1 h-2.5 w-2.5 shrink-0 opacity-0 transition-opacity group-hover/desc:opacity-50" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" /></svg>
-                        </button>
-                      )
-                    )}
-                  </div>
-                  <span className="shrink-0 mt-1 text-xs text-[var(--text-tertiary)] whitespace-nowrap">{children.length} tag{children.length !== 1 ? 's' : ''}</span>
-                </div>
-                {isOpen && (
-                  <ThemeChildren>
-                    {children.length === 0 ? (
-                      <p className="rounded-lg border border-dashed border-[var(--border-strong)] bg-white px-4 py-3 text-sm text-[var(--text-tertiary)]">
-                        Drag tags here.
-                      </p>
-                    ) : (
-                      children.map((tag) => (
-                        <div key={tag.id}>
-                          <TagRow tag={tag} isIndented />
-                          {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent answers={answers} tagIdsByAnswer={tagIdsByAnswer} onRemove={onRemove} />}
-                        </div>
-                      ))
-                    )}
-                  </ThemeChildren>
-                )}
-              </ThemeDropZone>
+              <ThemeCard
+                key={theme.id}
+                theme={theme}
+                tagDefinitions={tagDefinitions}
+                answers={answers}
+                tagIdsByAnswer={tagIdsByAnswer}
+                selected={themeSelected}
+                expanded={isOpen}
+                dropActive={themeDropTargetId === theme.id}
+                renaming={renamingId === theme.id}
+                renameValue={renameValue}
+                editingDescription={editingDescId === theme.id}
+                descriptionValue={descValue}
+                expandedTagIds={expandedTagIds}
+                onToggleExpand={() => toggleThemeExpand(theme.id)}
+                onToggleSelect={() => toggleThemeSelect(theme.id)}
+                onRenameColor={(color) => onRename(theme.id, theme.label, color)}
+                onStartRename={() => startRename(theme)}
+                onRenameValueChange={setRenameValue}
+                onCommitRename={() => void commitRename(theme)}
+                onCancelRename={() => { setRenamingId(null); setRenameValue('') }}
+                onStartEditDescription={() => startEditDesc(theme)}
+                onDescriptionValueChange={setDescValue}
+                onCommitDescription={() => void commitDesc(theme.id)}
+                onCancelDescription={() => setEditingDescId(null)}
+                onRemoveAnswerTag={onRemove}
+              />
             )
           })}
           </div>
