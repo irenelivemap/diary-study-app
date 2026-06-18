@@ -31,6 +31,7 @@ import AppliedTagChip from '@/app/components/tag-lab/AppliedTagChip'
 import AnswerFilterMultiSelect from '@/app/components/tag-lab/AnswerFilterMultiSelect'
 import { GripIcon, ManageCtx, TagRow, ThemeChildren, ThemeDropZone, UngroupedDropZone } from '@/app/components/tag-lab/ManageTagRows'
 import type { ManageCtxType } from '@/app/components/tag-lab/ManageTagRows'
+import TagAnswers from '@/app/components/tag-lab/TagAnswers'
 import TagAutocomplete from '@/app/components/tag-lab/TagAutocomplete'
 import type { Answer, AnswerSortBy, FilterOption, InsertionIndicator, ProposedTheme, SaveNotice, TagDefinition } from '@/app/components/tag-lab/types'
 import { DEFAULT_COLORS, UNTAGGED_FILTER, formatDate, isThemeTag, normalizeLabel, sortTags, tagGroup } from '@/app/components/tag-lab/utils'
@@ -546,30 +547,6 @@ function AnalysisWorkspace({
     onKeyboardReorder: handleKeyboardReorder,
   }
 
-  function TagAnswers({ tag, indent }: { tag: TagDefinition; indent: boolean }) {
-    const tagged = answers.filter((a) => (tagIdsByAnswer[a.answerId] ?? []).includes(tag.id))
-    const pl = indent ? 'pl-14' : 'pl-6'
-    if (!tagged.length) return <p className={`${pl} pr-4 py-3 text-sm italic text-[var(--text-tertiary)] bg-[var(--bg-sunken)]`}>No answers tagged yet.</p>
-    return (
-      <div className="divide-y divide-[var(--border-subtle)] bg-[var(--bg-sunken)]">
-        {tagged.map((a) => (
-          <div key={a.answerId} className={`flex items-start gap-3 ${pl} pr-4 py-3`}>
-            <div className="flex-1 min-w-0 space-y-1">
-              <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
-                <span className="font-medium text-[var(--text-secondary)]">{a.participantName}</span>
-                <span>{formatDate(a.submittedAt)}</span>
-              </div>
-              <p className="text-sm leading-relaxed text-[var(--text)] line-clamp-3">{a.answer}</p>
-            </div>
-            <button type="button" onClick={() => onRemove(a.answerId, tag.id)} title="Remove tag from answer" className="mt-1 shrink-0 rounded p-1 text-[var(--text-tertiary)] hover:text-[var(--danger-text)]">
-              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M4 4l8 8M12 4l-8 8" /></svg>
-            </button>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <ManageCtx.Provider value={ctxValue}>
     <DndContext
@@ -737,7 +714,7 @@ function AnalysisWorkspace({
                       children.map((tag) => (
                         <div key={tag.id}>
                           <TagRow tag={tag} isIndented />
-                          {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent />}
+                          {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent answers={answers} tagIdsByAnswer={tagIdsByAnswer} onRemove={onRemove} />}
                         </div>
                       ))
                     )}
@@ -840,7 +817,7 @@ function AnalysisWorkspace({
             ungroupedTags.map((tag) => (
               <div key={tag.id}>
                 <TagRow tag={tag} />
-                {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent={false} />}
+                {expandedTagIds.has(tag.id) && <TagAnswers tag={tag} indent={false} answers={answers} tagIdsByAnswer={tagIdsByAnswer} onRemove={onRemove} />}
               </div>
             ))
           ) : (
