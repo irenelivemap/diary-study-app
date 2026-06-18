@@ -22,10 +22,16 @@ const prisma = process.env.DATABASE_URL
   ? new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })
   : null
 const cleanupEmails: string[] = []
+const cleanupInvitationEmails: string[] = []
 
 test.afterAll(async () => {
-  if (prisma && cleanupEmails.length > 0) {
-    await prisma.user.deleteMany({ where: { email: { in: cleanupEmails } } })
+  if (prisma) {
+    if (cleanupInvitationEmails.length > 0) {
+      await prisma.studyInvitation.deleteMany({ where: { email: { in: cleanupInvitationEmails } } })
+    }
+    if (cleanupEmails.length > 0) {
+      await prisma.user.deleteMany({ where: { email: { in: cleanupEmails } } })
+    }
   }
   await prisma?.$disconnect()
 })
@@ -396,6 +402,25 @@ test('researcher setup save state follows edits', async ({ page }) => {
   await expect(page.getByText('Unsaved changes')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeEnabled()
   await expectNoHorizontalOverflow(page, 'Researcher setup dirty state')
+})
+
+test('researcher invite form returns from sending and exposes the invite link', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+  const study = await loadSimpleStudy()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const email = `qa.form-invite.${projectSlug}.${testInfo.workerIndex}.${Date.now()}@diari.test`
+  cleanupInvitationEmails.push(email)
+  await db.studyInvitation.deleteMany({ where: { studyId: study.id, email } })
+
+  await loginAdminByCookie(page)
+  await page.goto(`/admin/studies/${study.id}/participants`)
+  const invitePanel = page.locator('section', { has: page.getByRole('heading', { name: 'Invite participant' }) })
+  await invitePanel.getByPlaceholder('Participant email address').fill(email)
+  await invitePanel.getByRole('button', { name: 'Send invitation' }).click()
+
+  await expect(invitePanel.getByRole('button', { name: /Sending/ })).toHaveCount(0, { timeout: 12_000 })
+  await expect(invitePanel.getByText(/Invitation saved|Participant added/)).toBeVisible()
+  await expect(invitePanel.getByLabel('Participant invite link')).toHaveValue(/\/join\//)
 })
 
 test('researcher data table exposes safe export controls', async ({ page }) => {

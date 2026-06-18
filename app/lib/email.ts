@@ -1,5 +1,7 @@
 import { Resend } from 'resend'
 
+const EMAIL_SEND_TIMEOUT_MS = 8_000
+
 function normalizeBaseUrl(value: string | undefined | null) {
   const trimmed = value?.trim().replace(/\/+$/, '')
   if (!trimmed) return null
@@ -31,4 +33,20 @@ export function htmlEscape(value: string) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+export async function withEmailTimeout<T>(send: () => Promise<T>, timeoutMs = EMAIL_SEND_TIMEOUT_MS) {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      send(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`Email provider did not confirm delivery within ${Math.round(timeoutMs / 1000)} seconds.`))
+        }, timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
 }

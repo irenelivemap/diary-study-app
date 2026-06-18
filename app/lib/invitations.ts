@@ -1,4 +1,4 @@
-import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
+import { appBaseUrl, emailFrom, htmlEscape, resendClient, withEmailTimeout } from '@/app/lib/email'
 
 type InvitationEmail = {
   to: string
@@ -16,7 +16,7 @@ export async function sendStudyInvitationEmail({ to, studyName, inviterName, inv
   const safeUrl = htmlEscape(inviteUrl)
 
   try {
-    await resend.emails.send({
+    await withEmailTimeout(() => resend.emails.send({
       from: emailFrom(),
       to,
       subject: `You're invited to ${studyName}`,
@@ -38,7 +38,7 @@ export async function sendStudyInvitationEmail({ to, studyName, inviterName, inv
         '',
         `Join the study: ${inviteUrl}`,
       ].join('\n'),
-    })
+    }))
     return { configured: true, sent: true, error: null }
   } catch (error) {
     return {

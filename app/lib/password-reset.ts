@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
+import { appBaseUrl, emailFrom, htmlEscape, resendClient, withEmailTimeout } from '@/app/lib/email'
 
 export const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000
 
@@ -29,7 +29,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }: {
   const safeUrl = htmlEscape(resetUrl)
 
   try {
-    await resend.emails.send({
+    await withEmailTimeout(() => resend.emails.send({
       from: emailFrom(),
       to,
       subject: 'Reset your diARI password',
@@ -57,7 +57,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }: {
         '',
         'If you did not request this, you can ignore this email.',
       ].join('\n'),
-    })
+    }))
     return { configured: true, sent: true, error: null }
   } catch (error) {
     return {
