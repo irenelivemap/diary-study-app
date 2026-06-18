@@ -93,6 +93,10 @@ Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to 
 4. Deploy.
 5. Run database migrations with `npx prisma migrate deploy` as part of the deployment process or immediately after deploy.
 
+### Reminder cron cadence on Vercel
+
+`vercel.json` schedules `/api/reminders/run` once per day so deployments work on Vercel Hobby. Vercel Hobby rejects cron expressions that run more than once daily. If the project needs near-real-time reminder delivery, use Vercel Pro and change the schedule back to a more frequent cadence such as `*/15 * * * *`, or trigger `/api/reminders/run` from an external scheduler.
+
 ## Running a study
 
 1. Log in as admin → **New study**
