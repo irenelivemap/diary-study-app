@@ -29,171 +29,15 @@ import {
 } from '@/app/actions/analysis'
 import { Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type TagDefinition = {
-  id: string
-  label: string
-  color: string
-  parentId: string | null
-  description: string | null
-  sortOrder: number
-  isTheme: boolean
-}
-
-type Answer = {
-  entryId: string
-  participantName: string
-  participantEmail: string
-  date: string
-  submittedAt: string
-  answerId: string
-  answer: string
-  tags: { id: string; label: string; color: string }[]
-}
-
-type AnswerSortBy = 'newest' | 'oldest' | 'name-az' | 'longest' | 'shortest'
-type InsertionIndicator = { tagId: string; position: 'before' | 'after' } | null
-type SaveNotice = { tone: 'success' | 'error'; message: string } | null
-type FilterOption = { value: string; label: string; color?: string }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const DEFAULT_COLORS = ['#4f46e5', '#0d9488', '#d97706', '#7c3aed', '#e11d48', '#0891b2']
-const UNTAGGED_FILTER = '__without_tags__'
-
-function readableTextColor(hex: string) {
-  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#0f172a'
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#0f172a' : '#ffffff'
-}
-
-function normalizeLabel(label: string) {
-  return label.trim().replace(/\s+/g, ' ').slice(0, 40)
-}
-
-function sortTags(tags: TagDefinition[]) {
-  return [...tags].sort((a, b) => (a.sortOrder - b.sortOrder) || a.label.localeCompare(b.label))
-}
-
-function tagGroup(tags: TagDefinition[], parentId: string | null) {
-  return sortTags(tags.filter((tag) => tag.parentId === parentId))
-}
-
-function isThemeTag(tag: TagDefinition) {
-  return tag.isTheme
-}
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return iso
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+import AnswerFilterMultiSelect from '@/app/components/tag-lab/AnswerFilterMultiSelect'
+import type { Answer, AnswerSortBy, FilterOption, InsertionIndicator, ProposedTheme, SaveNotice, TagDefinition } from '@/app/components/tag-lab/types'
+import { DEFAULT_COLORS, UNTAGGED_FILTER, formatDate, isThemeTag, normalizeLabel, readableTextColor, sortTags, tagGroup } from '@/app/components/tag-lab/utils'
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg viewBox="0 0 12 12" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M4 2l4 4-4 4" />
     </svg>
-  )
-}
-
-function MultiSelectMenu({
-  values,
-  options,
-  placeholder,
-  onToggle,
-  onClear,
-  buttonClassName = '',
-}: {
-  values: string[]
-  options: FilterOption[]
-  placeholder: string
-  onToggle: (value: string) => void
-  onClear: () => void
-  buttonClassName?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const valueSet = useMemo(() => new Set(values), [values])
-  const selectedOptions = options.filter((option) => valueSet.has(option.value))
-  const label = selectedOptions.length === 0
-    ? placeholder
-    : selectedOptions.length === 1
-      ? selectedOptions[0].label
-      : `${selectedOptions.length} filters selected`
-
-  useEffect(() => {
-    function onPointerDown(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => document.removeEventListener('mousedown', onPointerDown)
-  }, [])
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') setOpen(false)
-        }}
-        className={`interactive-press flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-[var(--bg-sunken)] px-3 text-left text-sm text-[var(--text)] ${
-          open ? 'border-[var(--accent)] bg-white ring-2 ring-[var(--accent-ring)]' : 'border-[var(--border-strong)] hover:bg-white'
-        } ${buttonClassName}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="truncate">{label}</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className={`shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      {open && (
-        <div role="listbox" aria-multiselectable="true" className="control-menu absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto p-1">
-          {values.length > 0 && (
-            <button
-              type="button"
-              onClick={onClear}
-              className="mb-1 flex min-h-9 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]"
-            >
-              Clear filters
-            </button>
-          )}
-          {options.map((option) => {
-            const selected = valueSet.has(option.value)
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => onToggle(option.value)}
-                className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                  selected
-                    ? 'bg-[var(--accent-subtle)] font-semibold text-[var(--accent-active)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'
-                }`}
-              >
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-[var(--accent)] bg-[var(--accent)] text-white' : 'border-[var(--border-strong)] bg-white'}`}>
-                  {selected && (
-                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M2.5 6.2 4.8 8.5 9.5 3.5" />
-                    </svg>
-                  )}
-                </span>
-                {option.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />}
-                <span className="truncate">{option.label}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -354,14 +198,6 @@ function TagAutocomplete({
 }
 
 // ─── AIProposalPanel ──────────────────────────────────────────────────────────
-
-type ProposedTheme = {
-  tempId: string
-  name: string
-  description: string
-  tagIds: string[]
-  color: string
-}
 
 function AIProposalPanel({
   proposal,
@@ -1733,7 +1569,7 @@ function AnalysisWorkspace({
               <div className="grid gap-3 border-t border-[var(--border-subtle)] px-4 pb-3 pt-3 md:grid-cols-[minmax(180px,240px)_minmax(220px,1fr)]">
                 <div className="space-y-1">
                   <span className="block text-xs font-medium text-[var(--text-tertiary)]">Participant</span>
-                  <MultiSelectMenu
+                  <AnswerFilterMultiSelect
                     values={filterParticipants}
                     options={participantFilterOptions}
                     placeholder="All participants"
@@ -1744,7 +1580,7 @@ function AnalysisWorkspace({
                 </div>
                 <div className="space-y-1">
                   <span className="block text-xs font-medium text-[var(--text-tertiary)]">Tagged with</span>
-                  <MultiSelectMenu
+                  <AnswerFilterMultiSelect
                     values={filterTagIds}
                     options={answerTagFilterOptions}
                     placeholder="All answers"
