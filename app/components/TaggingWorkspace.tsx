@@ -25,7 +25,7 @@ import {
   updateQuestionTag,
   updateTagDescription,
 } from '@/app/actions/analysis'
-import { Button, IconButton, TextInput, TrashIcon } from '@/app/components/ui'
+import { Button, TextInput } from '@/app/components/ui'
 import AIProposalPanel from '@/app/components/tag-lab/AIProposalPanel'
 import AnswerPanel from '@/app/components/tag-lab/AnswerPanel'
 import { ManageCtx, TagDragOverlay, TagRow, ThemeChildren, ThemeDropZone, UngroupedDropZone } from '@/app/components/tag-lab/ManageTagRows'
@@ -33,6 +33,7 @@ import type { ManageCtxType } from '@/app/components/tag-lab/ManageTagRows'
 import TagAnswers from '@/app/components/tag-lab/TagAnswers'
 import type { Answer, InsertionIndicator, ProposedTheme, SaveNotice, TagDefinition } from '@/app/components/tag-lab/types'
 import TagCreateRow from '@/app/components/tag-lab/TagCreateRow'
+import { BulkDeleteConfirm, TagSectionHeader } from '@/app/components/tag-lab/TagSectionControls'
 import { DEFAULT_COLORS, isThemeTag, normalizeLabel, sortTags, tagGroup } from '@/app/components/tag-lab/utils'
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -470,45 +471,27 @@ function AnalysisWorkspace({
 
       {/* Themes */}
       <div className="space-y-2">
-        <div className={`flex items-center gap-2 py-1 pr-1 ${themes.length > 0 ? 'pl-[52px]' : 'pl-1'}`}>
-          {themes.length > 0 ? (
-            <>
-              <input
-                type="checkbox"
-                checked={allThemesSelected}
-                ref={(el) => { if (el) el.indeterminate = someThemesSelected && !allThemesSelected }}
-                onChange={toggleSelectAllThemes}
-                aria-label="Select all themes"
-                className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
-              />
-              <span className="text-sm font-semibold text-[var(--text)]">All themes</span>
-            </>
-          ) : (
-            <span className="text-sm font-semibold text-[var(--text)]">Themes</span>
-          )}
-          {themes.length > 0 && (
-            <div className="h-8 w-8 shrink-0">
-              {selectedThemeIds.size > 0 && themeBulkAction === 'idle' && (
-                <IconButton
-                  type="button"
-                  onClick={() => setThemeBulkAction('confirm-delete')}
-                  label="Delete selected themes"
-                  tone="trash"
-                  className="h-8 w-8 rounded-lg"
-                >
-                  <TrashIcon />
-                </IconButton>
-              )}
-            </div>
-          )}
-          <div className="flex-1" />
-        </div>
-        {selectedThemeIds.size > 0 && themeBulkAction === 'confirm-delete' && (
-          <div className="flex items-center justify-end gap-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2">
-            <span className="text-sm text-[var(--danger-text)]">Delete {selectedThemeIds.size} selected theme{selectedThemeIds.size !== 1 ? 's' : ''}? Tags will stay ungrouped.</span>
-            <Button tone="danger" size="sm" onClick={() => void handleBulkDeleteThemes()}>Confirm</Button>
-            <Button tone="secondary" size="sm" onClick={() => setThemeBulkAction('idle')}>Cancel</Button>
-          </div>
+        <TagSectionHeader
+          itemCount={themes.length}
+          checked={allThemesSelected}
+          indeterminate={someThemesSelected && !allThemesSelected}
+          emptyLabel="Themes"
+          allLabel="All themes"
+          checkboxLabel="Select all themes"
+          selectedCount={themeBulkAction === 'idle' ? selectedThemeIds.size : 0}
+          deleteLabel="Delete selected themes"
+          indentClassName="pl-[52px]"
+          onToggleAll={toggleSelectAllThemes}
+          onDeleteSelected={() => setThemeBulkAction('confirm-delete')}
+        />
+        {themeBulkAction === 'confirm-delete' && (
+          <BulkDeleteConfirm
+            count={selectedThemeIds.size}
+            noun="theme"
+            detail="Tags will stay ungrouped."
+            onConfirm={() => void handleBulkDeleteThemes()}
+            onCancel={() => setThemeBulkAction('idle')}
+          />
         )}
         {themes.length === 0 && !aiProposal ? (
           <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-white px-5 py-9 text-center shadow-[var(--shadow-sm)]">
@@ -632,39 +615,19 @@ function AnalysisWorkspace({
 
       {/* Tags */}
       <div className="space-y-2">
-        <div className={`flex items-center gap-2 py-1 pr-1 ${topicTags.length > 0 ? 'pl-4' : 'pl-1'}`}>
-          {topicTags.length > 0 ? (
-            <>
-              <input
-                type="checkbox"
-                checked={allTopicsSelected}
-                ref={(el) => { if (el) el.indeterminate = someTopicsSelected && !allTopicsSelected }}
-                onChange={toggleSelectAllTopics}
-                aria-label="Select all tags"
-                className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
-              />
-              <span className="text-sm font-semibold text-[var(--text)]">All tags</span>
-            </>
-          ) : (
-            <span className="text-sm font-semibold text-[var(--text)]">Tags</span>
-          )}
-          {topicTags.length > 0 && (
-            <div className="h-8 w-8 shrink-0">
-              {selectedTagIds.size > 0 && bulkAction === 'idle' && (
-                <IconButton
-                  type="button"
-                  onClick={() => setBulkAction('confirm-delete')}
-                  label="Delete selected tags"
-                  tone="trash"
-                  className="h-8 w-8 rounded-lg"
-                >
-                  <TrashIcon />
-                </IconButton>
-              )}
-            </div>
-          )}
-          <div className="flex-1" />
-          {(topicTags.length > 0 || consolidating) && (
+        <TagSectionHeader
+          itemCount={topicTags.length}
+          checked={allTopicsSelected}
+          indeterminate={someTopicsSelected && !allTopicsSelected}
+          emptyLabel="Tags"
+          allLabel="All tags"
+          checkboxLabel="Select all tags"
+          selectedCount={bulkAction === 'idle' ? selectedTagIds.size : 0}
+          deleteLabel="Delete selected tags"
+          indentClassName="pl-4"
+          onToggleAll={toggleSelectAllTopics}
+          onDeleteSelected={() => setBulkAction('confirm-delete')}
+          rightAction={(topicTags.length > 0 || consolidating) && (
             <Button
               tone="secondary"
               size="sm"
@@ -675,13 +638,14 @@ function AnalysisWorkspace({
               {consolidating ? '✦ Grouping…' : selectedTopicIds.length > 0 ? '✦ AI group selected' : '✦ AI group all'}
             </Button>
           )}
-        </div>
-        {selectedTagIds.size > 0 && bulkAction === 'confirm-delete' && (
-          <div className="flex items-center justify-end gap-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2">
-            <span className="text-sm text-[var(--danger-text)]">Delete {selectedTagIds.size} selected tag{selectedTagIds.size !== 1 ? 's' : ''}?</span>
-            <Button tone="danger" size="sm" onClick={() => void handleBulkDelete()}>Confirm</Button>
-            <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
-          </div>
+        />
+        {bulkAction === 'confirm-delete' && (
+          <BulkDeleteConfirm
+            count={selectedTagIds.size}
+            noun="tag"
+            onConfirm={() => void handleBulkDelete()}
+            onCancel={() => setBulkAction('idle')}
+          />
         )}
         <UngroupedDropZone>
           {aiProposal ? (
