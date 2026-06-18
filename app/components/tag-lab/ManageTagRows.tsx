@@ -222,3 +222,21 @@ export function TagRow({ tag, isIndented }: { tag: TagDefinition; isIndented?: b
     </div>
   )
 }
+
+export function TagDragOverlay({ tag, dragCount }: { tag: TagDefinition | undefined; dragCount: number }) {
+  if (!tag) return null
+  return (
+    <div className="relative pl-11">
+      <span className="absolute left-0 top-1/2 flex h-8 w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--text-tertiary)] shadow-[var(--shadow-sm)]">
+        <GripIcon />
+      </span>
+      <div className="flex min-w-72 items-center gap-3 rounded-xl border border-[var(--border-strong)] bg-white px-4 py-3 text-sm text-[var(--text)] opacity-95 shadow-[var(--shadow-lg)]">
+        <span className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: tag.color }} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{dragCount > 1 ? `${dragCount} selected tags` : tag.label}</p>
+          <p className="text-xs text-[var(--text-tertiary)]">{dragCount > 1 ? 'Move as a group' : 'Moving topic'}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
