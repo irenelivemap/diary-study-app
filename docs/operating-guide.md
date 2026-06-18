@@ -89,6 +89,8 @@ CHECK_PRODUCTION_ENV=true npm run qa:env
 
 Security handoff notes, dependency audit expectations and AI data-handling guidance live in [`SECURITY.md`](../SECURITY.md).
 
+Known non-blocking issues and future decisions live in [`Known Follow-Ups`](./known-followups.md). Review that list monthly and after any production QA failure.
+
 ## Database Migrations
 
 After deploying code that includes a new Prisma migration, run:

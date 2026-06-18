@@ -92,6 +92,4 @@ That expression is not allowed on Vercel Hobby. The app now uses the Hobby-compa
 
 ## Known Follow-Up Items
 
-- Decide whether daily reminder delivery is enough. If not, upgrade Vercel or use an external scheduler.
-- Consider protecting the `main` branch in GitHub so changes require a passing check before merge.
-- Consider enabling signed commits later. Current commits are unsigned, which is common in early projects but may be a technical reviewer preference.
+Known non-blocking issues and future decisions are tracked in [`Known Follow-Ups`](./known-followups.md).
