@@ -2,10 +2,11 @@ import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { joinStudyWithInvite } from '@/app/actions/studies'
-import { Button, ButtonLink } from '@/app/components/ui'
+import { ButtonLink } from '@/app/components/ui'
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 import { isRemovedInviteToken } from '@/app/lib/invitation-access'
 import { deleteSession } from '@/app/lib/session'
+import StartJourneyButton from '@/app/components/StartJourneyButton'
 
 export default async function JoinStudyPage({
   params,
@@ -60,9 +61,9 @@ export default async function JoinStudyPage({
             </div>
             <form action={signOutForInvite}>
               <input type="hidden" name="next" value={joinPath} />
-              <Button className="w-full" size="lg">
+              <StartJourneyButton className="w-full" size="lg" pendingLabel="Signing out...">
                 Sign out and continue
-              </Button>
+              </StartJourneyButton>
             </form>
             <ButtonLink
               href={`/signup?${new URLSearchParams({
@@ -81,9 +82,9 @@ export default async function JoinStudyPage({
           <form action={join} className="mt-6">
             <input type="hidden" name="token" value={token} />
             {externalParticipantId && <input type="hidden" name="externalParticipantId" value={externalParticipantId} />}
-            <Button className="w-full" size="lg">
+            <StartJourneyButton className="w-full" size="lg" pendingLabel="Joining...">
               Join study
-            </Button>
+            </StartJourneyButton>
             <p className="text-xs text-slate-500 text-center mt-3">
               You are signed in as {session.email}.
             </p>
