@@ -25,11 +25,12 @@ import {
   updateQuestionTag,
   updateTagDescription,
 } from '@/app/actions/analysis'
-import { Button, TextInput } from '@/app/components/ui'
+import { Button } from '@/app/components/ui'
 import AIProposalPanel from '@/app/components/tag-lab/AIProposalPanel'
 import AnswerPanel from '@/app/components/tag-lab/AnswerPanel'
 import { ManageCtx, TagDragOverlay, TagRow, ThemeChildren, ThemeDropZone, UngroupedDropZone } from '@/app/components/tag-lab/ManageTagRows'
 import type { ManageCtxType } from '@/app/components/tag-lab/ManageTagRows'
+import { AiErrorMessage, SaveNoticeMessage, SelectedTagsGroupingBar } from '@/app/components/tag-lab/OrganizationFeedback'
 import TagAnswers from '@/app/components/tag-lab/TagAnswers'
 import type { Answer, InsertionIndicator, ProposedTheme, SaveNotice, TagDefinition } from '@/app/components/tag-lab/types'
 import TagCreateRow from '@/app/components/tag-lab/TagCreateRow'
@@ -442,32 +443,19 @@ function AnalysisWorkspace({
     >
     <div className="space-y-4">
 
-      <div className="space-y-2">
-        {selectedTagIds.size > 0 && bulkAction === 'grouping' && (
-          <div className="flex items-center justify-end gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2">
-            <TextInput value={groupName} onChange={(e) => setGroupName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleGroupSelected() } }} placeholder="Theme name…" className="h-8 py-0 w-44 bg-white" />
-            <Button tone="secondary" size="sm" onClick={() => void handleSuggestGroupName()} disabled={namingSuggesting}>{namingSuggesting ? '…' : '✦ AI name'}</Button>
-            <Button tone="primary" size="sm" onClick={() => void handleGroupSelected()} disabled={!groupName.trim()}>Create theme</Button>
-            <Button tone="secondary" size="sm" onClick={() => setBulkAction('idle')}>Cancel</Button>
-          </div>
-        )}
-      </div>
-
-      {/* AI error */}
-      {aiError && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)', border: '1px solid var(--danger-border)' }}>AI error: {aiError}</p>}
-      {saveNotice && (
-        <p
-          role="status"
-          className="rounded-lg border px-3 py-2 text-sm"
-          style={{
-            background: saveNotice.tone === 'error' ? 'var(--danger-bg)' : 'var(--success-bg)',
-            color: saveNotice.tone === 'error' ? 'var(--danger-text)' : 'var(--success-text)',
-            borderColor: saveNotice.tone === 'error' ? 'var(--danger-border)' : 'var(--success-border)',
-          }}
-        >
-          {saveNotice.message}
-        </p>
+      {selectedTagIds.size > 0 && bulkAction === 'grouping' && (
+        <SelectedTagsGroupingBar
+          value={groupName}
+          suggesting={namingSuggesting}
+          onValueChange={setGroupName}
+          onSuggestName={() => void handleSuggestGroupName()}
+          onCreateTheme={() => void handleGroupSelected()}
+          onCancel={() => setBulkAction('idle')}
+        />
       )}
+
+      <AiErrorMessage message={aiError} />
+      <SaveNoticeMessage notice={saveNotice} />
 
       {/* Themes */}
       <div className="space-y-2">
