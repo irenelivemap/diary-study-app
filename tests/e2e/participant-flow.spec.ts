@@ -234,6 +234,30 @@ test('invite link lets a new participant create an account and join', async ({ p
   expect(participant?.participations).toHaveLength(1)
 })
 
+test('participant-specific invite asks mismatched signed-in users to switch accounts', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+  const study = await loadSimpleStudy()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const invitedEmail = `qa.invited.${projectSlug}.${testInfo.workerIndex}.${Date.now()}@diari.test`
+  await db.studyInvitation.create({
+    data: {
+      studyId: study.id,
+      email: invitedEmail,
+      token: `qa${crypto.randomUUID().replaceAll('-', '')}`,
+    },
+  })
+
+  await loginParticipant(page)
+  const invitation = await db.studyInvitation.findUniqueOrThrow({
+    where: { studyId_email: { studyId: study.id, email: invitedEmail } },
+  })
+
+  await page.goto(`/join/${invitation.token}`)
+  await expect(page.getByText(`This invite is for ${invitedEmail}. You are signed in as ${QA_PARTICIPANT_EMAIL}.`)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign out and continue' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Join study' })).toHaveCount(0)
+})
+
 test('profile keeps a participant on the participant side when going back', async ({ page }) => {
   await loginParticipant(page)
 

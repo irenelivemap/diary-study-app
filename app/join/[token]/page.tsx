@@ -1,10 +1,11 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { joinStudyWithInvite } from '@/app/actions/studies'
 import { Button, ButtonLink } from '@/app/components/ui'
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 import { isRemovedInviteToken } from '@/app/lib/invitation-access'
+import { deleteSession } from '@/app/lib/session'
 
 export default async function JoinStudyPage({
   params,
@@ -33,6 +34,15 @@ export default async function JoinStudyPage({
     await joinStudyWithInvite(null, formData)
   }
 
+  async function signOutForInvite(formData: FormData) {
+    'use server'
+    const next = String(formData.get('next') ?? '/login')
+    await deleteSession()
+    redirect(`/login?${new URLSearchParams({ next }).toString()}`)
+  }
+
+  const signedInAsWrongInviteUser = !!session && !!invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()
+
   return (
     <div className="min-h-screen bg-[var(--bg-page)] flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-2xl border border-[var(--border)] shadow-sm p-6">
@@ -40,7 +50,34 @@ export default async function JoinStudyPage({
         <h1 className="text-xl font-bold text-slate-900 mt-1">{study.name}</h1>
         {study.description && <p className="text-sm text-slate-500 mt-3 leading-relaxed">{study.description}</p>}
 
-        {session ? (
+        {signedInAsWrongInviteUser ? (
+          <div className="mt-6 space-y-3">
+            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-950">Use the invited account</p>
+              <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
+                This invite is for {invitation.email}. You are signed in as {session.email}.
+              </p>
+            </div>
+            <form action={signOutForInvite}>
+              <input type="hidden" name="next" value={joinPath} />
+              <Button className="w-full" size="lg">
+                Sign out and continue
+              </Button>
+            </form>
+            <ButtonLink
+              href={`/signup?${new URLSearchParams({
+                email: invitation.email,
+                inviteToken: token,
+                ...(externalParticipantId ? { externalParticipantId } : {}),
+              }).toString()}`}
+              className="w-full"
+              tone="secondary"
+              size="lg"
+            >
+              Create participant account
+            </ButtonLink>
+          </div>
+        ) : session ? (
           <form action={join} className="mt-6">
             <input type="hidden" name="token" value={token} />
             {externalParticipantId && <input type="hidden" name="externalParticipantId" value={externalParticipantId} />}
@@ -48,9 +85,7 @@ export default async function JoinStudyPage({
               Join study
             </Button>
             <p className="text-xs text-slate-500 text-center mt-3">
-              {invitation && invitation.email.toLowerCase() !== session.email.toLowerCase()
-                ? `This invite is for ${invitation.email}. You are signed in as ${session.email}.`
-                : `You are signed in as ${session.email}.`}
+              You are signed in as {session.email}.
             </p>
           </form>
         ) : (
