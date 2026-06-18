@@ -9,6 +9,12 @@ import { isValidEmail, normalizeEmail } from '@/app/lib/validation'
 import { demographicsFromFormData } from '@/app/lib/demographics'
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 import { REMOVED_INVITE_PREFIX, isRemovedInviteToken } from '@/app/lib/invitation-access'
+import {
+  checkLoginRateLimit,
+  clearLoginRateLimit,
+  loginRateLimitKeys,
+  recordFailedLogin,
+} from '@/app/lib/login-rate-limit'
 
 function splitName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -40,17 +46,31 @@ export async function login(prevState: { error?: string } | null, formData: Form
     return { error: 'Enter a valid email address.' }
   }
 
+  const rateLimitKeys = await loginRateLimitKeys(email)
+  const rateLimit = await checkLoginRateLimit(rateLimitKeys)
+  if (!rateLimit.allowed) {
+    const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60)
+    return { error: `Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.` }
+  }
+
   const user = await prisma.user.findUnique({ where: { email } })
-  if (!user) return { error: 'Invalid email or password.' }
+  if (!user) {
+    await recordFailedLogin(rateLimitKeys)
+    return { error: 'Invalid email or password.' }
+  }
 
   const valid = await bcrypt.compare(password, user.password)
-  if (!valid) return { error: 'Invalid email or password.' }
+  if (!valid) {
+    await recordFailedLogin(rateLimitKeys)
+    return { error: 'Invalid email or password.' }
+  }
 
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   })
 
+  await clearLoginRateLimit(rateLimitKeys.slice(0, 1))
   await createSession({ userId: user.id, role: user.role, name: user.name, email: user.email })
 
   redirect(nextPath ?? (user.role === 'ADMIN' ? '/admin' : '/dashboard'))

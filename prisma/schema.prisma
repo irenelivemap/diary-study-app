@@ -25,6 +25,15 @@ model User {
   invitations    StudyInvitation[]
 }
 
+model LoginRateLimit {
+  key          String    @id
+  attempts     Int       @default(0)
+  resetAt      DateTime
+  blockedUntil DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 model Study {
   id          String   @id @default(cuid())
   name        String

@@ -52,4 +52,13 @@ assert.match(entryPage, /entry\.study\.isArchived\s*\|\|\s*entry\.study\.status\
 const journeyPage = readFileSync(join(root, 'app/journey/[id]/page.tsx'), 'utf8')
 assert.match(journeyPage, /journey\.study\.isArchived\s*\|\|\s*journey\.study\.status\s*===\s*['"]ARCHIVED['"]/, 'Participants should not be able to open archived journeys through old links.')
 
+const loginAction = readFileSync(join(root, 'app/actions/auth.ts'), 'utf8')
+assert.match(loginAction, /checkLoginRateLimit/, 'Login should check rate limits before password verification.')
+assert.match(loginAction, /recordFailedLogin/, 'Login should record failed attempts for invalid credentials.')
+assert.match(loginAction, /clearLoginRateLimit/, 'Login should clear throttling records after successful sign-in.')
+
+const loginRateLimit = readFileSync(join(root, 'app/lib/login-rate-limit.ts'), 'utf8')
+assert.match(loginRateLimit, /x-forwarded-for/, 'Login rate limiting should include the client IP forwarded by the platform.')
+assert.match(loginRateLimit, /MAX_FAILED_ATTEMPTS\s*=\s*5/, 'Login rate limiting should block repeated password guesses.')
+
 console.log('Access audit passed.')

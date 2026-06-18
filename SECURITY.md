@@ -56,6 +56,9 @@ Patch-level updates for Next, React, Vercel Blob, Resend, Playwright and related
 
 ## Known hardening gaps
 
-- Login has no rate limiting. Add provider-level protection or app-level throttling before broad public launch.
 - Rich-text HTML is sanitized by local code. Consider replacing it with a maintained sanitizer library before handling high-risk HTML input.
 - Screenshot uploads can contain sensitive participant information. Study consent/instructions should explicitly tell participants what not to upload.
+
+## Login protection
+
+Sign-in attempts are throttled with a database-backed limiter, keyed by hashed email address and hashed client IP address. Five failed attempts in a 15-minute window trigger a 15-minute block. Successful sign-in clears the matching email limiter record while keeping IP-level protection intact.
