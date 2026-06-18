@@ -691,19 +691,22 @@ export async function addParticipant(prevState: unknown, formData: FormData) {
     update: { token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null, externalParticipantId },
     create: { studyId, email, token: crypto.randomUUID().replaceAll('-', ''), invitedBy: session.userId, acceptedAt: user ? new Date() : null, externalParticipantId },
   })
+  const inviteUrl = invitationUrl(invitation.token)
   const emailResult = await sendStudyInvitationEmail({
     to: email,
     studyName: study.name,
     inviterName: session.name,
-    inviteUrl: invitationUrl(invitation.token),
+    inviteUrl,
   })
 
   revalidatePath(`/admin/studies/${studyId}`)
   return {
     success: true,
     message: emailResult.sent
-      ? user ? 'Participant added and invitation email sent.' : 'Invitation email sent.'
+      ? user ? 'Participant added and invitation email queued.' : 'Invitation saved and email queued.'
       : `Invitation saved, but email was not sent: ${emailResult.error}`,
+    inviteUrl,
+    emailSent: emailResult.sent,
   }
 }
 
