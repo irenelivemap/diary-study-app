@@ -6,12 +6,9 @@ import { appBaseUrl } from '@/app/lib/email'
 import AddParticipantForm from '@/app/components/AddParticipantForm'
 import InviteLinkCard from '@/app/components/InviteLinkCard'
 import NavBar from '@/app/components/NavBar'
-import OverviewSection from '@/app/components/OverviewSection'
-import ParticipantOpsForm from '@/app/components/ParticipantOpsForm'
 import RemoveParticipantForm from '@/app/components/RemoveParticipantForm'
 import StudyTabs from '@/app/components/StudyTabs'
 import { Badge, ButtonLink } from '@/app/components/ui'
-import { demographicFieldLabel } from '@/app/lib/demographics'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 type ParticipantStatus = {
@@ -221,44 +218,6 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 </div>
               )}
             </section>
-
-            <OverviewSection
-              title="Fieldwork operations"
-              description="Optional notes and incentives."
-              count={study.participants.length}
-            >
-              <div className="p-5 space-y-3">
-                {study.participants.length === 0 ? (
-                  <p className="text-sm text-slate-500">No participants yet.</p>
-                ) : study.participants.map((participant) => (
-                  <div key={participant.user.id} className="space-y-2">
-                    <ParticipantOpsForm
-                      studyId={id}
-                      userId={participant.user.id}
-                      name={participant.user.name}
-                      email={participant.user.email}
-                      notes={participant.researcherNotes}
-                      incentiveStatus={participant.incentiveStatus}
-                    />
-                    {participant.externalParticipantId && (
-                      <p className="px-1 text-xs text-slate-500">External ID: {participant.externalParticipantId}</p>
-                    )}
-                    {((participant.user.demographics && typeof participant.user.demographics === 'object') || (participant.demographics && typeof participant.demographics === 'object')) && (
-                      <div className="flex flex-wrap gap-1 px-1">
-                        {Object.entries({
-                          ...(participant.demographics && typeof participant.demographics === 'object' ? participant.demographics as Record<string, unknown> : {}),
-                          ...(participant.user.demographics && typeof participant.user.demographics === 'object' ? participant.user.demographics as Record<string, unknown> : {}),
-                        }).map(([key, value]) => (
-                          <span key={key} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                            {demographicFieldLabel(key)}: {String(value)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </OverviewSection>
           </div>
 
           <aside className="min-w-0 space-y-4 lg:sticky lg:top-4">
