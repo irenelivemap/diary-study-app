@@ -263,6 +263,7 @@ test('simple reminder destination opens the entry form and saves an answer', asy
 
   await page.goto(`/entry/new?studyId=${study.id}&partId=${part.id}`)
   await expect(page.getByText(question.text)).toBeVisible()
+  await expect(page.locator('input[name="timezone"]')).toHaveValue('Europe/Zurich')
   await expectNoHorizontalOverflow(page, 'Simple entry form')
   await page.locator(`textarea[name="question_${question.id}"]`).fill(answer)
   await page.getByRole('button', { name: 'Submit entry' }).click()

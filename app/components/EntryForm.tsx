@@ -22,7 +22,7 @@ type Study = {
   questions: Question[]
 }
 
-export default function EntryForm({ study, today }: { study: Study; today: string }) {
+export default function EntryForm({ study, today, timezone: initialTimezone = '' }: { study: Study; today: string; timezone?: string }) {
   const [state, action, pending] = useActionState(submitEntry, null)
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [uploadedUrls, setUploadedUrls] = useState<Record<string, string>>({})
@@ -33,7 +33,7 @@ export default function EntryForm({ study, today }: { study: Study; today: strin
   // Track all answers for conditional logic
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [localError, setLocalError] = useState('')
-  const [timezone] = useState(detectedTimezone)
+  const [timezone] = useState(() => initialTimezone || detectedTimezone())
   const formRef = useRef<HTMLFormElement>(null)
   const draftKey = `diari-draft-${study.journeyId ?? study.partId}-${today}`
 
