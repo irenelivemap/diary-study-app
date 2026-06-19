@@ -39,6 +39,7 @@ const steps: Step[] = [
   { name: 'Retention and deletion policy', command: npmCommand, args: ['run', 'qa:retention'] },
   { name: 'Analysis and data documentation', command: npmCommand, args: ['run', 'qa:analysis-docs'] },
   { name: 'Tag lab architecture', command: npmCommand, args: ['run', 'qa:tag-lab'] },
+  { name: 'Setup drag architecture', command: npmCommand, args: ['run', 'qa:setup-drag'] },
   { name: 'Study shell architecture', command: npmCommand, args: ['run', 'qa:study-shell'] },
   { name: 'Scaling architecture', command: npmCommand, args: ['run', 'qa:scaling'] },
   { name: 'Invite flow rules', command: npmCommand, args: ['run', 'qa:invites'] },
