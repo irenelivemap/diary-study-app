@@ -4,25 +4,41 @@ import assert from 'node:assert/strict'
 
 const root = process.cwd()
 
-const adminFiles = [
+const explicitAdminFiles = [
   'app/admin/page.tsx',
-  'app/admin/studies/[id]/analysis/page.tsx',
-  'app/admin/studies/[id]/data/page.tsx',
-  'app/admin/studies/[id]/edit/page.tsx',
   'app/admin/studies/[id]/export/route.ts',
-  'app/admin/studies/[id]/page.tsx',
-  'app/admin/studies/[id]/participants/[userId]/page.tsx',
-  'app/admin/studies/[id]/participants/page.tsx',
-  'app/admin/studies/[id]/preview/page.tsx',
   'app/admin/studies/new/page.tsx',
 ]
 
-for (const file of adminFiles) {
+for (const file of explicitAdminFiles) {
   const source = readFileSync(join(root, file), 'utf8')
   assert.match(
     source,
     /role\s*!==\s*['"]ADMIN['"]/,
     `${file} should explicitly check for ADMIN access.`
+  )
+}
+
+const studyLayout = readFileSync(join(root, 'app/admin/studies/[id]/layout.tsx'), 'utf8')
+assert.match(studyLayout, /getSession/, 'Study admin layout should require a session.')
+assert.match(studyLayout, /role\s*!==\s*['"]ADMIN['"]/, 'Study admin layout should explicitly check for ADMIN access.')
+
+const layoutProtectedAdminFiles = [
+  'app/admin/studies/[id]/analysis/page.tsx',
+  'app/admin/studies/[id]/data/page.tsx',
+  'app/admin/studies/[id]/edit/page.tsx',
+  'app/admin/studies/[id]/page.tsx',
+  'app/admin/studies/[id]/participants/[userId]/page.tsx',
+  'app/admin/studies/[id]/participants/page.tsx',
+  'app/admin/studies/[id]/preview/page.tsx',
+]
+
+for (const file of layoutProtectedAdminFiles) {
+  const source = readFileSync(join(root, file), 'utf8')
+  assert.doesNotMatch(
+    source,
+    /<NavBar\b|<StudyTabs\b|getSession\(/,
+    `${file} should rely on the protected study layout instead of recreating admin shell checks.`
   )
 }
 
