@@ -26,6 +26,7 @@ export default async function AnalysisPage({
           filters={data.filters}
           pilotRowCount={data.pilotRowCount}
           summary={data.summary}
+          questionSummaries={data.questionSummaries}
         />
       </main>
   )

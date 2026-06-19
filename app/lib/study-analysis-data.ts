@@ -31,8 +31,93 @@ export type StudyAnalysisSummary = {
   } | null
 }
 
+export type StudyQuestionAnalysis = {
+  values: string[]
+  eligible: number
+  answered: number
+  missing: number
+  notShown: number
+  numeric: number[]
+  points: { label: string; value: number }[]
+  scalePoints?: { score: number; label: string; count: number }[]
+  ratingBins?: { label: string; start: number; end: number; count: number }[]
+  shouldBin?: boolean
+  mean: number | null
+  median: number | null
+  q1?: number | null
+  q3?: number | null
+  mode?: string
+  polarity?: { low: number; middle: number; high: number }
+  minScale?: number
+  maxScale?: number
+  examples: string[]
+}
+
 function firstString(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
+}
+
+function topCounts(values: string[]) {
+  const counts = new Map<string, number>()
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
+  return Array.from(counts.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
+}
+
+function average(values: number[]) {
+  if (!values.length) return null
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function median(values: number[]) {
+  if (!values.length) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+function observedQuantile(values: number[], q: number) {
+  if (!values.length) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[Math.round((sorted.length - 1) * q)]
+}
+
+function mostCommon(points: { score: number; count: number }[]) {
+  const max = Math.max(...points.map((point) => point.count), 0)
+  if (!max) return '-'
+  return points.filter((point) => point.count === max).map((point) => String(point.score)).join(', ')
+}
+
+function buildScaleBins(values: number[], min: number, max: number, targetBins = 8) {
+  const range = max - min
+  if (range <= 0) return [{ label: String(min), start: min, end: max, count: values.length }]
+  const binCount = Math.min(targetBins, Math.max(1, Math.ceil(range + 1)))
+  const width = (range + 1) / binCount
+  return Array.from({ length: binCount }, (_, index) => {
+    const start = min + index * width
+    const end = index === binCount - 1 ? max : min + (index + 1) * width
+    const count = values.filter((value) => value >= start && (index === binCount - 1 ? value <= end : value < end)).length
+    const label = width <= 1 ? String(Math.round(start)) : `${start.toFixed(0)}-${end.toFixed(0)}`
+    return { label, start, end, count }
+  })
+}
+
+function scaleBand(score: number, min: number, max: number) {
+  const range = max - min + 1
+  const lowEnd = min + Math.floor(range / 3) - 1
+  const highStart = max - Math.floor(range / 3) + 1
+  if (score <= lowEnd) return 'low'
+  if (score >= highStart) return 'high'
+  return 'middle'
+}
+
+function parseMultipleChoiceAnswer(value: string) {
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map(String)
+  } catch {}
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
 export function parseStudyAnalysisFilters(searchParams: Record<string, string | string[] | undefined>): StudyAnalysisFilters {
@@ -170,6 +255,110 @@ function buildAnalysisSummary({
   }
 }
 
+function eligibleRowsForQuestion(question: AnalysisQuestion & {
+  scaleType?: string | null
+  options?: string[]
+  min?: number | null
+  max?: number | null
+}, rows: AnalysisRow[]) {
+  return rows.filter((row) => {
+    if (row.partId !== question.partId) return false
+    return answerWasShown(row.answers[question.id])
+  })
+}
+
+function buildQuestionAnalysis(
+  question: AnalysisQuestion & {
+    scaleType?: string | null
+    options?: string[]
+    min?: number | null
+    max?: number | null
+  },
+  rows: AnalysisRow[]
+): StudyQuestionAnalysis {
+  const eligibleRows = eligibleRowsForQuestion(question, rows)
+  const notShown = rows.filter((row) => row.partId === question.partId && row.answers[question.id]?.wasShown === false).length
+  const values = eligibleRows.map((row) => answerValue(row.answers[question.id])).filter(Boolean)
+  const answered = values.length
+  const eligible = eligibleRows.length
+  const missing = Math.max(0, eligible - answered)
+  const numeric = values.map(Number).filter((value) => Number.isFinite(value))
+  const min = question.min ?? (numeric.length ? Math.min(...numeric) : 1)
+  const max = question.max ?? (numeric.length ? Math.max(...numeric) : 7)
+
+  if (question.type === 'RATING') {
+    const scaleLength = max - min + 1
+    const shouldBin = question.scaleType === 'vas' || scaleLength > 9
+    const scalePoints = Array.from({ length: max - min + 1 }, (_, index) => {
+      const value = min + index
+      const usesScaleLabels = question.scaleType === 'numbers_labeled' || question.scaleType === 'labels_only'
+      const label = usesScaleLabels ? question.options?.[index]?.trim() || 'No label' : String(value)
+      return { score: value, label, count: numeric.filter((answer) => answer === value).length }
+    })
+    const ratingBins = shouldBin ? buildScaleBins(numeric, min, max) : []
+    const peakBin = ratingBins.slice().sort((a, b) => b.count - a.count)[0]
+    const low = numeric.filter((value) => scaleBand(value, min, max) === 'low').length
+    const middle = numeric.filter((value) => scaleBand(value, min, max) === 'middle').length
+    const high = numeric.filter((value) => scaleBand(value, min, max) === 'high').length
+    return {
+      values,
+      eligible,
+      answered,
+      missing,
+      notShown,
+      numeric,
+      points: scalePoints.map((point) => ({ label: String(point.score), value: point.count })),
+      scalePoints,
+      ratingBins,
+      shouldBin,
+      mean: average(numeric),
+      median: median(numeric),
+      q1: observedQuantile(numeric, 0.25),
+      q3: observedQuantile(numeric, 0.75),
+      mode: shouldBin ? (peakBin?.count ? peakBin.label : '-') : mostCommon(scalePoints),
+      polarity: { low, middle, high },
+      minScale: min,
+      maxScale: max,
+      examples: [],
+    }
+  }
+
+  if (question.type === 'YES_NO') {
+    const points = ['Yes', 'No'].map((label) => ({ label, value: values.filter((value) => value === label).length }))
+    return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] }
+  }
+
+  if (question.type === 'SCREENSHOT') {
+    return { values, eligible, answered, missing, notShown, numeric, points: [{ label: 'Uploaded', value: answered }], mean: null, median: null, examples: [] }
+  }
+
+  if (question.type === 'DATE_TIME') {
+    const localHours = values.flatMap((value) => {
+      const match = value.match(/T(\d{2}):\d{2}/)
+      return match ? [`${match[1]}:00`] : []
+    })
+    return { values, eligible, answered, missing, notShown, numeric, points: topCounts(localHours).sort((a, b) => a.label.localeCompare(b.label)), mean: null, median: null, examples: [] }
+  }
+
+  if (question.type === 'FREE_TEXT') {
+    return { values, eligible, answered, missing, notShown, numeric, points: [{ label: 'Answered', value: answered }], mean: null, median: null, examples: values.slice(0, 5) }
+  }
+
+  const points = question.type === 'MULTIPLE_CHOICE'
+    ? topCounts(values.flatMap(parseMultipleChoiceAnswer))
+    : topCounts(values)
+  return { values, eligible, answered, missing, notShown, numeric, points, mean: null, median: null, examples: [] }
+}
+
+function compactQuestionAnalysis(analysis: StudyQuestionAnalysis): StudyQuestionAnalysis {
+  return {
+    ...analysis,
+    values: [],
+    numeric: [],
+    examples: [],
+  }
+}
+
 export async function loadStudyAnalysisData(studyId: string, filters: StudyAnalysisFilters = parseStudyAnalysisFilters({})) {
   const study = await prisma.study.findUnique({
     where: { id: studyId },
@@ -249,6 +438,7 @@ export async function loadStudyAnalysisData(studyId: string, filters: StudyAnaly
   )
 
   const partNameById = new Map(study.parts.map((part) => [part.id, part.name]))
+  const freeTextQuestionIds = new Set(questions.filter((question) => question.type === 'FREE_TEXT').map((question) => question.id))
   const rows = entries.flatMap((entry) => {
     const partName = partNameById.get(entry.partId)
     if (!partName) return []
@@ -283,6 +473,17 @@ export async function loadStudyAnalysisData(studyId: string, filters: StudyAnaly
       ])),
     }]
   })
+  const clientRows = rows.map((row) => ({
+    ...row,
+    answers: Object.fromEntries(
+      Object.entries(row.answers).filter(([questionId]) => freeTextQuestionIds.has(questionId))
+    ),
+  }))
+  const questionSummaries = Object.fromEntries(
+    questions
+      .filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT')
+      .map((question) => [question.id, compactQuestionAnalysis(buildQuestionAnalysis(question, rows))])
+  )
 
   return {
     studyName: study.name,
@@ -296,7 +497,8 @@ export async function loadStudyAnalysisData(studyId: string, filters: StudyAnaly
       email: participant.user.email,
     })),
     questions,
-    rows,
+    rows: clientRows,
+    questionSummaries,
     summary: buildAnalysisSummary({
       filters: normalizedFilters,
       parts: study.parts.map((part) => ({ id: part.id, name: part.name, flow: part.flow })),

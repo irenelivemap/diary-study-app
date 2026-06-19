@@ -111,7 +111,7 @@ Status: Mostly addressed
 
 Use this as the recommended order for cleanup work. The goal is not to rewrite the app; it is to make the most-used researcher and participant flows easier to maintain, easier to test, and less likely to slow down as real study data grows.
 
-Current summary: six items are addressed for the current product scale, one item is partially addressed, and one remains a production-data review task.
+Current summary: seven items are addressed for the current product scale, and one remains a production-data review task.
 
 1. Create dedicated data-loading modules for study pages.
 
@@ -123,7 +123,7 @@ Current summary: six items are addressed for the current product scale, one item
 
    Why it matters: the browser still receives a lot of answer data for larger studies. This is fine for current demo-scale data, but real studies may have many participants, entries and answers. Server-side filtering, pagination and summaries would keep the interface faster and reduce memory use in the browser.
 
-   Current status: partially addressed. Analysis and Data now have dedicated data-loading modules, which gives this work a cleaner seam, and `npm run qa:scaling` checks that these pages keep using those modules. The actual large-study filtering and pagination still needs product decisions about URL filters, export behavior and chart summaries.
+   Current status: addressed for current scale. Data table filtering, search and pagination run on the server. Analysis filters run through the server, and per-question chart summaries are prepared server-side so the browser no longer needs raw answer arrays for every chart. Free-text answer detail is still sent where the interface needs word clouds, theme distribution, CSV export and tagging links.
 
 3. Define a shared study-shell module and keep tab pages thin.
 
@@ -164,22 +164,22 @@ Current summary: six items are addressed for the current product scale, one item
 Verification added or updated:
 
 - `npm run qa:study-shell` checks that study tabs keep the shared navigation shell and do not reintroduce page-level skeleton flashes.
-- `npm run qa:scaling` checks that Data, Analysis and participant dashboard pages keep their data loading behind dedicated modules, and that Prisma scripts use the shared database URL resolver.
+- `npm run qa:scaling` checks that Data, Analysis and participant dashboard pages keep their data loading behind dedicated modules, that Analysis keeps server-prepared question summaries, and that Prisma scripts use the shared database URL resolver.
 - Browser QA includes invite signup/join, participant entry submission, researcher Data visibility, and theme-level Analysis summaries.
 - `npm run review:indexes` gives a repeatable way to inspect common researcher query plans after importing production-like data.
 
 ### Researcher Views at Larger Study Sizes
 
-Status: Partially addressed
+Status: Addressed for current scale
 
-The Data tab now applies table filters, search and pagination on the server, so the browser receives only the current page of entry rows. The Analysis tab now applies its main row filters on the server and receives server-calculated top summary metrics. Per-question chart calculations still happen in the browser. `npm run qa:scaling` keeps the current seams in place.
+The Data tab now applies table filters, search and pagination on the server, so the browser receives only the current page of entry rows. The Analysis tab now applies its main row filters on the server and receives server-calculated top summary metrics plus server-prepared per-question chart summaries. Detailed answer rows remain available for free-text analysis because the current UI needs them for word clouds, theme distribution, CSV export and tagging links. `npm run qa:scaling` keeps the current seams in place.
 
-Why it matters: the current approach is much safer for small and medium studies, and the Data table is ready for larger response lists. Very large studies can still send a lot of answer data to the browser on the Analysis tab when no filters are applied.
+Why it matters: the current approach is much safer for small and medium studies, and the Data table is ready for larger response lists. Very large studies may still need deeper drill-down endpoints for free-text examples, but standard charts no longer depend on shipping every answer value to the browser.
 
 Suggested fix:
 
-- Move per-question Analysis chart summaries further to the server.
-- Keep detailed answer rows available only where the UI needs examples, tagging, or drill-down interactions.
+- After real study data exists, review whether free-text word clouds and exports should load answer detail on demand instead of with the initial Analysis page.
+- Keep detailed answer rows available only where the UI needs examples, tagging, export or drill-down interactions.
 
 ### Participant Dashboard Query Size
 
