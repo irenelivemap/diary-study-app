@@ -1,15 +1,9 @@
-import { redirect, notFound } from 'next/navigation'
-import { getSession } from '@/app/lib/session'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import AnalysisDashboard from '@/app/components/AnalysisDashboard'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
 import { plainTextFromHtml } from '@/app/lib/sanitize-html'
 
 export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id } = await params
   const study = await prisma.study.findUnique({
     where: { id },
@@ -126,10 +120,6 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   }))
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="analysis" studyName={study.name} isActive={study.isActive} status={study.status} />
-
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <AnalysisDashboard
           studyId={id}
@@ -141,6 +131,5 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           rows={rows}
         />
       </main>
-    </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ButtonLink } from '@/app/components/ui'
 import StudyStatusToggle from '@/app/components/StudyStatusToggle'
 
@@ -10,7 +10,7 @@ type Tab = 'overview' | 'participants' | 'analysis' | 'responses' | 'setup' | 'p
 
 type Props = {
   studyId: string
-  active: Tab
+  active?: Tab
   studyName: string
   isActive: boolean
   status: 'PREPARATION' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'
@@ -27,6 +27,11 @@ const TABS: { id: Tab; label: string; href: (id: string) => string }[] = [
 export default function StudyTabs({ studyId, active, studyName, status }: Props) {
   const pathname = usePathname()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
+  const activeTab = active ?? activeTabFromPath(pathname, studyId)
+
+  useEffect(() => {
+    if (pendingHref === pathname) setPendingHref(null)
+  }, [pathname, pendingHref])
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--bg-surface)]">
@@ -45,7 +50,7 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
             )}
             <ButtonLink
               href={`/admin/studies/${studyId}/preview`}
-              tone={active === 'preview' ? 'primary' : 'secondary'}
+              tone={activeTab === 'preview' ? 'primary' : 'secondary'}
               size="md"
               className="shrink-0"
             >
@@ -65,9 +70,9 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
               href={tab.href(studyId)}
               prefetch
               onClick={() => setPendingHref(tab.href(studyId))}
-              aria-current={active === tab.id ? 'page' : undefined}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
               className={`relative -mb-px min-h-11 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                active === tab.id || (pendingHref === tab.href(studyId) && pathname !== pendingHref)
+                activeTab === tab.id || (pendingHref === tab.href(studyId) && pathname !== pendingHref)
                   ? 'border-[var(--accent)] text-[var(--accent)]'
                   : 'border-transparent text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text)]'
               }`}
@@ -82,4 +87,14 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
       </div>
     </div>
   )
+}
+
+function activeTabFromPath(pathname: string, studyId: string): Tab {
+  const base = `/admin/studies/${studyId}`
+  if (pathname === `${base}/participants` || pathname.startsWith(`${base}/participants/`)) return 'participants'
+  if (pathname === `${base}/analysis` || pathname.startsWith(`${base}/analysis/`)) return 'analysis'
+  if (pathname === `${base}/data`) return 'responses'
+  if (pathname === `${base}/edit`) return 'setup'
+  if (pathname === `${base}/preview`) return 'preview'
+  return 'overview'
 }

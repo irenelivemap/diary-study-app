@@ -1,16 +1,10 @@
-import { redirect, notFound } from 'next/navigation'
-import { getSession } from '@/app/lib/session'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import DataExplorer from '@/app/components/DataExplorer'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
 import { plainTextFromHtml } from '@/app/lib/sanitize-html'
 import { buildDatasetRow } from '@/app/lib/answer-dataset'
 
 export default async function DataPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id } = await params
   const study = await prisma.study.findUnique({
     where: { id },
@@ -82,10 +76,6 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
   }))
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="responses" studyName={study.name} isActive={study.isActive} status={study.status} />
-
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6">
         <DataExplorer
           studyId={id}
@@ -98,6 +88,5 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
           rows={allRows}
         />
       </div>
-    </div>
   )
 }

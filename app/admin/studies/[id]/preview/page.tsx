@@ -1,10 +1,7 @@
 import Link from 'next/link'
-import { redirect, notFound } from 'next/navigation'
-import { getSession } from '@/app/lib/session'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import PreviewForm from '@/app/components/PreviewForm'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
 export default async function PreviewPage({
@@ -14,9 +11,6 @@ export default async function PreviewPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ partId?: string }>
 }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id } = await params
   const { partId } = await searchParams
 
@@ -33,10 +27,7 @@ export default async function PreviewPage({
   const today = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="preview" studyName={study.name} isActive={study.isActive} status={study.status} />
-
+    <>
       <div className="bg-amber-50 border-b border-amber-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3">
           <p className="text-sm text-amber-800">
@@ -83,6 +74,6 @@ export default async function PreviewPage({
         )}
         <PreviewForm key={part.id} study={{ id: study.id, name: part.name, questions: part.questions }} />
       </main>
-    </div>
+    </>
   )
 }

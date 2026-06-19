@@ -1,10 +1,7 @@
-import { notFound, redirect } from 'next/navigation'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
+import { notFound } from 'next/navigation'
 import { ButtonLink } from '@/app/components/ui'
 import CopyTextButton from '@/app/components/CopyTextButton'
 import { prisma } from '@/app/lib/db'
-import { getSession } from '@/app/lib/session'
 import { demographicFieldLabel } from '@/app/lib/demographics'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
 import { entryQualityLabel } from '@/app/lib/entry-state'
@@ -128,9 +125,6 @@ export default async function ParticipantEntriesPage({
 }: {
   params: Promise<{ id: string; userId: string }>
 }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id, userId } = await params
 
   const participation = await prisma.studyParticipant.findUnique({
@@ -197,16 +191,6 @@ export default async function ParticipantEntriesPage({
   }))
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs
-        studyId={id}
-        active="participants"
-        studyName={participation.study.name}
-        isActive={participation.study.isActive}
-        status={participation.study.status}
-      />
-
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -357,6 +341,5 @@ export default async function ParticipantEntriesPage({
           )}
         </section>
       </main>
-    </div>
   )
 }

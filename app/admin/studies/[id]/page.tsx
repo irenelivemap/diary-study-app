@@ -1,8 +1,5 @@
-import { redirect, notFound } from 'next/navigation'
-import { getSession } from '@/app/lib/session'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
 import ReminderSendCard from '@/app/components/ReminderSendCard'
 import OverviewSection from '@/app/components/OverviewSection'
 import { ButtonLink } from '@/app/components/ui'
@@ -11,67 +8,99 @@ import { studyStatusLabel } from '@/app/lib/study-lifecycle'
 import { buildReminderDiagnostic } from '@/app/lib/reminder-diagnostics'
 
 export default async function StudyDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id } = await params
   const study = await prisma.study.findUnique({
     where: { id },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      consentText: true,
+      contactEmail: true,
+      status: true,
+      isActive: true,
+      remindersEnabled: true,
+      reminderTime: true,
       parts: {
         orderBy: { order: 'asc' },
-        include: {
-          questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
-          _count: { select: { entries: { where: { isPilot: false } } } },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+          flow: true,
+          targetEntries: true,
+          durationDays: true,
+          dueDate: true,
+          isActive: true,
+          questions: {
+            orderBy: [{ page: 'asc' }, { order: 'asc' }],
+            select: {
+              id: true,
+              text: true,
+              showIfQuestionId: true,
+            },
+          },
         },
       },
       participants: {
-        include: { user: { select: { id: true, name: true, email: true } } },
+        select: { user: { select: { id: true, email: true } } },
         orderBy: { joinedAt: 'asc' },
       },
       invitations: {
-        select: { email: true, createdAt: true },
+        select: { email: true },
         orderBy: { createdAt: 'desc' },
       },
       reminderLogs: {
         orderBy: { sentAt: 'desc' },
         take: 5,
-      },
-      _count: { select: { entries: { where: { isPilot: false } } } },
-      entries: {
-        take: 20,
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-          part: { select: { id: true, name: true, order: true } },
+        select: {
+          id: true,
+          status: true,
+          date: true,
+          partId: true,
+          userId: true,
+          sentAt: true,
+          error: true,
         },
-        orderBy: { submittedAt: 'desc' },
       },
     },
   })
   if (!study) notFound()
 
   const includePilotEntries = study.status === 'PREPARATION'
-  const visibleEntries = study.entries.filter((entry) => includePilotEntries || !entry.isPilot)
   const dayKeys = Array.from({ length: 7 }, (_, i) => {
     const date = new Date()
     date.setDate(date.getDate() - (6 - i))
     return date.toISOString().split('T')[0]
   })
   const invitedEmails = [...new Set(study.invitations.map((invitation) => invitation.email.toLowerCase()))]
-  const [entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, invitedUsers] = await Promise.all([
+  const entryWhere = { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) }
+  const [recentEntries, entriesByDayRaw, participantsWithEntriesRaw, entriesByParticipantPartRaw, invitedUsers] = await Promise.all([
+    prisma.entry.findMany({
+      where: entryWhere,
+      take: 6,
+      orderBy: { submittedAt: 'desc' },
+      select: {
+        id: true,
+        date: true,
+        submittedAt: true,
+        user: { select: { name: true } },
+        part: { select: { name: true } },
+      },
+    }),
     prisma.entry.groupBy({
       by: ['date'],
-      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }), date: { in: dayKeys } },
+      where: { ...entryWhere, date: { in: dayKeys } },
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId'],
-      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
+      where: entryWhere,
       _count: { id: true },
     }),
     prisma.entry.groupBy({
       by: ['userId', 'partId'],
-      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
+      where: entryWhere,
       _count: { id: true },
     }),
     invitedEmails.length
@@ -113,7 +142,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
     started: invitedUserIds.filter((userId) => participantsWithEntries.has(userId)).length,
     completed: invitedUserIds.filter(participantCompletedStudy).length,
   }
-  const recentEntries = visibleEntries.slice(0, 6)
   const reminderDiagnostic = buildReminderDiagnostic(study.remindersEnabled, study.reminderLogs)
   const allQuestions = study.parts.flatMap((p) => p.questions.map((q) => ({ ...q, partName: p.name })))
   const partNameById = new Map(study.parts.map((part) => [part.id, part.name]))
@@ -135,10 +163,6 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
   ]
   const readinessIssues = readiness.filter((item) => !item.ok)
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="overview" studyName={study.name} isActive={study.isActive} status={study.status} />
-
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <section className="mb-6 rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
           <div className="mb-4">
@@ -296,6 +320,5 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </main>
-    </div>
   )
 }

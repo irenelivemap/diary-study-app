@@ -1,10 +1,7 @@
-import { redirect, notFound } from 'next/navigation'
-import { getSession } from '@/app/lib/session'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import { updateStudy } from '@/app/actions/studies'
 import StudyForm from '@/app/components/StudyForm'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
 
 export default async function EditStudyPage({
   params,
@@ -13,9 +10,6 @@ export default async function EditStudyPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ saved?: string }>
 }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id } = await params
   const { saved } = await searchParams
   const study = await prisma.study.findUnique({
@@ -33,9 +27,6 @@ export default async function EditStudyPage({
   const action = updateStudy.bind(null, id)
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="setup" studyName={study.name} isActive={study.isActive} status={study.status} />
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {study._count.entries > 0 && (
           <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
@@ -90,6 +81,5 @@ export default async function EditStudyPage({
           submitLabel="Save changes"
         />
       </main>
-    </div>
   )
 }

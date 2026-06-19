@@ -1,13 +1,10 @@
-import { redirect, notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'
 import { appBaseUrl } from '@/app/lib/email'
 import AddParticipantForm from '@/app/components/AddParticipantForm'
 import InviteLinkCard from '@/app/components/InviteLinkCard'
-import NavBar from '@/app/components/NavBar'
 import RemoveParticipantForm from '@/app/components/RemoveParticipantForm'
-import StudyTabs from '@/app/components/StudyTabs'
 import { Badge, ButtonLink } from '@/app/components/ui'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
 
@@ -18,9 +15,6 @@ type ParticipantStatus = {
 }
 
 export default async function StudyParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id } = await params
   const study = await prisma.study.findUnique({
     where: { id },
@@ -105,10 +99,6 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="participants" studyName={study.name} isActive={study.isActive} status={study.status} />
-
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_256px]">
           <div className="min-w-0 space-y-4">
@@ -260,6 +250,5 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
           </aside>
         </div>
       </main>
-    </div>
   )
 }

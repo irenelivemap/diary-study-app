@@ -1,30 +1,17 @@
-import { redirect, notFound } from 'next/navigation'
-import { getSession } from '@/app/lib/session'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'
 import TaggingWorkspace from '@/app/components/TaggingWorkspace'
-import NavBar from '@/app/components/NavBar'
-import StudyTabs from '@/app/components/StudyTabs'
 import { plainTextFromHtml } from '@/app/lib/sanitize-html'
 
 export default async function TaggingPage({ params }: { params: Promise<{ id: string; questionId: string }> }) {
-  const session = await getSession()
-  if (!session || session.role !== 'ADMIN') redirect('/login')
-
   const { id, questionId } = await params
 
-  const [question, study] = await Promise.all([
-    prisma.question.findFirst({
-      where: { id: questionId, studyId: id },
-      include: { tagDefinitions: { orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] } },
-    }),
-    prisma.study.findUnique({
-      where: { id },
-      select: { name: true, isActive: true, status: true },
-    }),
-  ])
+  const question = await prisma.question.findFirst({
+    where: { id: questionId, studyId: id },
+    include: { tagDefinitions: { orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] } },
+  })
 
   if (!question || question.type !== 'FREE_TEXT') notFound()
-  if (!study) notFound()
 
   const entries = await prisma.entry.findMany({
     where: { partId: question.partId },
@@ -72,9 +59,6 @@ export default async function TaggingPage({ params }: { params: Promise<{ id: st
   const questionText = plainTextFromHtml(question.text)
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <NavBar name={session.name} role="ADMIN" canSwitchModes />
-      <StudyTabs studyId={id} active="analysis" studyName={study.name} isActive={study.isActive} status={study.status} />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mb-6">
           <a
@@ -93,6 +77,5 @@ export default async function TaggingPage({ params }: { params: Promise<{ id: st
           answers={answers}
         />
       </main>
-    </div>
   )
 }
