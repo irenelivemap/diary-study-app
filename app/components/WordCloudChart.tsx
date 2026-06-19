@@ -60,6 +60,7 @@ function posStroke(pos: POSFilter, ratio: number): string {
 
 interface CloudWord { text: string; count: number; ratio: number; pos: POSFilter }
 interface Placement { x: number; y: number; r: number }
+type WordAnswer = { answer: string; index: number; matches: number }
 
 // Greedy tangent-placement packing: each new circle is placed tangent to an
 // existing circle at whichever angle keeps the cluster closest to the origin.
@@ -104,7 +105,7 @@ export default function WordCloudChart({
   questionId: string
 }) {
   const [posFilter, setPosFilter] = useState<POSFilter>('all')
-  const [topN, setTopN] = useState(25)
+  const [topN, setTopN] = useState(10)
   const [excludedWords, setExcludedWords] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -117,6 +118,7 @@ export default function WordCloudChart({
   const [words, setWords] = useState<CloudWord[]>([])
   const [loading, setLoading] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
+  const [selectedWord, setSelectedWord] = useState<string | null>(null)
 
   const processWords = useCallback(async () => {
     setLoading(true)
@@ -188,11 +190,17 @@ export default function WordCloudChart({
     void processWords()
   }, [processWords])
 
+  useEffect(() => {
+    if (selectedWord && !words.some((word) => word.text === selectedWord)) setSelectedWord(null)
+  }, [selectedWord, words])
+
   const placements = useMemo(() => {
     if (!words.length) return []
-    const radii = words.map((w) => Math.round(22 + w.ratio * 38))
-    return packCircles(radii)
-  }, [words])
+    const baseRadius = topN <= 10 ? 34 : topN <= 25 ? 26 : 20
+    const radiusRange = topN <= 10 ? 58 : topN <= 25 ? 44 : 34
+    const radii = words.map((w) => Math.round(baseRadius + w.ratio * radiusRange))
+    return packCircles(radii, topN <= 10 ? 7 : 5)
+  }, [topN, words])
 
   const viewBox = useMemo(() => {
     if (!placements.length) return '0 0 400 300'
@@ -210,6 +218,20 @@ export default function WordCloudChart({
     return (['nouns', 'verbs', 'adjectives', 'adverbs'] as const).filter((p) => seen.has(p))
   }, [words])
 
+  const selectedWordAnswers = useMemo<WordAnswer[]>(() => {
+    if (!selectedWord) return []
+    const pattern = new RegExp(`\\b${selectedWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+    return answers.flatMap((answer, index) => {
+      const matches = answer.match(pattern)?.length ?? 0
+      return matches > 0 ? [{ answer, index, matches }] : []
+    })
+  }, [answers, selectedWord])
+
+  const selectedWordData = useMemo(
+    () => selectedWord ? words.find((word) => word.text === selectedWord) ?? null : null,
+    [selectedWord, words]
+  )
+
   const excludeWord = (word: string) => {
     const next = [...excludedWords, word]
     setExcludedWords(next)
@@ -220,6 +242,15 @@ export default function WordCloudChart({
     const next = excludedWords.filter((w) => w !== word)
     setExcludedWords(next)
     try { localStorage.setItem(`wc-ex-${questionId}`, JSON.stringify(next)) } catch {}
+  }
+
+  const highlightedAnswerParts = (answer: string, word: string) => {
+    const pattern = new RegExp(`(\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b)`, 'gi')
+    return answer.split(pattern).map((part, index) => (
+      part.toLowerCase() === word.toLowerCase()
+        ? <mark key={index} className="rounded bg-indigo-100 px-0.5 font-semibold text-indigo-900">{part}</mark>
+        : <span key={index}>{part}</span>
+    ))
   }
 
   return (
@@ -272,29 +303,33 @@ export default function WordCloudChart({
           </div>
         ) : (
           <>
-            <svg viewBox={viewBox} className="w-full" style={{ maxHeight: '440px' }}>
+            <svg
+              viewBox={viewBox}
+              className="w-full"
+              style={{ height: topN <= 10 ? '360px' : '400px', maxHeight: '44vh', minHeight: '300px' }}
+            >
               {words.map((word, i) => {
                 const p = placements[i]
                 if (!p) return null
                 const stroke = posStroke(word.pos, word.ratio)
-                const isHovered = hovered === word.text
+                const isHovered = hovered === word.text || selectedWord === word.text
                 const textSize = Math.min(14, Math.max(8, (p.r * 1.55) / Math.max(3, word.text.length)))
                 return (
                   <g
                     key={word.text}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => excludeWord(word.text)}
+                    onClick={() => setSelectedWord((current) => current === word.text ? null : word.text)}
                     onMouseEnter={() => setHovered(word.text)}
                     onMouseLeave={() => setHovered(null)}
                   >
-                    <title>{word.text} · {word.count} {word.count === 1 ? 'occurrence' : 'occurrences'} — click to remove</title>
+                    <title>{word.text} · {word.count} {word.count === 1 ? 'mention' : 'mentions'} — click to inspect answers</title>
                     <circle
                       cx={p.x}
                       cy={p.y}
                       r={p.r}
-                      fill={isHovered ? '#f5f3ff' : 'white'}
+                      fill={selectedWord === word.text ? '#eef2ff' : isHovered ? '#f8fafc' : 'white'}
                       stroke={stroke}
-                      strokeWidth={isHovered ? 2.5 : 1.5}
+                      strokeWidth={selectedWord === word.text ? 3 : isHovered ? 2.5 : 1.5}
                     />
                     <text
                       x={p.x}
@@ -331,6 +366,47 @@ export default function WordCloudChart({
           </>
         )}
       </div>
+
+      {selectedWord && selectedWordData && (
+        <div className="rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[var(--text)]">
+                “{selectedWord}”
+                <span className="ml-2 font-normal text-[var(--text-tertiary)]">
+                  {selectedWordData.count} {selectedWordData.count === 1 ? 'mention' : 'mentions'} in {selectedWordAnswers.length} {selectedWordAnswers.length === 1 ? 'answer' : 'answers'}
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">
+                Use this as a path into the raw responses, not as a conclusion by itself.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                excludeWord(selectedWord)
+                setSelectedWord(null)
+              }}
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-sunken)]"
+            >
+              Hide word
+            </button>
+          </div>
+          <div className="max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto">
+            {selectedWordAnswers.map(({ answer, index, matches }) => (
+              <div key={`${selectedWord}-${index}`} className="px-4 py-3">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-[var(--text-tertiary)]">Answer {index + 1}</p>
+                  {matches > 1 && <p className="text-xs text-[var(--text-muted)]">{matches} mentions</p>}
+                </div>
+                <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                  {highlightedAnswerParts(answer, selectedWord)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Excluded words */}
       {excludedWords.length > 0 && (
