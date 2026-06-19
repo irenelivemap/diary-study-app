@@ -28,11 +28,15 @@ let prisma = createPrismaClient()
 const cleanupEmails: string[] = []
 const cleanupInvitationEmails: string[] = []
 const cleanupTagIds: string[] = []
+const cleanupStudyIds: string[] = []
 
 test.afterAll(async () => {
   if (prisma) {
     if (cleanupTagIds.length > 0) {
       await prisma.questionTag.deleteMany({ where: { id: { in: cleanupTagIds } } })
+    }
+    if (cleanupStudyIds.length > 0) {
+      await prisma.study.deleteMany({ where: { id: { in: cleanupStudyIds } } })
     }
     if (cleanupInvitationEmails.length > 0) {
       await prisma.studyInvitation.deleteMany({ where: { email: { in: cleanupInvitationEmails } } })
@@ -176,6 +180,101 @@ async function loadQaParticipant() {
   const participant = await db.user.findUnique({ where: { email: QA_PARTICIPANT_EMAIL } })
   expect(participant, 'Run npm run qa:seed before browser QA.').toBeTruthy()
   return participant!
+}
+
+async function createConditionalStudyFixture(testInfo: { project: { name: string }; workerIndex: number }, suffix: string) {
+  const db = await requirePrisma()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const now = Date.now()
+  const email = `qa.condition.${suffix}.${projectSlug}.${testInfo.workerIndex}.${now}@diari.test`
+  const user = await db.user.create({
+    data: {
+      email,
+      name: `QA Condition ${suffix}`,
+      password: await bcrypt.hash(`qa-condition-${now}`, 12),
+      role: 'PARTICIPANT',
+    },
+  })
+  cleanupEmails.push(email)
+
+  const studyId = crypto.randomUUID()
+  const partId = crypto.randomUUID()
+  const sourceQuestionId = crypto.randomUUID()
+  const shownWhenYesQuestionId = crypto.randomUUID()
+  const shownWhenNotYesQuestionId = crypto.randomUUID()
+
+  const study = await db.study.create({
+    data: {
+      id: studyId,
+      name: `QA Conditional Logic ${suffix} ${now}`,
+      description: 'Browser QA study for conditional questions.',
+      status: 'ACTIVE',
+      isActive: true,
+      parts: {
+        create: [{
+          id: partId,
+          name: 'Conditional questions',
+          order: 0,
+          entryPolicy: 'MULTIPLE_PER_DAY',
+          questions: {
+            create: [
+              {
+                id: sourceQuestionId,
+                studyId,
+                page: 1,
+                order: 0,
+                text: 'Did you visit the cafe?',
+                type: 'YES_NO',
+                options: [],
+              },
+              {
+                id: shownWhenYesQuestionId,
+                studyId,
+                page: 1,
+                order: 1,
+                text: 'What did you like about the cafe?',
+                type: 'FREE_TEXT',
+                options: [],
+                required: true,
+                showIfQuestionId: sourceQuestionId,
+                showIfOperator: 'is',
+                showIfValue: 'Yes',
+              },
+              {
+                id: shownWhenNotYesQuestionId,
+                studyId,
+                page: 1,
+                order: 2,
+                text: 'Why did you skip the cafe?',
+                type: 'FREE_TEXT',
+                options: [],
+                required: true,
+                showIfQuestionId: sourceQuestionId,
+                showIfOperator: 'is_not',
+                showIfValue: 'Yes',
+              },
+            ],
+          },
+        }],
+      },
+      participants: {
+        create: {
+          userId: user.id,
+          consentedAt: new Date(),
+        },
+      },
+    },
+  })
+  cleanupStudyIds.push(study.id)
+
+  return {
+    user,
+    studyId,
+    partId,
+    sourceQuestionId,
+    shownWhenYesQuestionId,
+    shownWhenNotYesQuestionId,
+  }
 }
 
 async function ensureSimpleAnalysisEntry() {
@@ -386,6 +485,76 @@ test('signed-in participant can change their password from profile', async ({ pa
   await page.getByLabel('Password').fill(newPassword)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/dashboard/)
+})
+
+test('conditional questions show and submit for is and is not rules', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+
+  async function openFixture(suffix: string) {
+    const fixture = await createConditionalStudyFixture(testInfo, suffix)
+    const token = await sessionToken({
+      id: fixture.user.id,
+      role: fixture.user.role,
+      name: fixture.user.name,
+      email: fixture.user.email,
+    })
+    await page.context().clearCookies()
+    await page.context().addCookies([{
+      name: 'session',
+      value: token,
+      url: baseURL,
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: baseURL.startsWith('https://'),
+    }])
+    await page.goto(`/entry/new?studyId=${fixture.studyId}&partId=${fixture.partId}`)
+    await expect(page.getByText('Did you visit the cafe?')).toBeVisible()
+    await expect(page.getByText('What did you like about the cafe?')).toHaveCount(0)
+    await expect(page.getByText('Why did you skip the cafe?')).toHaveCount(0)
+    return fixture
+  }
+
+  const yesFixture = await openFixture('yes')
+  await page.getByText('Yes', { exact: true }).click()
+  await expect(page.getByText('What did you like about the cafe?')).toBeVisible()
+  await expect(page.getByText('Why did you skip the cafe?')).toHaveCount(0)
+  await page.locator('textarea').fill('The visit worked well.')
+  await page.getByRole('button', { name: 'Submit entry' }).click()
+  await expect(page).toHaveURL(/\/entry\/[^/]+$/)
+  await expect(page.getByText('Entry submitted')).toBeVisible()
+
+  const yesEntry = await db.entry.findFirstOrThrow({
+    where: { studyId: yesFixture.studyId, userId: yesFixture.user.id },
+    include: { answers: true },
+    orderBy: { submittedAt: 'desc' },
+  })
+  const yesAnswers = new Map(yesEntry.answers.map((answer) => [answer.questionId, answer]))
+  expect(yesAnswers.get(yesFixture.shownWhenYesQuestionId)?.wasShown).toBe(true)
+  expect(yesAnswers.get(yesFixture.shownWhenYesQuestionId)?.value).toBe('The visit worked well.')
+  expect(yesAnswers.get(yesFixture.shownWhenNotYesQuestionId)?.wasShown).toBe(false)
+  expect(yesAnswers.get(yesFixture.shownWhenNotYesQuestionId)?.value).toBe('N/A - not shown')
+
+  const noFixture = await openFixture('no')
+  await page.getByText('Yes', { exact: true }).click()
+  await expect(page.getByText('What did you like about the cafe?')).toBeVisible()
+  await page.getByText('No', { exact: true }).click()
+  await expect(page.getByText('What did you like about the cafe?')).toHaveCount(0)
+  await expect(page.getByText('Why did you skip the cafe?')).toBeVisible()
+  await page.locator('textarea').fill('I skipped it this time.')
+  await page.getByRole('button', { name: 'Submit entry' }).click()
+  await expect(page).toHaveURL(/\/entry\/[^/]+$/)
+  await expect(page.getByText('Entry submitted')).toBeVisible()
+
+  const noEntry = await db.entry.findFirstOrThrow({
+    where: { studyId: noFixture.studyId, userId: noFixture.user.id },
+    include: { answers: true },
+    orderBy: { submittedAt: 'desc' },
+  })
+  const noAnswers = new Map(noEntry.answers.map((answer) => [answer.questionId, answer]))
+  expect(noAnswers.get(noFixture.shownWhenYesQuestionId)?.wasShown).toBe(false)
+  expect(noAnswers.get(noFixture.shownWhenYesQuestionId)?.value).toBe('N/A - not shown')
+  expect(noAnswers.get(noFixture.shownWhenNotYesQuestionId)?.wasShown).toBe(true)
+  expect(noAnswers.get(noFixture.shownWhenNotYesQuestionId)?.value).toBe('I skipped it this time.')
 })
 
 test('profile keeps a participant on the participant side when going back', async ({ page }) => {
