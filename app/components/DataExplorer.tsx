@@ -1,20 +1,19 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { deleteEntryFromForm } from '@/app/actions/entries'
 import { Badge, Button, IconButton, SwitchVisual, TextInput, TrashIcon } from '@/app/components/ui'
 import { entryQualityLabel } from '@/app/lib/entry-state'
 import {
   NOT_SHOWN_LABEL,
-  countPilotRows,
   csvCell,
   dataTypeLabel,
   datasetHasJourney,
-  datasetQualityFlags,
-  filterDatasetRowsByPilot,
   formatQualityFlags,
   formatVisibleAnswer,
   type DatasetRow,
 } from '@/app/lib/answer-dataset'
+import type { StudyDataTableFilters } from '@/app/lib/study-data-table-data'
 
 type Question = { id: string; partId: string; partName: string; text: string; type: string }
 type Part = { id: string; name: string }
@@ -28,6 +27,12 @@ type Props = {
   participants: Participant[]
   questions: Question[]
   rows: DatasetRow[]
+  filters?: StudyDataTableFilters
+  pageSize?: number
+  totalRows?: number
+  pilotRowCount?: number
+  availableQualityFlags?: string[]
+  showJourney?: boolean
 }
 
 const BASE_COLUMNS = [
@@ -91,30 +96,50 @@ function formatSubmittedTime(value: string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function DataExplorer({ studyId, studyName, studyVersion, includePilotByDefault = false, parts, participants, questions, rows }: Props) {
+export default function DataExplorer({
+  studyId,
+  studyName,
+  studyVersion,
+  includePilotByDefault = false,
+  parts,
+  participants,
+  questions,
+  rows,
+  filters,
+  pageSize = TABLE_PAGE_SIZE,
+  totalRows = rows.length,
+  pilotRowCount: serverPilotRowCount,
+  availableQualityFlags: serverAvailableQualityFlags,
+  showJourney: serverShowJourney,
+}: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
   const answerQuestions = questions.filter((q) => q.type !== 'CONTENT')
-  const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set(parts.map((p) => p.id)))
-  const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set(participants.map((p) => p.id)))
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const selectedParts = useMemo(
+    () => new Set(filters?.partIds.length ? filters.partIds : parts.map((p) => p.id)),
+    [filters?.partIds, parts]
+  )
+  const selectedParticipants = useMemo(
+    () => new Set(filters?.participantIds.length ? filters.participantIds : participants.map((p) => p.id)),
+    [filters?.participantIds, participants]
+  )
+  const selectedQualityFlags = useMemo(
+    () => filters?.qualityFlags.length ? new Set(filters.qualityFlags) : null,
+    [filters?.qualityFlags]
+  )
+  const dateFrom = filters?.dateFrom ?? ''
+  const dateTo = filters?.dateTo ?? ''
+  const search = filters?.search ?? ''
+  const includePilotData = filters?.includePilotData ?? includePilotByDefault
+  const currentPage = filters?.page ?? 1
   const [selectedBaseCols, setSelectedBaseCols] = useState<Set<BaseColumnId>>(new Set(BASE_COLUMNS.map((col) => col.id)))
   const [selectedQuestionCols, setSelectedQuestionCols] = useState<Set<string>>(new Set(answerQuestions.map((q) => q.id)))
   const [anonymize, setAnonymize] = useState(true)
   const [entryToDelete, setEntryToDelete] = useState<DatasetRow | null>(null)
-  const [search, setSearch] = useState('')
-  const [includePilotData, setIncludePilotData] = useState(includePilotByDefault)
-  const [currentPage, setCurrentPage] = useState(1)
-  const pilotRowCount = useMemo(() => countPilotRows(rows), [rows])
-  const datasetRows = useMemo(
-    () => filterDatasetRowsByPilot(rows, includePilotData),
-    [rows, includePilotData]
-  )
-  const showJourney = datasetHasJourney(datasetRows)
-  const availableQualityFlags = useMemo(
-    () => datasetQualityFlags(datasetRows),
-    [datasetRows]
-  )
-  const [selectedQualityFlags, setSelectedQualityFlags] = useState<Set<string> | null>(null)
+  const [searchDraft, setSearchDraft] = useState(search)
+  const pilotRowCount = serverPilotRowCount ?? rows.filter((row) => row.isPilot).length
+  const showJourney = serverShowJourney ?? datasetHasJourney(rows)
+  const availableQualityFlags = serverAvailableQualityFlags ?? Array.from(new Set(rows.flatMap((row) => row.qualityFlags))).sort()
   const participantAliasById = useMemo(() => new Map(
     [...participants]
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -131,39 +156,46 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
     return next
   }
 
-  const filteredRows = useMemo(() => datasetRows.filter((r) => {
-    if (!selectedParts.has(r.partId)) return false
-    if (!selectedParticipants.has(r.participantId)) return false
-    if (selectedQualityFlags && selectedQualityFlags.size > 0 && !r.qualityFlags.some((flag) => selectedQualityFlags.has(flag))) return false
-    if (dateFrom && r.date < dateFrom) return false
-    if (dateTo && r.date > dateTo) return false
-    if (search.trim()) {
-      const query = search.trim().toLowerCase()
-      const haystack = [
-        r.entryId,
-        r.participantName,
-        r.participantEmail,
-        r.journeyLabel ?? '',
-        r.partName,
-        r.date,
-        ...r.qualityFlags.map(entryQualityLabel),
-        ...Object.values(r.answers),
-        ...Object.values(r.answerTags ?? {}).flat(),
-      ].join(' ').toLowerCase()
-      if (!haystack.includes(query)) return false
-    }
-    return true
-  }), [datasetRows, selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search])
-  const tablePageCount = Math.max(1, Math.ceil(filteredRows.length / TABLE_PAGE_SIZE))
-  const visibleRows = useMemo(() => {
-    const safePage = Math.min(currentPage, tablePageCount)
-    const start = (safePage - 1) * TABLE_PAGE_SIZE
-    return filteredRows.slice(start, start + TABLE_PAGE_SIZE)
-  }, [currentPage, filteredRows, tablePageCount])
-
   useEffect(() => {
-    setCurrentPage(1)
-  }, [selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search, includePilotData])
+    setSearchDraft(search)
+  }, [search])
+
+  function updateServerFilters(next: Partial<{
+    partIds: string[]
+    participantIds: string[]
+    qualityFlags: string[]
+    dateFrom: string
+    dateTo: string
+    search: string
+    includePilotData: boolean
+    page: number
+  }>) {
+    const params = new URLSearchParams()
+    const nextPartIds = next.partIds ?? filters?.partIds ?? []
+    const nextParticipantIds = next.participantIds ?? filters?.participantIds ?? []
+    const nextQualityFlags = next.qualityFlags ?? filters?.qualityFlags ?? []
+    const nextDateFrom = next.dateFrom ?? dateFrom
+    const nextDateTo = next.dateTo ?? dateTo
+    const nextSearch = next.search ?? search
+    const nextIncludePilot = next.includePilotData ?? includePilotData
+    const nextPage = next.page ?? 1
+
+    if (nextPartIds.length > 0 && nextPartIds.length < parts.length) params.set('parts', nextPartIds.join(','))
+    if (nextParticipantIds.length > 0 && nextParticipantIds.length < participants.length) params.set('participants', nextParticipantIds.join(','))
+    if (nextQualityFlags.length > 0) params.set('quality', nextQualityFlags.join(','))
+    if (nextDateFrom) params.set('from', nextDateFrom)
+    if (nextDateTo) params.set('to', nextDateTo)
+    if (nextSearch.trim()) params.set('search', nextSearch.trim())
+    if (nextIncludePilot) params.set('includePilot', 'true')
+    if (nextPage > 1) params.set('page', String(nextPage))
+
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
+  const filteredRows = rows
+  const tablePageCount = Math.max(1, Math.ceil(totalRows / pageSize))
+  const visibleRows = rows
 
   const selectedQuestions = answerQuestions.filter((q) => selectedQuestionCols.has(q.id))
 
@@ -185,7 +217,14 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
   }).length
   const selectedColumnCount = BASE_COLUMNS.filter((col) => baseColumnExported(col.id)).length + selectedQuestionCols.size
   const totalColumnCount = exportableBaseColumnCount + answerQuestions.length
-  const canDownloadCsv = filteredRows.length > 0 && selectedColumnCount > 0
+  const canDownloadCsv = visibleRows.length > 0 && selectedColumnCount > 0
+
+  function selectedFilterValues<T extends { id: string }>(selected: Set<string>, options: T[]) {
+    if (selected.size === 0) return ['__none__']
+    if (selected.size === options.length) return []
+    const validOptionIds = new Set(options.map((option) => option.id))
+    return Array.from(selected).filter((id) => validOptionIds.has(id))
+  }
 
   function allBaseCols() {
     return new Set(BASE_COLUMNS.filter((col) => showJourney || col.id !== 'journey').map((col) => col.id))
@@ -257,11 +296,19 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <TextInput
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') updateServerFilters({ search: searchDraft, page: 1 })
+            }}
             placeholder="Search data"
             className="w-48 bg-white"
           />
+          {searchDraft !== search && (
+            <Button type="button" tone="secondary" size="sm" onClick={() => updateServerFilters({ search: searchDraft, page: 1 })}>
+              Search
+            </Button>
+          )}
           {/* Parts filter */}
           <Dropdown label="Parts" badge={partFilterBadge}>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Parts</p>
@@ -269,13 +316,16 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
               {parts.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={selectedParts.has(p.id)}
-                    onChange={() => setSelectedParts(toggle(selectedParts, p.id))}
+                    onChange={() => {
+                      const next = toggle(selectedParts, p.id)
+                      updateServerFilters({ partIds: selectedFilterValues(next, parts), page: 1 })
+                    }}
                     className="w-4 h-4 rounded text-indigo-600" />
                   <span className="text-sm text-slate-700">{p.name}</span>
                 </label>
               ))}
             </div>
-            <Button type="button" onClick={() => setSelectedParts(new Set(parts.map(p => p.id)))}
+            <Button type="button" onClick={() => updateServerFilters({ partIds: [], page: 1 })}
               tone="ghost" size="sm" className="mt-3">Reset</Button>
           </Dropdown>
 
@@ -286,13 +336,16 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
               {participants.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={selectedParticipants.has(p.id)}
-                    onChange={() => setSelectedParticipants(toggle(selectedParticipants, p.id))}
+                    onChange={() => {
+                      const next = toggle(selectedParticipants, p.id)
+                      updateServerFilters({ participantIds: selectedFilterValues(next, participants), page: 1 })
+                    }}
                     className="w-4 h-4 rounded text-indigo-600" />
                   <span className="text-sm text-slate-700">{p.name}</span>
                 </label>
               ))}
             </div>
-            <Button type="button" onClick={() => setSelectedParticipants(new Set(participants.map(p => p.id)))}
+            <Button type="button" onClick={() => updateServerFilters({ participantIds: [], page: 1 })}
               tone="ghost" size="sm" className="mt-3">Reset</Button>
           </Dropdown>
 
@@ -302,14 +355,14 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
             <div className="space-y-2 w-44">
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">From</label>
-                <TextInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <TextInput type="date" value={dateFrom} onChange={(e) => updateServerFilters({ dateFrom: e.target.value, page: 1 })} />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">To</label>
-                <TextInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <TextInput type="date" value={dateTo} onChange={(e) => updateServerFilters({ dateTo: e.target.value, page: 1 })} />
               </div>
               {(dateFrom || dateTo) && (
-                <Button type="button" onClick={() => { setDateFrom(''); setDateTo('') }}
+                <Button type="button" onClick={() => updateServerFilters({ dateFrom: '', dateTo: '', page: 1 })}
                   tone="ghost" size="sm">Clear</Button>
               )}
             </div>
@@ -326,7 +379,8 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
                       checked={selectedQualityFlags?.has(flag) ?? false}
                       onChange={() => {
                         const current = selectedQualityFlags ?? new Set<string>()
-                        setSelectedQualityFlags(toggle(current, flag))
+                        const next = toggle(current, flag)
+                        updateServerFilters({ qualityFlags: Array.from(next), page: 1 })
                       }}
                       className="w-4 h-4 rounded text-indigo-600"
                     />
@@ -335,7 +389,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
                 ))}
               </div>
               {qualityFilterBadge > 0 && (
-                <Button type="button" onClick={() => setSelectedQualityFlags(null)} tone="ghost" size="sm" className="mt-3">
+                <Button type="button" onClick={() => updateServerFilters({ qualityFlags: [], page: 1 })} tone="ghost" size="sm" className="mt-3">
                   Clear
                 </Button>
               )}
@@ -345,7 +399,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
           <button
             type="button"
             disabled={pilotRowCount === 0}
-            onClick={() => setIncludePilotData((current) => !current)}
+            onClick={() => updateServerFilters({ includePilotData: !includePilotData, page: 1 })}
             className={`inline-flex min-h-10 items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
               pilotRowCount === 0
                 ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
@@ -368,7 +422,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
           </button>
 
           <span className="tabular text-sm text-[var(--text-tertiary)] pl-1">
-            <span className="font-semibold text-[var(--text-secondary)]">{filteredRows.length}</span> entries
+            <span className="font-semibold text-[var(--text-secondary)]">{totalRows}</span> entries
           </span>
         </div>
 
@@ -378,19 +432,19 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
               className="w-4 h-4 rounded text-indigo-600" />
             Anonymize download
           </label>
-          <Button onClick={downloadCSV} disabled={!canDownloadCsv} className="shrink-0">
+          <Button onClick={downloadCSV} disabled={!canDownloadCsv} aria-label="Download CSV" className="shrink-0">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            Download CSV
+            Download visible CSV
           </Button>
         </div>
       </div>
 
       {/* ── Table ── */}
-      {filteredRows.length === 0 ? (
+      {totalRows === 0 ? (
         <div className="bg-white rounded-2xl border border-[var(--border)] shadow-sm p-12 text-center">
           <p className="text-slate-500 text-sm">No entries match the current filters.</p>
         </div>
@@ -675,7 +729,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
           </div>
           <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
             <p className="text-xs text-slate-400">
-              Showing {visibleRows.length} of {filteredRows.length} {filteredRows.length === 1 ? 'entry' : 'entries'} · {selectedColumnCount} columns selected for download
+              Showing {visibleRows.length} of {totalRows} {totalRows === 1 ? 'entry' : 'entries'} · {selectedColumnCount} columns selected for visible CSV
             </p>
             {tablePageCount > 1 ? (
               <div className="flex items-center gap-2">
@@ -684,7 +738,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
                   tone="secondary"
                   size="sm"
                   disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  onClick={() => updateServerFilters({ page: Math.max(1, currentPage - 1) })}
                 >
                   Previous
                 </Button>
@@ -696,7 +750,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
                   tone="secondary"
                   size="sm"
                   disabled={currentPage >= tablePageCount}
-                  onClick={() => setCurrentPage((page) => Math.min(tablePageCount, page + 1))}
+                  onClick={() => updateServerFilters({ page: Math.min(tablePageCount, currentPage + 1) })}
                 >
                   Next
                 </Button>

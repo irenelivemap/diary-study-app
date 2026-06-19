@@ -24,11 +24,16 @@ const db = read('app/lib/db.ts')
 const envExample = read('.env.example')
 
 assert.match(dataPage, /loadStudyDataTableData/, 'Data page should load through the dedicated data-table module.')
+assert.match(dataPage, /parseStudyDataTableFilters/, 'Data page should pass URL filters into the server-side data-table loader.')
 assert.match(analysisPage, /loadStudyAnalysisData/, 'Analysis page should load through the dedicated analysis module.')
 assert.match(dashboardPage, /loadParticipantDashboardData/, 'Participant dashboard page should load through the dedicated dashboard data module.')
 assert.doesNotMatch(dashboardPage, /from ['"]@\/app\/lib\/db['"]/, 'Participant dashboard page should not import Prisma directly.')
 assert.match(db, /resolveDatabaseUrl/, 'App Prisma client should use the shared database URL resolver.')
 assert.match(envExample, /sslmode=verify-full/, '.env.example should use explicit sslmode=verify-full.')
+
+const dataExplorer = read('app/components/DataExplorer.tsx')
+assert.match(dataExplorer, /router\.replace/, 'Data table filters should update the URL so filtering can run on the server.')
+assert.doesNotMatch(dataExplorer, /filterDatasetRowsByPilot/, 'Data table should not filter pilot rows from a full entry dataset in the browser.')
 
 for (const file of [...walk('scripts'), ...walk('tests')]) {
   if (!/\.(ts|tsx)$/.test(file)) continue

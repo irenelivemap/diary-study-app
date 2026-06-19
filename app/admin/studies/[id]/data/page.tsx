@@ -1,10 +1,16 @@
 import { notFound } from 'next/navigation'
 import DataExplorer from '@/app/components/DataExplorer'
-import { loadStudyDataTableData } from '@/app/lib/study-data-table-data'
+import { loadStudyDataTableData, parseStudyDataTableFilters } from '@/app/lib/study-data-table-data'
 
-export default async function DataPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DataPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { id } = await params
-  const data = await loadStudyDataTableData(id)
+  const data = await loadStudyDataTableData(id, parseStudyDataTableFilters(await searchParams))
   if (!data) notFound()
 
   return (
@@ -18,6 +24,12 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
           participants={data.participants}
           questions={data.questions}
           rows={data.rows}
+          filters={data.filters}
+          pageSize={data.pageSize}
+          totalRows={data.totalRows}
+          pilotRowCount={data.pilotRowCount}
+          availableQualityFlags={data.availableQualityFlags}
+          showJourney={data.showJourney}
         />
       </div>
   )
