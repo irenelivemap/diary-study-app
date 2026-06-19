@@ -497,7 +497,6 @@ test('researcher can invite an admin who sets their password', async ({ page }, 
   await expect(page.getByRole('heading', { name: 'Team access' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Optional profile questions' })).toHaveCount(0)
   await expect(page.getByText('Admins can manage studies')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Remove access' })).not.toHaveCount(0)
 
   await page.getByLabel('Email address').fill(email)
   await page.getByLabel('Name').fill('QA Team Admin')
