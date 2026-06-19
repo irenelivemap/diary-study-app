@@ -468,6 +468,15 @@ test('researcher setup page stays readable without horizontal overflow', async (
   await page.goto(`/admin/studies/${study.id}/edit`)
   await expect(page.getByRole('heading', { name: SIMPLE_STUDY_NAME })).toBeVisible()
   await expect(page.getByLabel('Study name *')).toBeVisible()
+
+  await page.locator('button[aria-haspopup="listbox"]').filter({ hasText: 'Free text' }).first().click()
+  const listbox = page.getByRole('listbox')
+  await expect(listbox).toBeVisible()
+  await expect(listbox).toContainText('Free text')
+  await expect(listbox).toContainText('Event date / time')
+  await expect(await listbox.evaluate((node) => node.parentElement === document.body)).toBe(true)
+  await page.keyboard.press('Escape')
+
   await expectNoHorizontalOverflow(page, 'Researcher setup page')
 })
 
