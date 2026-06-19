@@ -147,6 +147,7 @@ export default function StudyForm({
   const [remindersEnabled, setRemindersEnabled] = useState(initialRemindersEnabled)
   const [reminderDays, setReminderDays] = useState<string[]>(initialReminderDays)
   const [collapsedQuestions, setCollapsedQuestions] = useState<Record<string, boolean>>({})
+  const [openQuestionSettingsId, setOpenQuestionSettingsId] = useState<string | null>(null)
   const [draggedQuestion, setDraggedQuestion] = useState<{ partId: string; page: number; qId: string } | null>(null)
   const [draggedOption, setDraggedOption] = useState<{ partId: string; qId: string; index: number } | null>(null)
   const [questionDropIndicator, setQuestionDropIndicator] = useState<{ qId: string; position: DropPosition } | null>(null)
@@ -936,6 +937,22 @@ export default function StudyForm({
                     const questionPreview = plainText(q.text) || 'Untitled question'
                     const isContentBlock = q.type === 'CONTENT'
                     const itemLabel = isContentBlock ? `Content block ${i + 1}` : `Question ${i + 1}`
+                    const allBefore = part.questions.filter((prev) => {
+                      if (prev.id === q.id) return false
+                      if (prev.page < q.page) return true
+                      if (prev.page === q.page) {
+                        const pageQuestions = part.questions.filter((candidate) => candidate.page === q.page)
+                        const prevIdx = pageQuestions.findIndex((candidate) => candidate.id === prev.id)
+                        const thisIdx = pageQuestions.findIndex((candidate) => candidate.id === q.id)
+                        return prevIdx < thisIdx
+                      }
+                      return false
+                    }).filter((previous) => ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'YES_NO', 'RATING'].includes(previous.type))
+                    const triggerQ = allBefore.find((previous) => previous.id === q.showIfQuestionId)
+                    const conditionSummary = triggerQ && q.showIfValue
+                      ? `Shown if ${plainText(triggerQ.text).slice(0, 36) || 'selected question'} is ${q.showIfValue}`
+                      : null
+                    const settingsOpen = openQuestionSettingsId === q.id
 
                     return (
                       <div key={q.id} className="group/setup-question relative">
@@ -1029,6 +1046,16 @@ export default function StudyForm({
                                     Optional
                                   </span>
                                 )}
+                                {!isContentBlock && q.randomizeOptions === true && (
+                                  <span className="rounded-full bg-[var(--accent-subtle)] px-2 py-0.5 text-xs font-semibold text-[var(--text-link)]">
+                                    Randomized
+                                  </span>
+                                )}
+                                {!isContentBlock && conditionSummary && (
+                                  <span className="max-w-[12rem] truncate rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                                    Condition
+                                  </span>
+                                )}
                                 <svg viewBox="0 0 16 16" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${collapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
                                 {collapsed && (
                                   <p className="truncate text-sm text-slate-500">
@@ -1072,11 +1099,177 @@ export default function StudyForm({
                                 options={[...QUESTION_TYPES]}
                               />
                             </div>
+                            {!isContentBlock && (
+                              <button
+                                type="button"
+                                aria-expanded={settingsOpen}
+                                aria-controls={`question-settings-${q.id}`}
+                                title="Question settings"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setOpenQuestionSettingsId((current) => current === q.id ? null : q.id)
+                                }}
+                                className={`interactive-press inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition-colors ${
+                                  settingsOpen
+                                    ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]'
+                                    : 'border-[var(--border-strong)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]'
+                                }`}
+                              >
+                                <span className="sr-only">Question settings</span>
+                                <MoreIcon />
+                              </button>
+                            )}
                             <IconButton type="button" label="Delete question" tone="trash" onClick={(e) => { e.stopPropagation(); removeQuestion(part.id, q.id) }}
                               className="h-10 w-10"><TrashIcon /></IconButton>
                           </div>}
                         </div>
                         </div>
+
+                        {!collapsed && !isContentBlock && settingsOpen && (
+                          <div
+                            id={`question-settings-${q.id}`}
+                            className="border-b border-[var(--border-subtle)] bg-white px-5 py-4"
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                          >
+                            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]">
+                              <div className="space-y-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Answer</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    aria-pressed={q.required !== false}
+                                    onClick={() => updateQuestion(part.id, q.id, { required: q.required === false })}
+                                    className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                                  >
+                                    <SwitchVisual checked={q.required !== false} />
+                                    Required
+                                  </button>
+
+                                  {(q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') && (
+                                    <button
+                                      type="button"
+                                      aria-pressed={q.randomizeOptions === true}
+                                      onClick={() => updateQuestion(part.id, q.id, { randomizeOptions: q.randomizeOptions !== true })}
+                                      className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                                    >
+                                      <SwitchVisual checked={q.randomizeOptions === true} />
+                                      Randomize option order
+                                    </button>
+                                  )}
+                                </div>
+
+                                {q.type === 'MULTIPLE_CHOICE' && (
+                                  <div className="grid max-w-md grid-cols-2 gap-2">
+                                    <label>
+                                      <span className="mb-1 block text-xs font-semibold text-slate-600">Minimum selected</span>
+                                      <input
+                                        type="number"
+                                        min={q.required === false ? 0 : 1}
+                                        max={Math.max(regularOptions.length, 1)}
+                                        value={choiceLimitDefaults(q).min}
+                                        onChange={(e) => {
+                                          const optionCount = Math.max(regularOptions.length, 1)
+                                          const nextMin = Math.max(q.required === false ? 0 : 1, Math.min(Number(e.target.value), optionCount))
+                                          updateQuestion(part.id, q.id, { min: nextMin, max: Math.max(nextMin, choiceLimitDefaults(q).max) })
+                                        }}
+                                        className={smallInputCls}
+                                      />
+                                    </label>
+                                    <label>
+                                      <span className="mb-1 block text-xs font-semibold text-slate-600">Maximum selected</span>
+                                      <input
+                                        type="number"
+                                        min={Math.max(choiceLimitDefaults(q).min, 1)}
+                                        max={Math.max(regularOptions.length, 1)}
+                                        value={choiceLimitDefaults(q).max}
+                                        onChange={(e) => {
+                                          const optionCount = Math.max(regularOptions.length, 1)
+                                          const nextMax = Math.max(choiceLimitDefaults(q).min, Math.min(Number(e.target.value), optionCount))
+                                          updateQuestion(part.id, q.id, { max: nextMax })
+                                        }}
+                                        className={smallInputCls}
+                                      />
+                                    </label>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Display</p>
+                                    <p className="mt-1 text-sm text-slate-600">{conditionSummary ?? 'Always shown'}</p>
+                                  </div>
+                                  {(q.showIfQuestionId || q.showIfValue) && (
+                                    <Button
+                                      type="button"
+                                      tone="ghost"
+                                      size="sm"
+                                      onClick={() => updateQuestion(part.id, q.id, { showIfQuestionId: null, showIfValue: null })}
+                                      className="text-slate-500"
+                                    >
+                                      Clear
+                                    </Button>
+                                  )}
+                                </div>
+
+                                {allBefore.length > 0 ? (
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm text-slate-500">Show only if</span>
+                                    <div className="min-w-64 flex-1">
+                                      <SelectMenu
+                                        value={q.showIfQuestionId ?? ''}
+                                        onChange={(value) => updateQuestion(part.id, q.id, {
+                                          showIfQuestionId: value || null,
+                                          showIfValue: null,
+                                        })}
+                                        options={[
+                                          { value: '', label: 'Always show' },
+                                          ...allBefore.map((previous, bi) => ({
+                                            value: previous.id,
+                                            label: `Q${bi + 1}: ${plainText(previous.text).slice(0, 40) || 'Untitled question'}`,
+                                          })),
+                                        ]}
+                                      />
+                                    </div>
+
+                                    {triggerQ && (
+                                      <>
+                                        <span className="text-sm text-slate-500">is</span>
+                                        <div className="min-w-52 flex-1">
+                                          <SelectMenu
+                                            value={q.showIfValue ?? ''}
+                                            onChange={(value) => updateQuestion(part.id, q.id, { showIfValue: value || null })}
+                                            options={[
+                                              { value: '', label: 'Pick answer' },
+                                              ...(triggerQ.type === 'YES_NO' ? ['Yes', 'No'].map((value) => ({ value, label: value })) : []),
+                                              ...(triggerQ.type === 'MULTIPLE_CHOICE' || triggerQ.type === 'SINGLE_CHOICE'
+                                                ? triggerQ.options
+                                                  .filter((option) => option !== '__OTHER__')
+                                                  .map((option) => ({ value: option, label: plainText(option).slice(0, 50) || 'Untitled option' }))
+                                                : []),
+                                              ...(triggerQ.type === 'RATING'
+                                                ? Array.from(
+                                                  { length: (triggerQ.max ?? 7) - (triggerQ.min ?? 1) + 1 },
+                                                  (_, ratingIndex) => String(ratingIndex + (triggerQ.min ?? 1))
+                                                ).map((value) => ({ value, label: value }))
+                                                : []),
+                                            ]}
+                                          />
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                                    Conditions become available after an earlier choice, yes/no, or rating question.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {!collapsed && <div className="space-y-4 p-5">
                           {isContentBlock && (
@@ -1289,168 +1482,6 @@ export default function StudyForm({
                             </div>
                           )}
 
-                          {/* Conditional logic */}
-                          {!isContentBlock && (() => {
-                            // Collect all questions that appear before this one in the part (any page)
-                            const allBefore = part.questions.filter((prev) => {
-                              if (prev.id === q.id) return false
-                              if (prev.page < q.page) return true
-                              if (prev.page === q.page) {
-                                const prevIdx = part.questions.filter(x => x.page === q.page).findIndex(x => x.id === prev.id)
-                                const thisIdx = part.questions.filter(x => x.page === q.page).findIndex(x => x.id === q.id)
-                                return prevIdx < thisIdx
-                              }
-                              return false
-                            }).filter(p => ['SINGLE_CHOICE','MULTIPLE_CHOICE','YES_NO','RATING'].includes(p.type))
-
-                            if (allBefore.length === 0) return null
-
-                            const triggerQ = allBefore.find(p => p.id === q.showIfQuestionId)
-
-                            const conditionSummary = triggerQ && q.showIfValue
-                              ? `Shown if ${plainText(triggerQ.text).slice(0, 36) || 'selected question'} is ${q.showIfValue}`
-                              : null
-
-                            return (
-                              <details className="group">
-                                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-lg px-1 py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800">
-                                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
-                                  <span>{conditionSummary ? 'Condition' : '+ Condition'}</span>
-                                  {conditionSummary && (
-                                    <span className="max-w-[28rem] truncate text-sm font-normal text-slate-500">
-                                      {conditionSummary}
-                                    </span>
-                                  )}
-                                </summary>
-                                <div className="mt-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm text-slate-500">Show only if</span>
-                                    <div className="min-w-64">
-                                      <SelectMenu
-                                      value={q.showIfQuestionId ?? ''}
-                                      onChange={(value) => updateQuestion(part.id, q.id, {
-                                        showIfQuestionId: value || null,
-                                        showIfValue: null,
-                                      })}
-                                      options={[
-                                        { value: '', label: 'Always show' },
-                                        ...allBefore.map((p, bi) => ({
-                                          value: p.id,
-                                          label: `Q${bi + 1}: ${p.text.replace(/<[^>]*>/g, '').slice(0, 40)}`,
-                                        })),
-                                      ]}
-                                    />
-                                    </div>
-
-                                    {triggerQ && (
-                                      <>
-                                        <span className="text-sm text-slate-500">is</span>
-                                        <div className="min-w-52">
-                                          <SelectMenu
-                                          value={q.showIfValue ?? ''}
-                                          onChange={(value) => updateQuestion(part.id, q.id, { showIfValue: value || null })}
-                                          options={[
-                                            { value: '', label: 'Pick answer' },
-                                            ...(triggerQ.type === 'YES_NO' ? ['Yes', 'No'].map((v) => ({ value: v, label: v })) : []),
-                                            ...(triggerQ.type === 'MULTIPLE_CHOICE' || triggerQ.type === 'SINGLE_CHOICE'
-                                              ? triggerQ.options
-                                                .filter((o) => o !== '__OTHER__')
-                                                .map((o) => ({ value: o, label: o.replace(/<[^>]*>/g, '').slice(0, 50) }))
-                                              : []),
-                                            ...(triggerQ.type === 'RATING'
-                                              ? Array.from(
-                                                { length: (triggerQ.max ?? 7) - (triggerQ.min ?? 1) + 1 },
-                                                (_, i) => String(i + (triggerQ.min ?? 1))
-                                              ).map((v) => ({ value: v, label: v }))
-                                              : []),
-                                          ]}
-                                        />
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                  {q.showIfQuestionId && q.showIfValue && (
-                                    <p className="text-xs text-slate-500">
-                                      This question will only appear when the selected answer is chosen.
-                                    </p>
-                                  )}
-                                </div>
-                              </details>
-                            )
-                          })()}
-
-                          {!isContentBlock && (
-                            <details className="group/settings border-t border-slate-100 pt-3">
-                              <summary className="flex cursor-pointer list-none items-center justify-end gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800">
-                                <span className="sr-only">Question settings</span>
-                                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors group-open/settings:border-[var(--accent-muted)] group-open/settings:bg-[var(--accent-subtle)] group-open/settings:text-[var(--text-link)] hover:border-slate-300 hover:bg-slate-50">
-                                  <MoreIcon />
-                                </span>
-                              </summary>
-                              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      aria-pressed={q.required !== false}
-                                      onClick={() => updateQuestion(part.id, q.id, { required: q.required === false })}
-                                      className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                                    >
-                                      <SwitchVisual checked={q.required !== false} />
-                                      Required
-                                    </button>
-
-                                    {(q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') && (
-                                      <button
-                                        type="button"
-                                        aria-pressed={q.randomizeOptions === true}
-                                        onClick={() => updateQuestion(part.id, q.id, { randomizeOptions: q.randomizeOptions !== true })}
-                                        className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                                      >
-                                        <SwitchVisual checked={q.randomizeOptions === true} />
-                                        Randomize option order
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {q.type === 'MULTIPLE_CHOICE' && (
-                                    <div className="grid grid-cols-2 gap-2 sm:w-64">
-                                      <label>
-                                        <span className="mb-1 block text-xs font-semibold text-slate-600">Minimum selected</span>
-                                        <input
-                                          type="number"
-                                          min={q.required === false ? 0 : 1}
-                                          max={Math.max(regularOptions.length, 1)}
-                                          value={choiceLimitDefaults(q).min}
-                                          onChange={(e) => {
-                                            const optionCount = Math.max(regularOptions.length, 1)
-                                            const nextMin = Math.max(q.required === false ? 0 : 1, Math.min(Number(e.target.value), optionCount))
-                                            updateQuestion(part.id, q.id, { min: nextMin, max: Math.max(nextMin, choiceLimitDefaults(q).max) })
-                                          }}
-                                          className={smallInputCls}
-                                        />
-                                      </label>
-                                      <label>
-                                        <span className="mb-1 block text-xs font-semibold text-slate-600">Maximum selected</span>
-                                        <input
-                                          type="number"
-                                          min={Math.max(choiceLimitDefaults(q).min, 1)}
-                                          max={Math.max(regularOptions.length, 1)}
-                                          value={choiceLimitDefaults(q).max}
-                                          onChange={(e) => {
-                                            const optionCount = Math.max(regularOptions.length, 1)
-                                            const nextMax = Math.max(choiceLimitDefaults(q).min, Math.min(Number(e.target.value), optionCount))
-                                            updateQuestion(part.id, q.id, { max: nextMax })
-                                          }}
-                                          className={smallInputCls}
-                                        />
-                                      </label>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </details>
-                          )}
                         </div>}
                       </div>
                       </div>
