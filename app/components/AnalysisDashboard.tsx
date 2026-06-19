@@ -8,7 +8,7 @@ import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionT
 import { entryQualityLabel } from '@/app/lib/entry-state'
 import { answerValue as normalizedAnswerValue, answerWasShown, parseMultipleChoiceAnswer } from '@/app/lib/answer-dataset'
 import WordCloudChart from '@/app/components/WordCloudChart'
-import type { StudyAnalysisFilters, StudyAnalysisSummary } from '@/app/lib/study-analysis-data'
+import type { StudyAnalysisFilters, StudyAnalysisSummary, StudyQuestionAnalysis } from '@/app/lib/study-analysis-data'
 
 type Question = {
   id: string
@@ -74,13 +74,14 @@ type Props = {
   filters?: StudyAnalysisFilters
   pilotRowCount?: number
   summary?: StudyAnalysisSummary
+  questionSummaries?: Record<string, StudyQuestionAnalysis>
 }
 
 type DataPoint = { label: string; value: number }
 type ScalePoint = { score: number; label: string; count: number }
 type ScaleBin = { label: string; start: number; end: number; count: number }
 type ThemeDistributionPoint = DataPoint & { id: string; color: string; description?: string | null }
-type AnalysisResult = ReturnType<typeof buildAnalysis>
+type AnalysisResult = StudyQuestionAnalysis
 type JourneyContinuity = {
   journeyCount: number
   completedCount: number
@@ -1427,15 +1428,18 @@ function QuestionAnalysisCard({
   studyId,
   question,
   rows,
+  analysis: serverAnalysis,
   index,
 }: {
   studyId: string
   question: Question
   rows: Row[]
+  analysis?: StudyQuestionAnalysis
   index: number
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
-  const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
+  const browserAnalysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
+  const analysis = serverAnalysis ?? browserAnalysis
   const textAnswers = useMemo(() => question.type === 'FREE_TEXT' ? freeTextAnswers(question, rows) : [], [question, rows])
   const themeDistribution = useMemo(
     () => question.type === 'FREE_TEXT' ? themeDistributionPoints(question, textAnswers) : [],
@@ -1647,6 +1651,7 @@ export default function AnalysisDashboard({
   filters,
   pilotRowCount: serverPilotRowCount,
   summary,
+  questionSummaries = {},
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -1835,6 +1840,7 @@ export default function AnalysisDashboard({
                   studyId={studyId}
                   question={question}
                   rows={filteredRows}
+                  analysis={questionSummaries[question.id]}
                   index={index}
                 />
               ))}

@@ -37,7 +37,11 @@ assert.match(dataExplorer, /router\.replace/, 'Data table filters should update 
 assert.doesNotMatch(dataExplorer, /filterDatasetRowsByPilot/, 'Data table should not filter pilot rows from a full entry dataset in the browser.')
 
 const analysisDashboard = read('app/components/AnalysisDashboard.tsx')
+const analysisData = read('app/lib/study-analysis-data.ts')
 assert.match(analysisDashboard, /updateAnalysisFilters/, 'Analysis filters should update the URL so row filtering can run on the server.')
+assert.match(analysisDashboard, /questionSummaries/, 'Analysis dashboard should receive server-prepared per-question chart summaries.')
+assert.match(analysisData, /questionSummaries/, 'Analysis data loader should prepare per-question chart summaries on the server.')
+assert.match(analysisData, /compactQuestionAnalysis/, 'Analysis chart summaries should avoid sending raw answer arrays to the browser.')
 assert.doesNotMatch(analysisDashboard, /rows\.filter\(\(row\) => \{[\s\S]*if \(!includePilotData/, 'Analysis dashboard should not apply the main row filter in the browser.')
 
 for (const file of [...walk('scripts'), ...walk('tests')]) {
