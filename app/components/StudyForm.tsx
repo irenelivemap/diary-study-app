@@ -1161,37 +1161,40 @@ export default function StudyForm({
                                 </div>
 
                                 {q.type === 'MULTIPLE_CHOICE' && (
-                                  <div className="grid max-w-md grid-cols-2 gap-2">
-                                    <label>
-                                      <span className="mb-1 block text-xs font-semibold text-slate-600">Minimum selected</span>
-                                      <input
-                                        type="number"
-                                        min={q.required === false ? 0 : 1}
-                                        max={Math.max(regularOptions.length, 1)}
-                                        value={choiceLimitDefaults(q).min}
-                                        onChange={(e) => {
-                                          const optionCount = Math.max(regularOptions.length, 1)
-                                          const nextMin = Math.max(q.required === false ? 0 : 1, Math.min(Number(e.target.value), optionCount))
-                                          updateQuestion(part.id, q.id, { min: nextMin, max: Math.max(nextMin, choiceLimitDefaults(q).max) })
-                                        }}
-                                        className={smallInputCls}
-                                      />
-                                    </label>
-                                    <label>
-                                      <span className="mb-1 block text-xs font-semibold text-slate-600">Maximum selected</span>
-                                      <input
-                                        type="number"
-                                        min={Math.max(choiceLimitDefaults(q).min, 1)}
-                                        max={Math.max(regularOptions.length, 1)}
-                                        value={choiceLimitDefaults(q).max}
-                                        onChange={(e) => {
-                                          const optionCount = Math.max(regularOptions.length, 1)
-                                          const nextMax = Math.max(choiceLimitDefaults(q).min, Math.min(Number(e.target.value), optionCount))
-                                          updateQuestion(part.id, q.id, { max: nextMax })
-                                        }}
-                                        className={smallInputCls}
-                                      />
-                                    </label>
+                                  <div className="max-w-md space-y-2">
+                                    <p className="text-sm font-medium text-slate-700">Participants can choose</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <label>
+                                        <span className="mb-1 block text-xs font-semibold text-slate-600">At least</span>
+                                        <input
+                                          type="number"
+                                          min={q.required === false ? 0 : 1}
+                                          max={Math.max(regularOptions.length, 1)}
+                                          value={choiceLimitDefaults(q).min}
+                                          onChange={(e) => {
+                                            const optionCount = Math.max(regularOptions.length, 1)
+                                            const nextMin = Math.max(q.required === false ? 0 : 1, Math.min(Number(e.target.value), optionCount))
+                                            updateQuestion(part.id, q.id, { min: nextMin, max: Math.max(nextMin, choiceLimitDefaults(q).max) })
+                                          }}
+                                          className={smallInputCls}
+                                        />
+                                      </label>
+                                      <label>
+                                        <span className="mb-1 block text-xs font-semibold text-slate-600">At most</span>
+                                        <input
+                                          type="number"
+                                          min={Math.max(choiceLimitDefaults(q).min, 1)}
+                                          max={Math.max(regularOptions.length, 1)}
+                                          value={choiceLimitDefaults(q).max}
+                                          onChange={(e) => {
+                                            const optionCount = Math.max(regularOptions.length, 1)
+                                            const nextMax = Math.max(choiceLimitDefaults(q).min, Math.min(Number(e.target.value), optionCount))
+                                            updateQuestion(part.id, q.id, { max: nextMax })
+                                          }}
+                                          className={smallInputCls}
+                                        />
+                                      </label>
+                                    </div>
                                   </div>
                                 )}
                               </div>
