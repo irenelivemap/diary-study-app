@@ -77,6 +77,9 @@ export default async function EditStudyPage({
               required: q.required,
               min: q.min ?? undefined,
               max: q.max ?? undefined,
+              showIfQuestionId: q.showIfQuestionId,
+              showIfOperator: q.showIfOperator as 'is' | 'is_not' | null,
+              showIfValue: q.showIfValue,
             })),
           }))}
           submitLabel="Save changes"

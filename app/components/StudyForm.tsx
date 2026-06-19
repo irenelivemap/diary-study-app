@@ -18,6 +18,7 @@ type Question = {
   max?: number
   scaleType?: string
   showIfQuestionId?: string | null
+  showIfOperator?: 'is' | 'is_not' | null
   showIfValue?: string | null
 }
 type Part = {
@@ -949,8 +950,9 @@ export default function StudyForm({
                       return false
                     }).filter((previous) => ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'YES_NO', 'RATING'].includes(previous.type))
                     const triggerQ = allBefore.find((previous) => previous.id === q.showIfQuestionId)
+                    const conditionOperatorLabel = q.showIfOperator === 'is_not' ? 'is not' : 'is'
                     const conditionSummary = triggerQ && q.showIfValue
-                      ? `Shown if ${plainText(triggerQ.text).slice(0, 36) || 'selected question'} is ${q.showIfValue}`
+                      ? `Shown if ${plainText(triggerQ.text).slice(0, 36) || 'selected question'} ${conditionOperatorLabel} ${q.showIfValue}`
                       : null
                     const canSetCondition = allBefore.length > 0 || Boolean(q.showIfQuestionId || q.showIfValue)
                     const isEditingCondition = Boolean(q.showIfQuestionId || q.showIfValue)
@@ -1134,7 +1136,7 @@ export default function StudyForm({
                             onClick={(event) => event.stopPropagation()}
                             onKeyDown={(event) => event.stopPropagation()}
                           >
-                            <div className={`grid gap-4 ${canSetCondition ? 'lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]' : ''}`}>
+                            <div className="space-y-4">
                               <div className="space-y-3">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Answer</p>
                                 <div className="flex flex-wrap gap-2">
@@ -1158,6 +1160,84 @@ export default function StudyForm({
                                       <SwitchVisual checked={q.randomizeOptions === true} />
                                       Randomize option order
                                     </button>
+                                  )}
+                                </div>
+
+                                <div className="space-y-2">
+                                  {canSetCondition && (
+                                    <button
+                                      type="button"
+                                      aria-pressed={isEditingCondition}
+                                      onClick={() => {
+                                        if (isEditingCondition) {
+                                          updateQuestion(part.id, q.id, { showIfQuestionId: null, showIfOperator: null, showIfValue: null })
+                                        } else {
+                                          updateQuestion(part.id, q.id, { showIfQuestionId: allBefore[0]?.id ?? null, showIfOperator: 'is', showIfValue: null })
+                                        }
+                                      }}
+                                      className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                                    >
+                                      <SwitchVisual checked={isEditingCondition} />
+                                      Condition
+                                    </button>
+                                  )}
+
+                                  {canSetCondition && isEditingCondition && (
+                                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/70 p-3">
+                                      <span className="text-sm text-slate-500">Show only if</span>
+                                      <div className="min-w-64 flex-1">
+                                        <SelectMenu
+                                          value={q.showIfQuestionId ?? ''}
+                                          onChange={(value) => updateQuestion(part.id, q.id, {
+                                            showIfQuestionId: value || null,
+                                            showIfOperator: value ? (q.showIfOperator ?? 'is') : null,
+                                            showIfValue: null,
+                                          })}
+                                          options={[
+                                            ...allBefore.map((previous, bi) => ({
+                                              value: previous.id,
+                                              label: `Q${bi + 1}: ${plainText(previous.text).slice(0, 40) || 'Untitled question'}`,
+                                            })),
+                                          ]}
+                                        />
+                                      </div>
+
+                                      {triggerQ && (
+                                        <>
+                                          <div className="w-28">
+                                            <SelectMenu
+                                              value={q.showIfOperator ?? 'is'}
+                                              onChange={(value) => updateQuestion(part.id, q.id, { showIfOperator: value === 'is_not' ? 'is_not' : 'is' })}
+                                              options={[
+                                                { value: 'is', label: 'is' },
+                                                { value: 'is_not', label: 'is not' },
+                                              ]}
+                                            />
+                                          </div>
+                                          <div className="min-w-52 flex-1">
+                                            <SelectMenu
+                                              value={q.showIfValue ?? ''}
+                                              onChange={(value) => updateQuestion(part.id, q.id, { showIfValue: value || null })}
+                                              options={[
+                                                { value: '', label: 'Pick answer' },
+                                                ...(triggerQ.type === 'YES_NO' ? ['Yes', 'No'].map((value) => ({ value, label: value })) : []),
+                                                ...(triggerQ.type === 'MULTIPLE_CHOICE' || triggerQ.type === 'SINGLE_CHOICE'
+                                                  ? triggerQ.options
+                                                    .filter((option) => option !== '__OTHER__')
+                                                    .map((option) => ({ value: option, label: plainText(option).slice(0, 50) || 'Untitled option' }))
+                                                  : []),
+                                                ...(triggerQ.type === 'RATING'
+                                                  ? Array.from(
+                                                    { length: (triggerQ.max ?? 7) - (triggerQ.min ?? 1) + 1 },
+                                                    (_, ratingIndex) => String(ratingIndex + (triggerQ.min ?? 1))
+                                                  ).map((value) => ({ value, label: value }))
+                                                  : []),
+                                              ]}
+                                            />
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
 
@@ -1199,86 +1279,6 @@ export default function StudyForm({
                                   </div>
                                 )}
                               </div>
-
-                              {canSetCondition && (
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Condition</p>
-                                    <p className="mt-1 text-sm text-slate-600">{conditionSummary ?? 'Always shown'}</p>
-                                  </div>
-                                  {isEditingCondition ? (
-                                    <Button
-                                      type="button"
-                                      tone="ghost"
-                                      size="sm"
-                                      onClick={() => updateQuestion(part.id, q.id, { showIfQuestionId: null, showIfValue: null })}
-                                      className="text-slate-500"
-                                    >
-                                      Clear
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      type="button"
-                                      tone="secondary"
-                                      size="sm"
-                                      onClick={() => updateQuestion(part.id, q.id, { showIfQuestionId: allBefore[0]?.id ?? null, showIfValue: null })}
-                                    >
-                                      Add condition
-                                    </Button>
-                                  )}
-                                </div>
-
-                                {isEditingCondition && (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm text-slate-500">Show only if</span>
-                                  <div className="min-w-64 flex-1">
-                                    <SelectMenu
-                                      value={q.showIfQuestionId ?? ''}
-                                      onChange={(value) => updateQuestion(part.id, q.id, {
-                                        showIfQuestionId: value || null,
-                                        showIfValue: null,
-                                      })}
-                                      options={[
-                                        { value: '', label: 'Always show' },
-                                        ...allBefore.map((previous, bi) => ({
-                                          value: previous.id,
-                                          label: `Q${bi + 1}: ${plainText(previous.text).slice(0, 40) || 'Untitled question'}`,
-                                        })),
-                                      ]}
-                                    />
-                                  </div>
-
-                                  {triggerQ && (
-                                    <>
-                                      <span className="text-sm text-slate-500">is</span>
-                                      <div className="min-w-52 flex-1">
-                                        <SelectMenu
-                                          value={q.showIfValue ?? ''}
-                                          onChange={(value) => updateQuestion(part.id, q.id, { showIfValue: value || null })}
-                                          options={[
-                                            { value: '', label: 'Pick answer' },
-                                            ...(triggerQ.type === 'YES_NO' ? ['Yes', 'No'].map((value) => ({ value, label: value })) : []),
-                                            ...(triggerQ.type === 'MULTIPLE_CHOICE' || triggerQ.type === 'SINGLE_CHOICE'
-                                              ? triggerQ.options
-                                                .filter((option) => option !== '__OTHER__')
-                                                .map((option) => ({ value: option, label: plainText(option).slice(0, 50) || 'Untitled option' }))
-                                              : []),
-                                            ...(triggerQ.type === 'RATING'
-                                              ? Array.from(
-                                                { length: (triggerQ.max ?? 7) - (triggerQ.min ?? 1) + 1 },
-                                                (_, ratingIndex) => String(ratingIndex + (triggerQ.min ?? 1))
-                                              ).map((value) => ({ value, label: value }))
-                                              : []),
-                                          ]}
-                                        />
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                                )}
-                              </div>
-                              )}
                             </div>
                           </div>
                         )}

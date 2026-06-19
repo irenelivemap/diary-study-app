@@ -30,6 +30,7 @@ export type QuestionInput = {
   page?: number
   scaleType?: string
   showIfQuestionId?: string | null
+  showIfOperator?: 'is' | 'is_not' | null
   showIfValue?: string | null
 }
 
@@ -85,6 +86,10 @@ function normalizedEntryPolicy(value: string | null | undefined) {
 
 function normalizedPartFlow(value: string | null | undefined) {
   return value === 'JOURNEY_STAGE' ? 'JOURNEY_STAGE' : 'STANDARD'
+}
+
+function normalizedShowIfOperator(value: string | null | undefined) {
+  return value === 'is_not' ? 'is_not' : 'is'
 }
 
 function normalizedStudyFields(formData: FormData) {
@@ -167,6 +172,7 @@ function validateParts(parts: PartInput[]) {
       }
       if (question.showIfQuestionId || question.showIfValue) {
         if (!question.showIfQuestionId || !question.showIfValue) return 'Conditional questions need both a source question and answer.'
+        if (question.showIfOperator && !['is', 'is_not'].includes(question.showIfOperator)) return 'Conditional questions need a valid condition.'
         if (!questionIds.has(question.showIfQuestionId)) return 'Conditional questions must refer to another question in the same part.'
         const sourceIndex = part.questions.findIndex((candidate) => candidate.id === question.showIfQuestionId)
         if (sourceIndex < 0 || sourceIndex >= index) return 'Conditional questions can only depend on earlier questions.'
@@ -204,6 +210,7 @@ function buildPartCreate(part: PartInput, studyId: string) {
         min: q.min ?? null,
         max: q.max ?? null,
         showIfQuestionId: q.showIfQuestionId ?? null,
+        showIfOperator: q.showIfQuestionId && q.showIfValue ? normalizedShowIfOperator(q.showIfOperator) : null,
         showIfValue: q.showIfValue ?? null,
       })),
     },
@@ -369,6 +376,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
             min: question.min ?? null,
             max: question.max ?? null,
             showIfQuestionId: question.showIfQuestionId ?? null,
+            showIfOperator: question.showIfQuestionId && question.showIfValue ? normalizedShowIfOperator(question.showIfOperator) : null,
             showIfValue: question.showIfValue ?? null,
           }
           if (question.id && currentQuestionsById.has(question.id)) {
@@ -457,7 +465,7 @@ export async function duplicateStudy(studyId: string) {
     })
 
     const questionIdMap = new Map<string, string>()
-    const conditionalQuestions: Array<{ newQuestionId: string; oldSourceQuestionId: string; showIfValue: string }> = []
+    const conditionalQuestions: Array<{ newQuestionId: string; oldSourceQuestionId: string; showIfOperator: string | null; showIfValue: string }> = []
 
     for (const part of source.parts) {
       const copiedPart = await tx.part.create({
@@ -493,6 +501,7 @@ export async function duplicateStudy(studyId: string) {
             min: question.min,
             max: question.max,
             showIfQuestionId: null,
+            showIfOperator: null,
             showIfValue: null,
             tagDefinitions: {
               create: question.tagDefinitions.map((tag) => ({
@@ -507,6 +516,7 @@ export async function duplicateStudy(studyId: string) {
           conditionalQuestions.push({
             newQuestionId: copiedQuestion.id,
             oldSourceQuestionId: question.showIfQuestionId,
+            showIfOperator: question.showIfOperator,
             showIfValue: question.showIfValue,
           })
         }
@@ -520,6 +530,7 @@ export async function duplicateStudy(studyId: string) {
         where: { id: condition.newQuestionId },
         data: {
           showIfQuestionId: copiedSourceQuestionId,
+          showIfOperator: normalizedShowIfOperator(condition.showIfOperator),
           showIfValue: condition.showIfValue,
         },
       })

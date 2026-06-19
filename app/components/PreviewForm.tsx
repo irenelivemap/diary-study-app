@@ -32,11 +32,13 @@ export default function PreviewForm({ study }: { study: Study }) {
     if (!q.showIfQuestionId || !q.showIfValue) return true
     const sourceAnswer = answers[q.showIfQuestionId]
     if (!sourceAnswer) return false
+    let matches = false
     try {
       const parsed = JSON.parse(sourceAnswer)
-      if (Array.isArray(parsed)) return parsed.includes(q.showIfValue)
+      matches = Array.isArray(parsed) ? parsed.includes(q.showIfValue) : sourceAnswer === q.showIfValue
     } catch {}
-    return sourceAnswer === q.showIfValue
+    if (!matches) matches = sourceAnswer === q.showIfValue
+    return q.showIfOperator === 'is_not' ? !matches : matches
   }
 
   const pageCount = Math.max(...study.questions.map((q) => q.page ?? 1), 1)

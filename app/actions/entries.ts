@@ -41,13 +41,15 @@ function includesOtherValue(value: string) {
   return value.startsWith('Other:') && value.replace(/^Other:\s*/, '').trim().length > 0
 }
 
-function answerMatchesCondition(sourceValue: string | undefined, expectedValue: string) {
+function answerMatchesCondition(sourceValue: string | undefined, expectedValue: string, operator?: string | null) {
   if (!sourceValue) return false
+  let matches = false
   try {
     const parsed = JSON.parse(sourceValue)
-    if (Array.isArray(parsed)) return parsed.includes(expectedValue)
+    matches = Array.isArray(parsed) ? parsed.includes(expectedValue) : sourceValue === expectedValue
   } catch {}
-  return sourceValue === expectedValue
+  if (!matches) matches = sourceValue === expectedValue
+  return operator === 'is_not' ? !matches : matches
 }
 
 function addQualityFlag(flags: Set<EntryQualityFlag>, flag: EntryQualityFlag) {
@@ -278,7 +280,7 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   const qualityFlags = new Set<EntryQualityFlag>()
 
   for (const q of part.questions) {
-    const wasShown = !q.showIfQuestionId || !q.showIfValue || answerMatchesCondition(answerByQuestion.get(q.showIfQuestionId), q.showIfValue)
+    const wasShown = !q.showIfQuestionId || !q.showIfValue || answerMatchesCondition(answerByQuestion.get(q.showIfQuestionId), q.showIfValue, q.showIfOperator)
     if (!wasShown) {
       answerByQuestion.set(q.id, '')
       continue

@@ -133,6 +133,7 @@ model Question {
   min              Int?
   max              Int?
   showIfQuestionId String?
+  showIfOperator   String?      @default("is")
   showIfValue      String?
 
   part    Part     @relation(fields: [partId], references: [id], onDelete: Cascade)

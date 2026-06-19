@@ -13,13 +13,15 @@ function detectedTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
 }
 
-function answerMatchesCondition(sourceAnswer: string | undefined, expectedValue: string) {
+function answerMatchesCondition(sourceAnswer: string | undefined, expectedValue: string, operator?: string | null) {
   if (!sourceAnswer) return false
+  let matches = false
   try {
     const parsed = JSON.parse(sourceAnswer)
-    if (Array.isArray(parsed)) return parsed.includes(expectedValue)
+    matches = Array.isArray(parsed) ? parsed.includes(expectedValue) : sourceAnswer === expectedValue
   } catch {}
-  return sourceAnswer === expectedValue
+  if (!matches) matches = sourceAnswer === expectedValue
+  return operator === 'is_not' ? !matches : matches
 }
 
 type Study = {
@@ -76,7 +78,7 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
   )
   const visibleQuestionIdSet = useMemo(
     () => new Set(study.questions
-      .filter((q) => !q.showIfQuestionId || !q.showIfValue || answerMatchesCondition(answers[q.showIfQuestionId], q.showIfValue))
+      .filter((q) => !q.showIfQuestionId || !q.showIfValue || answerMatchesCondition(answers[q.showIfQuestionId], q.showIfValue, q.showIfOperator))
       .map((q) => q.id)),
     [answers, study.questions]
   )
