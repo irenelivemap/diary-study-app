@@ -1130,7 +1130,7 @@ export default function StudyForm({
                         {!collapsed && !isContentBlock && settingsOpen && (
                           <div
                             id={`question-settings-${q.id}`}
-                            className="border-b border-[var(--border-subtle)] bg-white px-5 py-4"
+                            className="border-b border-[var(--border-subtle)] bg-[var(--bg-sunken)]/60 px-5 py-4"
                             onClick={(event) => event.stopPropagation()}
                             onKeyDown={(event) => event.stopPropagation()}
                           >
