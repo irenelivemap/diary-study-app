@@ -1,4 +1,7 @@
 'use server'
+/**
+ * Server actions for AI-assisted tagging and theme grouping in the analysis tag lab.
+ */
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'

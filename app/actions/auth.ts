@@ -1,4 +1,7 @@
 'use server'
+/**
+ * Server actions for sign in, signup, sign out, password reset, and password change flows.
+ */
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { Prisma } from '@prisma/client'

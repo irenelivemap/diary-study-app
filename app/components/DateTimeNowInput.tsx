@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Date/time input with a quick action for using the current time.
+ */
 
 import { useState } from 'react'
 import { Button } from '@/app/components/ui'

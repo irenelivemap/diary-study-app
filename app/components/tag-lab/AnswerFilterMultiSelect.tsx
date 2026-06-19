@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Multi-select filter used to narrow tag-lab answers by participant, status, tag, or theme.
+ */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FilterOption } from './types'

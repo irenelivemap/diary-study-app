@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin card for sending test reminders and manually triggering reminders.
+ */
 
 import { useState, useTransition } from 'react'
 import { sendReminderTestEmail, sendStudyRemindersNow } from '@/app/actions/reminders'

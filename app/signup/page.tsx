@@ -1,3 +1,6 @@
+/**
+ * Next.js page for signup.
+ */
 import SignupForm from '@/app/components/SignupForm'
 
 export default async function SignupPage({

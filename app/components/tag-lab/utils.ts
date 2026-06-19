@@ -1,3 +1,6 @@
+/**
+ * Small tag-lab formatting and helper utilities.
+ */
 import type { TagDefinition } from './types'
 
 export const DEFAULT_COLORS = ['#4f46e5', '#0d9488', '#d97706', '#7c3aed', '#e11d48', '#0891b2']

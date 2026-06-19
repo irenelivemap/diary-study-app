@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Authentication UI component for ResetPasswordForm.
+ */
 
 import { useActionState } from 'react'
 import { resetPassword } from '@/app/actions/auth'

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Authentication UI component for PasswordInput.
+ */
 
 import { useState } from 'react'
 import type { InputHTMLAttributes, ReactNode } from 'react'

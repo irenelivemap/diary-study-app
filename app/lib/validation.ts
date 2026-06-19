@@ -1,3 +1,6 @@
+/**
+ * Contains shared validation helpers for inputs such as timezone and email-like values.
+ */
 export function normalizeEmail(value: FormDataEntryValue | string | null | undefined) {
   return String(value ?? '').trim().toLowerCase()
 }

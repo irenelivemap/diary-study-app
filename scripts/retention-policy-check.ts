@@ -1,3 +1,6 @@
+/**
+ * Checks deletion and retention behavior so archived, removed, and deleted data keep the expected meaning.
+ */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

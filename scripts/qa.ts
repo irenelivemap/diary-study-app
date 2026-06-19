@@ -1,3 +1,6 @@
+/**
+ * Orchestrates the full diARI QA suite and reports each check in order.
+ */
 import 'dotenv/config'
 import { ChildProcess, spawn } from 'node:child_process'
 

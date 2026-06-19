@@ -1,3 +1,6 @@
+/**
+ * Reviews important database query paths against the indexes defined in the Prisma schema.
+ */
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'

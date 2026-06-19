@@ -1,3 +1,6 @@
+/**
+ * Selects reminder recipients and sends reminder emails.
+ */
 import { prisma } from '@/app/lib/db'
 import { appBaseUrl, emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
 import { normalizeTimezone } from '@/app/lib/validation'

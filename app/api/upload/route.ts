@@ -1,3 +1,6 @@
+/**
+ * Route handler for api/upload.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
 import { getSession } from '@/app/lib/session'

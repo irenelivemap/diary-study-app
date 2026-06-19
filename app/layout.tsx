@@ -1,3 +1,6 @@
+/**
+ * Root Next.js layout that applies global fonts, metadata, and app-wide structure.
+ */
 import type { Metadata } from "next";
 import { Inter, Lora } from "next/font/google";
 import "./globals.css";

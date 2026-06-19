@@ -1,3 +1,6 @@
+/**
+ * Root route that redirects users to the right starting point.
+ */
 import { redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 

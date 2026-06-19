@@ -1,3 +1,6 @@
+/**
+ * Small shared diARI wordmark used in navigation and auth screens.
+ */
 type Props = {
   size?: number
   className?: string

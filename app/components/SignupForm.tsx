@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Participant signup form used during invite and account creation flows.
+ */
 
 import { useActionState } from 'react'
 import Link from 'next/link'

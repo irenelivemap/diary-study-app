@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Form for adding or inviting participants to a study from the admin participant view.
+ */
 import { useActionState, useState } from 'react'
 import { addParticipant } from '@/app/actions/studies'
 import { Button, TextInput } from '@/app/components/ui'

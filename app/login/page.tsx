@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Next.js page for login.
+ */
 import { Suspense, useActionState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Signed-in profile form for changing a user password.
+ */
 
 import { useActionState, useEffect, useRef } from 'react'
 import { changePassword } from '@/app/actions/auth'

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Card for creating and copying a general invite link for a study.
+ */
 import { useState, useTransition } from 'react'
 import { ensureInviteLink } from '@/app/actions/studies'
 import { Button } from '@/app/components/ui'

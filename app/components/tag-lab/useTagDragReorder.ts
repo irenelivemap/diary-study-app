@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Drag-and-drop hook for reordering tags and moving them between themes.
+ */
 
 import { useEffect, useState } from 'react'
 import {

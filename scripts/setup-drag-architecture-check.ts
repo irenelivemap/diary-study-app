@@ -1,3 +1,6 @@
+/**
+ * Guards the setup-tab drag-and-drop implementation against drifting from the documented interaction principles.
+ */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

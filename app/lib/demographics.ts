@@ -1,3 +1,6 @@
+/**
+ * Defines participant demographic field helpers and labels.
+ */
 export const DEMOGRAPHIC_FIELDS = [
   {
     key: 'ageRange',

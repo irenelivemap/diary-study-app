@@ -1,3 +1,6 @@
+/**
+ * Manually triggers reminder processing from the command line.
+ */
 import 'dotenv/config'
 import { sendDueReminders } from '../app/lib/reminders'
 

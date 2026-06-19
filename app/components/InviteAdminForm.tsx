@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin profile form for inviting another admin user.
+ */
 
 import { useActionState, useState } from 'react'
 import { inviteAdmin } from '@/app/actions/team'

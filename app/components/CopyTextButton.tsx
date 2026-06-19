@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Reusable button for copying text such as invite links.
+ */
 
 import { useState } from 'react'
 

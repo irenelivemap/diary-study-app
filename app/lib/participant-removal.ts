@@ -1,3 +1,6 @@
+/**
+ * Handles participant removal email and cleanup helpers.
+ */
 import { emailFrom, htmlEscape, resendClient } from '@/app/lib/email'
 
 type RemovalEmail = {

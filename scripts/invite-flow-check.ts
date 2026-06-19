@@ -1,3 +1,6 @@
+/**
+ * Checks the invitation flow rules that protect participant-specific invites and manual invite fallbacks.
+ */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

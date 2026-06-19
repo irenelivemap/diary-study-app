@@ -1,3 +1,6 @@
+/**
+ * Runs lightweight public/protected route checks against a local or deployed app URL.
+ */
 type SmokeResult = {
   name: string
   ok: boolean

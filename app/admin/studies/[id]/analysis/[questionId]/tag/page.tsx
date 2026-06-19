@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id]/analysis/[questionId]/tag.
+ */
 import { notFound } from 'next/navigation'
 import TaggingWorkspace from '@/app/components/TaggingWorkspace'
 import { loadTagLabData } from '@/app/lib/tag-lab-data'

@@ -1,3 +1,6 @@
+/**
+ * Loads participant progress and participant detail data for admin views.
+ */
 import 'server-only'
 
 import { prisma } from '@/app/lib/db'

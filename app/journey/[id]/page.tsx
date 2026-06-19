@@ -1,3 +1,6 @@
+/**
+ * Next.js page for journey/[id].
+ */
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'

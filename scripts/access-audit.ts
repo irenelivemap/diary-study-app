@@ -1,3 +1,6 @@
+/**
+ * Audits admin-facing route files to make sure protected pages explicitly require ADMIN access before rendering researcher data.
+ */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'

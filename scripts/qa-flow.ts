@@ -1,3 +1,6 @@
+/**
+ * Runs an authenticated HTTP-level QA flow across participant and admin routes.
+ */
 import 'dotenv/config'
 import { SignJWT } from 'jose'
 import { PrismaClient } from '@prisma/client'

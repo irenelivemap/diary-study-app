@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Theme container used to display and manage grouped tags.
+ */
 
 import type { Answer, TagDefinition } from './types'
 import { sortTags } from './utils'

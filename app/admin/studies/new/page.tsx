@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/new.
+ */
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'

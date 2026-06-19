@@ -1,3 +1,6 @@
+/**
+ * Seeds the Badi visit journey demo study used for product exploration.
+ */
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'

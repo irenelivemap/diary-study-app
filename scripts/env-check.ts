@@ -1,3 +1,6 @@
+/**
+ * Checks that required and recommended environment variables are present and safe for the current environment.
+ */
 import 'dotenv/config'
 
 type Check = {

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin control for changing study lifecycle status.
+ */
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { setStudyLifecycleStatus } from '@/app/actions/studies'

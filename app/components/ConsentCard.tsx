@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Participant consent panel shown before joining or answering a study.
+ */
 import { useActionState } from 'react'
 import { acceptConsent } from '@/app/actions/studies'
 import { Button } from '@/app/components/ui'

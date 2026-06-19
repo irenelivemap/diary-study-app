@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Profile form for editing basic user details.
+ */
 
 import { useActionState } from 'react'
 import { updateProfile } from '@/app/actions/auth'

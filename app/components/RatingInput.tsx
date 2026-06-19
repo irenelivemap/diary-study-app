@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Participant-facing rating, label, and visual analogue scale input.
+ */
 import { useState } from 'react'
 
 type Props = {

@@ -1,3 +1,6 @@
+/**
+ * Deletes private uploaded files when related answers or entries are removed.
+ */
 import { del } from '@vercel/blob'
 
 const PRIVATE_UPLOAD_ROUTE = '/api/upload/file'

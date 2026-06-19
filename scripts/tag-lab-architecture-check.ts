@@ -1,3 +1,6 @@
+/**
+ * Guards the tag lab module boundaries so the analysis workspace stays maintainable.
+ */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

@@ -1,3 +1,6 @@
+/**
+ * Seeds broader mock data for trying the app locally with realistic content.
+ */
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'

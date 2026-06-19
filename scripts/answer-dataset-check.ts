@@ -1,3 +1,6 @@
+/**
+ * Checks the answer dataset helper so exports, analysis, and data tables keep using a stable shape.
+ */
 import assert from 'node:assert/strict'
 import {
   NOT_SHOWN_LABEL,

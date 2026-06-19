@@ -1,4 +1,7 @@
 'use server'
+/**
+ * Server actions for creating and deleting participant entries while enforcing submission rules.
+ */
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/app/lib/db'

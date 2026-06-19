@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Bubble/word chart used to explore common terms in free-text answers.
+ */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'

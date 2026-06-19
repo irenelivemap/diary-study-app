@@ -1,3 +1,6 @@
+/**
+ * Project file for layout.
+ */
 import { notFound, redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { getSession } from '@/app/lib/session'

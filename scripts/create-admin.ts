@@ -1,3 +1,6 @@
+/**
+ * Creates an initial admin account from the command line when setting up or recovering an environment.
+ */
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'

@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id].
+ */
 import { notFound } from 'next/navigation'
 import ReminderSendCard from '@/app/components/ReminderSendCard'
 import OverviewSection from '@/app/components/OverviewSection'

@@ -1,3 +1,6 @@
+/**
+ * Selection and bulk-action controls for tag sections.
+ */
 import type { ReactNode } from 'react'
 import { Button, IconButton, TrashIcon } from '@/app/components/ui'
 

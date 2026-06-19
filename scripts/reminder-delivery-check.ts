@@ -1,3 +1,6 @@
+/**
+ * Checks reminder recipient selection, delivery safety, and reminder send rules.
+ */
 import 'dotenv/config'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'

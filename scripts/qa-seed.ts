@@ -1,3 +1,6 @@
+/**
+ * Creates deterministic QA users, studies, invitations, journeys, and entries used by local and browser QA.
+ */
 import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'

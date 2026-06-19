@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Archived study list row shown in the admin study list.
+ */
 
 import Link from 'next/link'
 import StudyActionsMenu from '@/app/components/StudyActionsMenu'

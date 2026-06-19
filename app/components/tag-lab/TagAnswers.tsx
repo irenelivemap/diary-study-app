@@ -1,3 +1,6 @@
+/**
+ * Main tag lab interface for tagging answers, managing tags, themes, and AI proposals.
+ */
 import type { Answer, TagDefinition } from './types'
 import { formatDate } from './utils'
 

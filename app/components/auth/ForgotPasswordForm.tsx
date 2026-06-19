@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Authentication UI component for ForgotPasswordForm.
+ */
 
 import { useActionState } from 'react'
 import Link from 'next/link'

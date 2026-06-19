@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Autocomplete input for applying existing tags or creating new ones on an answer.
+ */
 
 import { useMemo, useState } from 'react'
 import type { KeyboardEvent } from 'react'

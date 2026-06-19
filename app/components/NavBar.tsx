@@ -1,3 +1,6 @@
+/**
+ * Top navigation bar shared across authenticated app areas.
+ */
 import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
 import ProfileNavLink from '@/app/components/ProfileNavLink'

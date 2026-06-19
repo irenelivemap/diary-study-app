@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Researcher data table and export controls for study responses.
+ */
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { deleteEntryFromForm } from '@/app/actions/entries'

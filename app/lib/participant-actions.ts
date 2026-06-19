@@ -1,3 +1,6 @@
+/**
+ * Contains helper logic for participant-facing study actions.
+ */
 import {
   canOpenEntryForm,
   isJourneyStage,

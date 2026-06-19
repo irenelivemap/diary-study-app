@@ -1,3 +1,6 @@
+/**
+ * Next.js page for entry/[id].
+ */
 import Link from 'next/link'
 import { redirect, notFound } from 'next/navigation'
 import { getSession } from '@/app/lib/session'

@@ -1,3 +1,6 @@
+/**
+ * Loading placeholder for the join/[token] route.
+ */
 export default function JoinInviteLoading() {
   return (
     <div className="min-h-screen bg-[var(--bg-page)] flex items-center justify-center px-4">

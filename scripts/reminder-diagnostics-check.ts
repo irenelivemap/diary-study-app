@@ -1,3 +1,6 @@
+/**
+ * Checks the diagnostic output used to understand reminder configuration and delivery issues.
+ */
 import assert from 'node:assert/strict'
 import { buildReminderDiagnostic } from '../app/lib/reminder-diagnostics'
 

@@ -1,3 +1,6 @@
+/**
+ * Verifies that the analysis and data documentation mentions the behaviors the product depends on.
+ */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id]/participants.
+ */
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { appBaseUrl } from '@/app/lib/email'

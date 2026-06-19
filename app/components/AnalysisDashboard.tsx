@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Researcher analysis dashboard for summaries, free-text charts, tag distribution, and data quality signals.
+ */
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'

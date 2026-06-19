@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Participant entry form used to submit diary answers.
+ */
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { submitEntry } from '@/app/actions/entries'
 import type { Question } from '@prisma/client'

@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id]/participants/[userId].
+ */
 import { notFound } from 'next/navigation'
 import { ButtonLink } from '@/app/components/ui'
 import CopyTextButton from '@/app/components/CopyTextButton'

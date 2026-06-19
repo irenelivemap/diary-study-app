@@ -1,3 +1,6 @@
+/**
+ * Loads shared study header and navigation data for admin study pages.
+ */
 import 'server-only'
 
 import { prisma } from '@/app/lib/db'

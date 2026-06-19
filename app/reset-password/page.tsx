@@ -1,3 +1,6 @@
+/**
+ * Next.js page for reset-password.
+ */
 import Link from 'next/link'
 import { prisma } from '@/app/lib/db'
 import { passwordResetTokenHash } from '@/app/lib/password-reset'

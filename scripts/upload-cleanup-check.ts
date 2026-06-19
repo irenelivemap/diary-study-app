@@ -1,3 +1,6 @@
+/**
+ * Checks that uploaded participant files are removed when related records are deleted.
+ */
 import assert from 'node:assert/strict'
 import { uploadDeletionTargetFromAnswerValue } from '../app/lib/upload-cleanup'
 

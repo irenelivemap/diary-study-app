@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Navigation link that sends users to profile with the right return path.
+ */
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Shared study-level tab navigation for admin study pages.
+ */
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

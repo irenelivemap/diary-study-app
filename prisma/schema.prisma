@@ -1,3 +1,4 @@
+// Prisma schema that defines the database models, relations, and indexes for diARI.
 generator client {
   provider = "prisma-client-js"
 }

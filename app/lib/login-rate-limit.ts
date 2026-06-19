@@ -1,3 +1,6 @@
+/**
+ * Applies database-backed throttling to login attempts.
+ */
 import 'server-only'
 import { createHash } from 'node:crypto'
 import { headers } from 'next/headers'

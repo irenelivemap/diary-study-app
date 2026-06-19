@@ -1,3 +1,6 @@
+/**
+ * Route handler for admin/studies/[id]/export.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'

@@ -1,3 +1,6 @@
+/**
+ * Creates the shared Resend email client from environment configuration.
+ */
 import { Resend } from 'resend'
 
 const EMAIL_SEND_TIMEOUT_MS = 8_000

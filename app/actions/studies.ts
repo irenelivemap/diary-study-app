@@ -1,4 +1,7 @@
 'use server'
+/**
+ * Server actions for creating, updating, duplicating, joining, archiving, and deleting studies.
+ */
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { EntryPolicy, ParticipantEntryAccess, StudyMode, StudyStatus } from '@prisma/client'

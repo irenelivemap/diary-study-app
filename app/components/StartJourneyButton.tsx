@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Participant button for starting a journey-style study.
+ */
 
 import { useFormStatus } from 'react-dom'
 import type { ReactNode } from 'react'

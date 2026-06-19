@@ -1,3 +1,6 @@
+/**
+ * Creates the shared Prisma client used by server-side code.
+ */
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { resolveDatabaseUrl } from '@/app/lib/database-url'

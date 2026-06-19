@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Small rich text editor used in study setup fields.
+ */
 import { useRef, useEffect } from 'react'
 
 type Props = {

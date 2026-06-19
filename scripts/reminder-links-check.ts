@@ -1,3 +1,6 @@
+/**
+ * Checks that generated reminder links take participants to the correct entry or dashboard destination.
+ */
 import assert from 'node:assert/strict'
 import { reminderEntryUrl, reminderTargetUrl } from '../app/lib/reminder-links'
 

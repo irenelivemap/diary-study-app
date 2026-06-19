@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Reusable select/menu component that portals its listbox to avoid clipping inside cards.
+ */
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'

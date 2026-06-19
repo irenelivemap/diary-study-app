@@ -1,3 +1,6 @@
+/**
+ * Guards query and pagination patterns added to keep larger studies usable.
+ */
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'

@@ -1,3 +1,6 @@
+/**
+ * Loads the participant dashboard with the fields needed to show available studies and entries.
+ */
 import 'server-only'
 
 import { prisma } from '@/app/lib/db'

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Review panel for AI-generated tag and theme suggestions before applying them.
+ */
 
 import { useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'

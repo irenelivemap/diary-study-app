@@ -1,3 +1,6 @@
+/**
+ * Route handler for api/reminders/run.
+ */
 import { NextResponse } from 'next/server'
 import { sendDueReminders } from '@/app/lib/reminders'
 

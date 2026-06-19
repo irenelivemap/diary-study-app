@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin form for removing a participant from a study.
+ */
 
 import { useState } from 'react'
 import { removeParticipantFromForm } from '@/app/actions/studies'

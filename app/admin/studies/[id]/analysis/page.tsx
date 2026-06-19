@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id]/analysis.
+ */
 import { notFound } from 'next/navigation'
 import AnalysisDashboard from '@/app/components/AnalysisDashboard'
 import { loadStudyAnalysisData, parseStudyAnalysisFilters } from '@/app/lib/study-analysis-data'

@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id]/preview.
+ */
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/app/lib/db'

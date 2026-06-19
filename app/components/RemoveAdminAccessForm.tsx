@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin form for removing another admin user's access.
+ */
 
 import { useActionState, useState } from 'react'
 import { removeAdminAccess } from '@/app/actions/team'

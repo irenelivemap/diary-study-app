@@ -1,3 +1,6 @@
+/**
+ * Loads paginated and filtered response rows for the Data tab.
+ */
 import 'server-only'
 
 import type { Prisma } from '@prisma/client'

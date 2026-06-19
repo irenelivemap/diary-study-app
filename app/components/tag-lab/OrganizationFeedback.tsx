@@ -1,3 +1,6 @@
+/**
+ * Status and confirmation feedback for tag-lab organization actions.
+ */
 import { Button, TextInput } from '@/app/components/ui'
 import type { SaveNotice } from './types'
 

@@ -1,3 +1,6 @@
+/**
+ * Admin profile section for inviting and removing admin access.
+ */
 import InviteAdminForm from '@/app/components/InviteAdminForm'
 import RemoveAdminAccessForm from '@/app/components/RemoveAdminAccessForm'
 import { Badge } from '@/app/components/ui'

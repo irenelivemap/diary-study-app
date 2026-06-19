@@ -1,4 +1,7 @@
 'use server'
+/**
+ * Server actions for inviting admins and removing admin access.
+ */
 
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'

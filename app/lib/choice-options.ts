@@ -1,3 +1,6 @@
+/**
+ * Orders choice options, including deterministic randomization for participant-facing question choices.
+ */
 export const OTHER_SENTINEL = '__OTHER__'
 
 function hashString(value: string) {

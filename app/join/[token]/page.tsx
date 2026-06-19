@@ -1,3 +1,6 @@
+/**
+ * Next.js page for join/[token].
+ */
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/app/lib/session'
 import { prisma } from '@/app/lib/db'

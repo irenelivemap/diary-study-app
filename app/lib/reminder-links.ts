@@ -1,3 +1,6 @@
+/**
+ * Builds participant-safe links used in reminder emails.
+ */
 export function reminderDashboardUrl(appUrl: string) {
   return `${appUrl.replace(/\/$/, '')}/dashboard`
 }

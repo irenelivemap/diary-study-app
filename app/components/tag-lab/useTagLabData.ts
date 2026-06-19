@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Client-side data state and derived values for the tag lab.
+ */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'

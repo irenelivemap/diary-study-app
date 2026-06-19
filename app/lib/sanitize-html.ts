@@ -1,3 +1,6 @@
+/**
+ * Sanitizes rich text entered in study setup before rendering it back to users.
+ */
 import sanitizeHtmlLibrary from 'sanitize-html'
 
 const options: sanitizeHtmlLibrary.IOptions = {

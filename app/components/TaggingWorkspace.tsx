@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Wrapper that loads and renders the tag lab workspace for a question.
+ */
 
 import { useMemo, useState } from 'react'
 import { DndContext, DragOverlay } from '@dnd-kit/core'

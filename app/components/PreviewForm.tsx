@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Researcher preview version of the participant entry form that does not save responses.
+ */
 import { useMemo, useRef, useState } from 'react'
 import type { Question } from '@prisma/client'
 import RatingInput from './RatingInput'

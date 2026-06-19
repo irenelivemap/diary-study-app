@@ -1,3 +1,6 @@
+/**
+ * Playwright end-to-end tests covering participant and researcher workflows.
+ */
 import 'dotenv/config'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'

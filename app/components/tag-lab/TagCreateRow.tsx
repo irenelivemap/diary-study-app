@@ -1,3 +1,6 @@
+/**
+ * Inline row for creating a new tag manually.
+ */
 import { Button, TextInput } from '@/app/components/ui'
 
 export default function TagCreateRow({

@@ -1,3 +1,6 @@
+/**
+ * ESLint configuration for TypeScript, React, and Next.js code quality checks.
+ */
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";

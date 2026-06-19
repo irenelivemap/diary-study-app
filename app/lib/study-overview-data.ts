@@ -1,3 +1,6 @@
+/**
+ * Loads the study overview metrics and health checks.
+ */
 import 'server-only'
 
 import { prisma } from '@/app/lib/db'

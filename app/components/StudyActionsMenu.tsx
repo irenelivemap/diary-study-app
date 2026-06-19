@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin actions menu for study-level operations.
+ */
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { archiveStudy, deleteStudy, duplicateStudy, restoreStudy } from '@/app/actions/studies'

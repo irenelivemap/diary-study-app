@@ -1,3 +1,6 @@
+/**
+ * Next.js page for profile.
+ */
 import { redirect } from 'next/navigation'
 import ChangePasswordForm from '@/app/components/ChangePasswordForm'
 import NavBar from '@/app/components/NavBar'

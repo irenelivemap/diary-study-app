@@ -1,3 +1,6 @@
+/**
+ * Tag chip shown on answers after a tag has been applied.
+ */
 import type { TagDefinition } from './types'
 import { readableTextColor } from './utils'
 

@@ -1,3 +1,6 @@
+/**
+ * Next.js proxy middleware that runs before matching routes and protects route access where needed.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt } from '@/app/lib/session'
 

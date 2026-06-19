@@ -1,3 +1,6 @@
+/**
+ * Shared tag-lab TypeScript types.
+ */
 export type TagDefinition = {
   id: string
   label: string

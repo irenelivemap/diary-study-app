@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Rows for selecting, editing, deleting, and dragging existing tags.
+ */
 
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'

@@ -1,3 +1,6 @@
+/**
+ * Small shared UI primitives such as buttons, links, inputs, labels, cards, and badges.
+ */
 import Link from 'next/link'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 

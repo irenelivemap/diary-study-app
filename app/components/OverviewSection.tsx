@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Reusable admin overview section wrapper.
+ */
 
 import type { ReactNode } from 'react'
 import { useState } from 'react'

@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Admin form for participant operations such as notes and status metadata.
+ */
 import { useActionState } from 'react'
 import { updateParticipantOps } from '@/app/actions/studies'
 import { Button, TextInput } from '@/app/components/ui'

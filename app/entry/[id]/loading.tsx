@@ -1,3 +1,6 @@
+/**
+ * Loading placeholder for the entry/[id] route.
+ */
 export default function EntryLoading() {
   return (
     <div className="min-h-screen bg-[var(--bg-page)]">

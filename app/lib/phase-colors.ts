@@ -1,3 +1,6 @@
+/**
+ * Defines the color rotation used for study parts and journey phases.
+ */
 export const PHASE_COLORS = [
   {
     solid: 'bg-blue-500 text-white',

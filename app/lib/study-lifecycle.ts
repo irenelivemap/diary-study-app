@@ -1,3 +1,6 @@
+/**
+ * Defines study lifecycle behavior such as preparation, active, closed, archived, and pilot data.
+ */
 import { StudyStatus } from '@prisma/client'
 
 type StudyLifecycleLike = {

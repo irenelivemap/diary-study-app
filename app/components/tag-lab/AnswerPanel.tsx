@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Answer list panel inside the tag lab, including answer filtering and tagging controls.
+ */
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/app/components/ui'

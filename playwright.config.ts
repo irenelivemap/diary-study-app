@@ -1,3 +1,6 @@
+/**
+ * Playwright configuration for browser-based QA tests.
+ */
 import { defineConfig, devices } from '@playwright/test'
 
 const baseURL =

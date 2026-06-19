@@ -1,3 +1,6 @@
+/**
+ * Calculates whether participants can open, submit, or review diary entries.
+ */
 import { acceptsParticipantEntries } from '@/app/lib/study-lifecycle'
 
 export type EntryAvailabilityState =

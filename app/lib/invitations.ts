@@ -1,3 +1,6 @@
+/**
+ * Creates and sends participant invitation emails and fallback invite links.
+ */
 import { appBaseUrl, emailFrom, htmlEscape, resendClient, withEmailTimeout } from '@/app/lib/email'
 
 type InvitationEmail = {

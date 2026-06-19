@@ -1,3 +1,6 @@
+/**
+ * Builds diagnostic information for reminder configuration and delivery readiness.
+ */
 export type ReminderDiagnosticLog = {
   status: string
   sentAt: Date | string

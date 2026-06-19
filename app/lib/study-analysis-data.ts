@@ -1,3 +1,6 @@
+/**
+ * Loads the analysis dashboard dataset for a study.
+ */
 import 'server-only'
 
 import type { Prisma } from '@prisma/client'

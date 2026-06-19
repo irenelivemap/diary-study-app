@@ -1,3 +1,6 @@
+/**
+ * Checks that participant-facing actions cannot accidentally perform admin-only behavior.
+ */
 import assert from 'node:assert/strict'
 import {
   countPendingParticipantActions,

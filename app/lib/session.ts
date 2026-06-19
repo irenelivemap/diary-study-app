@@ -1,3 +1,6 @@
+/**
+ * Creates, reads, and clears the signed session cookie.
+ */
 import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'

@@ -1,3 +1,6 @@
+/**
+ * Next.js page for admin/studies/[id]/data.
+ */
 import { notFound } from 'next/navigation'
 import DataExplorer from '@/app/components/DataExplorer'
 import { loadStudyDataTableData, parseStudyDataTableFilters } from '@/app/lib/study-data-table-data'

@@ -1,3 +1,6 @@
+/**
+ * Builds the normalized answer dataset used by data tables, exports, and analysis views.
+ */
 import { entryQualityLabel } from '@/app/lib/entry-state'
 
 export const NOT_SHOWN_LABEL = 'Not shown'

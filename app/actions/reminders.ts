@@ -1,4 +1,7 @@
 'use server'
+/**
+ * Server actions for reminder settings and manual reminder/test sends.
+ */
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'

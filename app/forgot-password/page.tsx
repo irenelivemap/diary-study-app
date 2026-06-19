@@ -1,3 +1,6 @@
+/**
+ * Next.js page for forgot-password.
+ */
 import ForgotPasswordForm from '@/app/components/auth/ForgotPasswordForm'
 
 export default function ForgotPasswordPage() {

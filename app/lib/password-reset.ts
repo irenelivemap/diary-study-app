@@ -1,3 +1,6 @@
+/**
+ * Creates, validates, and sends password reset tokens.
+ */
 import crypto from 'node:crypto'
 import { appBaseUrl, emailFrom, htmlEscape, resendClient, withEmailTimeout } from '@/app/lib/email'
 

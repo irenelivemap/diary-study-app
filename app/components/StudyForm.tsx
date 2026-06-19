@@ -1,4 +1,7 @@
 'use client'
+/**
+ * Large researcher setup form for study details, parts, questions, conditions, and reminders.
+ */
 import { useActionState, useState, useRef, useEffect } from 'react'
 import type { DragEvent } from 'react'
 import RichTextEditor from './RichTextEditor'
