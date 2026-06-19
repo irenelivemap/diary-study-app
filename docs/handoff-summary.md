@@ -1,5 +1,9 @@
 # Handoff Summary
 
+## Summary
+
+This document gives a reviewer or incoming maintainer a high-level overview of the app, the current branch state, recent improvements, deployment notes, verification status, and recommended next steps.
+
 Last updated: 2026-06-18
 
 ## What This App Does

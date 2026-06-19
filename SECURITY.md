@@ -1,5 +1,9 @@
 # Security Notes
 
+## Summary
+
+This document lists the security expectations for the app: required secrets, production email/upload settings, AI data-handling cautions, dependency audit notes, and known hardening gaps.
+
 ## Secrets
 
 Do not commit `.env` files or production secrets. Use `.env.example` as the safe template.

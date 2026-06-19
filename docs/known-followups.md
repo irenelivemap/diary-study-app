@@ -1,5 +1,9 @@
 # Known Follow-Ups
 
+## Summary
+
+This document tracks non-blocking product, operational, and technical work that should not be forgotten. Review it regularly so temporary decisions and future improvements stay visible.
+
 Last reviewed: 2026-06-19
 
 Use this as the lightweight parking lot for issues that are not blocking current use, but should not be forgotten. Review it monthly, before handoff conversations, and after any production QA failure.
