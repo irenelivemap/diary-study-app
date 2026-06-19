@@ -108,6 +108,16 @@ const WEEKDAYS = [
 let counter = 0
 function uid() { return `_${++counter}` }
 
+function MoreIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </svg>
+  )
+}
+
 function defaultPart(order: number): Part {
   return {
     id: uid(), name: `Part ${order}`, order,
@@ -1012,8 +1022,12 @@ export default function StudyForm({
                               <div className="flex min-w-0 items-center gap-2">
                                 <p className="shrink-0 text-sm font-semibold text-slate-800">
                                   {itemLabel}
-                                  {!isContentBlock && q.required !== false && <span className="ml-1 text-red-500">*</span>}
                                 </p>
+                                {!isContentBlock && q.required === false && (
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                                    Optional
+                                  </span>
+                                )}
                                 <svg viewBox="0 0 16 16" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${collapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
                                 {collapsed && (
                                   <p className="truncate text-sm text-slate-500">
@@ -1165,48 +1179,6 @@ export default function StudyForm({
 
                           {!isContentBlock && (q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') && (
                             <div className="space-y-3">
-                              <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-end sm:justify-between">
-                                <div>
-                                <p className="text-sm font-medium text-slate-700">Options</p>
-                                  <p className="mt-0.5 text-xs text-slate-500">
-                                    {q.type === 'SINGLE_CHOICE' ? 'Participants select one option.' : 'Participants can select more than one option.'}
-                                  </p>
-                                </div>
-                                {q.type === 'MULTIPLE_CHOICE' && (
-                                  <div className="grid grid-cols-2 gap-2 sm:w-56">
-                                    <label>
-                                      <span className="mb-1 block text-xs font-semibold text-slate-600">Minimum</span>
-                                      <input
-                                        type="number"
-                                        min={q.required === false ? 0 : 1}
-                                        max={Math.max(regularOptions.length, 1)}
-                                        value={choiceLimitDefaults(q).min}
-                                        onChange={(e) => {
-                                          const optionCount = Math.max(regularOptions.length, 1)
-                                          const nextMin = Math.max(q.required === false ? 0 : 1, Math.min(Number(e.target.value), optionCount))
-                                          updateQuestion(part.id, q.id, { min: nextMin, max: Math.max(nextMin, choiceLimitDefaults(q).max) })
-                                        }}
-                                        className={smallInputCls}
-                                      />
-                                    </label>
-                                    <label>
-                                      <span className="mb-1 block text-xs font-semibold text-slate-600">Maximum</span>
-                                      <input
-                                        type="number"
-                                        min={Math.max(choiceLimitDefaults(q).min, 1)}
-                                        max={Math.max(regularOptions.length, 1)}
-                                        value={choiceLimitDefaults(q).max}
-                                        onChange={(e) => {
-                                          const optionCount = Math.max(regularOptions.length, 1)
-                                          const nextMax = Math.max(choiceLimitDefaults(q).min, Math.min(Number(e.target.value), optionCount))
-                                          updateQuestion(part.id, q.id, { max: nextMax })
-                                        }}
-                                        className={smallInputCls}
-                                      />
-                                    </label>
-                                  </div>
-                                )}
-                              </div>
                               {regularOptions.map((opt, oi) => (
                                 <div
                                   key={oi}
@@ -1405,17 +1377,64 @@ export default function StudyForm({
                             )
                           })()}
 
-                          {!isContentBlock && <div className="flex justify-end border-t border-slate-100 pt-4">
-                            <button
-                              type="button"
-                              aria-pressed={q.required !== false}
-                              onClick={() => updateQuestion(part.id, q.id, { required: q.required === false })}
-                              className="inline-flex h-10 items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                            >
-                              <SwitchVisual checked={q.required !== false} />
-                              Required
-                            </button>
-                          </div>}
+                          {!isContentBlock && (
+                            <details className="group/settings border-t border-slate-100 pt-3">
+                              <summary className="flex cursor-pointer list-none items-center justify-end gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800">
+                                <span className="sr-only">Question settings</span>
+                                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors group-open/settings:border-[var(--accent-muted)] group-open/settings:bg-[var(--accent-subtle)] group-open/settings:text-[var(--text-link)] hover:border-slate-300 hover:bg-slate-50">
+                                  <MoreIcon />
+                                </span>
+                              </summary>
+                              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                                  <button
+                                    type="button"
+                                    aria-pressed={q.required !== false}
+                                    onClick={() => updateQuestion(part.id, q.id, { required: q.required === false })}
+                                    className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                                  >
+                                    <SwitchVisual checked={q.required !== false} />
+                                    Required
+                                  </button>
+
+                                  {q.type === 'MULTIPLE_CHOICE' && (
+                                    <div className="grid grid-cols-2 gap-2 sm:w-64">
+                                      <label>
+                                        <span className="mb-1 block text-xs font-semibold text-slate-600">Minimum selected</span>
+                                        <input
+                                          type="number"
+                                          min={q.required === false ? 0 : 1}
+                                          max={Math.max(regularOptions.length, 1)}
+                                          value={choiceLimitDefaults(q).min}
+                                          onChange={(e) => {
+                                            const optionCount = Math.max(regularOptions.length, 1)
+                                            const nextMin = Math.max(q.required === false ? 0 : 1, Math.min(Number(e.target.value), optionCount))
+                                            updateQuestion(part.id, q.id, { min: nextMin, max: Math.max(nextMin, choiceLimitDefaults(q).max) })
+                                          }}
+                                          className={smallInputCls}
+                                        />
+                                      </label>
+                                      <label>
+                                        <span className="mb-1 block text-xs font-semibold text-slate-600">Maximum selected</span>
+                                        <input
+                                          type="number"
+                                          min={Math.max(choiceLimitDefaults(q).min, 1)}
+                                          max={Math.max(regularOptions.length, 1)}
+                                          value={choiceLimitDefaults(q).max}
+                                          onChange={(e) => {
+                                            const optionCount = Math.max(regularOptions.length, 1)
+                                            const nextMax = Math.max(choiceLimitDefaults(q).min, Math.min(Number(e.target.value), optionCount))
+                                            updateQuestion(part.id, q.id, { max: nextMax })
+                                          }}
+                                          className={smallInputCls}
+                                        />
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </details>
+                          )}
                         </div>}
                       </div>
                       </div>
