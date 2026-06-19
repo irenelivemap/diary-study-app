@@ -1,5 +1,6 @@
 'use client'
 import { useActionState, useState, useRef, useEffect } from 'react'
+import type { DragEvent } from 'react'
 import RichTextEditor from './RichTextEditor'
 import { Button, IconButton, SwitchVisual, TextInput, TrashIcon } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
@@ -54,6 +55,8 @@ type Props = {
   initialSaved?: boolean
   submitLabel?: string
 }
+
+type DropPosition = 'before' | 'after'
 
 const QUESTION_TYPES = [
   { value: 'FREE_TEXT', label: 'Free text' },
@@ -135,6 +138,10 @@ export default function StudyForm({
   const [collapsedQuestions, setCollapsedQuestions] = useState<Record<string, boolean>>({})
   const [draggedQuestion, setDraggedQuestion] = useState<{ partId: string; page: number; qId: string } | null>(null)
   const [draggedOption, setDraggedOption] = useState<{ partId: string; qId: string; index: number } | null>(null)
+  const [questionDropIndicator, setQuestionDropIndicator] = useState<{ qId: string; position: DropPosition } | null>(null)
+  const [optionDropIndicator, setOptionDropIndicator] = useState<{ qId: string; index: number; position: DropPosition } | null>(null)
+  const [landedQuestionId, setLandedQuestionId] = useState<string | null>(null)
+  const [landedOption, setLandedOption] = useState<{ qId: string; index: number } | null>(null)
   const [partToDelete, setPartToDelete] = useState<{ id: string; name: string } | null>(null)
   const [contentImageUploading, setContentImageUploading] = useState<Record<string, boolean>>({})
   const [localError, setLocalError] = useState('')
@@ -260,18 +267,36 @@ export default function StudyForm({
     }
   }
 
-  function reorderQuestion(partId: string, page: number, draggedId: string, targetId: string) {
+  function markQuestionLanded(qId: string) {
+    setLandedQuestionId(qId)
+    window.setTimeout(() => setLandedQuestionId((current) => current === qId ? null : current), 1800)
+  }
+
+  function markOptionLanded(qId: string, index: number) {
+    setLandedOption({ qId, index })
+    window.setTimeout(() => setLandedOption((current) => current?.qId === qId && current.index === index ? null : current), 1800)
+  }
+
+  function dropPositionFromEvent(event: DragEvent<HTMLElement>): DropPosition {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return event.clientY > rect.top + rect.height / 2 ? 'after' : 'before'
+  }
+
+  function reorderQuestion(partId: string, page: number, draggedId: string, targetId: string, position: DropPosition = 'before') {
     if (draggedId === targetId) return
     setParts((p) => p.map((x) => {
       if (x.id !== partId) return x
       const pageQs = x.questions.filter((q) => q.page === page)
       const from = pageQs.findIndex((q) => q.id === draggedId)
-      const to = pageQs.findIndex((q) => q.id === targetId)
-      if (from < 0 || to < 0) return x
+      if (from < 0) return x
 
-      const reordered = [...pageQs]
-      const [moved] = reordered.splice(from, 1)
-      reordered.splice(to, 0, moved)
+      const moved = pageQs[from]
+      const withoutMoved = pageQs.filter((q) => q.id !== draggedId)
+      const targetIndex = withoutMoved.findIndex((q) => q.id === targetId)
+      if (targetIndex < 0) return x
+      const insertIndex = targetIndex + (position === 'after' ? 1 : 0)
+      const reordered = [...withoutMoved]
+      reordered.splice(insertIndex, 0, moved)
 
       let pageIndex = 0
       return {
@@ -279,6 +304,16 @@ export default function StudyForm({
         questions: x.questions.map((q) => q.page === page ? reordered[pageIndex++] : q),
       }
     }))
+    markQuestionLanded(draggedId)
+  }
+
+  function reorderQuestionWithKeyboard(partId: string, page: number, qId: string, direction: 'up' | 'down') {
+    const targetPart = parts.find((candidate) => candidate.id === partId)
+    const pageQs = targetPart?.questions.filter((q) => q.page === page) ?? []
+    const index = pageQs.findIndex((q) => q.id === qId)
+    const nextIndex = direction === 'up' ? index - 1 : index + 1
+    if (index < 0 || nextIndex < 0 || nextIndex >= pageQs.length) return
+    reorderQuestion(partId, page, qId, pageQs[nextIndex].id, direction === 'up' ? 'before' : 'after')
   }
 
   function addOption(partId: string, qId: string) {
@@ -314,8 +349,9 @@ export default function StudyForm({
     ))
   }
 
-  function reorderOption(partId: string, qId: string, from: number, to: number) {
+  function reorderOption(partId: string, qId: string, from: number, to: number, position: DropPosition = 'before') {
     if (from === to) return
+    let landedIndex: number | null = null
     setParts((p) => p.map((x) =>
       x.id !== partId ? x : {
         ...x,
@@ -324,13 +360,27 @@ export default function StudyForm({
           const hasOther = (q.options ?? []).includes(OTHER_SENTINEL)
           const regular = (q.options ?? []).filter((o) => o !== OTHER_SENTINEL)
           if (from < 0 || to < 0 || from >= regular.length || to >= regular.length) return q
-          const reordered = [...regular]
-          const [moved] = reordered.splice(from, 1)
-          reordered.splice(to, 0, moved)
+          const moved = regular[from]
+          const withoutMoved = regular.filter((_, index) => index !== from)
+          const adjustedTarget = from < to ? to - 1 : to
+          const insertIndex = adjustedTarget + (position === 'after' ? 1 : 0)
+          const reordered = [...withoutMoved]
+          reordered.splice(insertIndex, 0, moved)
+          landedIndex = insertIndex
           return { ...q, options: hasOther ? [...reordered, OTHER_SENTINEL] : reordered }
         })
       }
     ))
+    if (landedIndex != null) markOptionLanded(qId, landedIndex)
+  }
+
+  function reorderOptionWithKeyboard(partId: string, qId: string, index: number, direction: 'up' | 'down') {
+    const targetPart = parts.find((candidate) => candidate.id === partId)
+    const question = targetPart?.questions.find((candidate) => candidate.id === qId)
+    const regular = (question?.options ?? []).filter((option) => option !== OTHER_SENTINEL)
+    const nextIndex = direction === 'up' ? index - 1 : index + 1
+    if (nextIndex < 0 || nextIndex >= regular.length) return
+    reorderOption(partId, qId, index, nextIndex, direction === 'up' ? 'before' : 'after')
   }
 
   function toggleOther(partId: string, qId: string, add: boolean) {
@@ -877,18 +927,41 @@ export default function StudyForm({
                     const itemLabel = isContentBlock ? `Content block ${i + 1}` : `Question ${i + 1}`
 
                     return (
-                      <div key={q.id} className="relative">
+                      <div key={q.id} className="group/setup-question relative">
+                        {questionDropIndicator?.qId === q.id && (
+                          <div
+                            className={`pointer-events-none absolute left-0 right-0 z-20 lg:left-0 ${questionDropIndicator.position === 'before' ? '-top-1.5' : '-bottom-1.5'}`}
+                            aria-hidden
+                          >
+                            <div className="h-1 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_var(--accent-subtle)]" />
+                          </div>
+                        )}
                         <button
                           type="button"
                           draggable
-                          title="Drag to reorder"
+                          title="Drag question. Use Alt+Up or Alt+Down to reorder with the keyboard."
                           aria-label="Drag to reorder question"
+                          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                           onDragStart={(event) => {
                             setDraggedQuestion({ partId: part.id, page: q.page, qId: q.id })
                             event.dataTransfer.effectAllowed = 'move'
                           }}
-                          onDragEnd={() => setDraggedQuestion(null)}
-                          className="absolute -left-11 top-4 hidden h-10 w-8 cursor-grab select-none items-center justify-center rounded-xl border border-slate-300 bg-white text-lg font-semibold leading-none text-slate-500 shadow-sm transition-colors hover:bg-slate-50 active:cursor-grabbing lg:inline-flex"
+                          onDragEnd={() => {
+                            setDraggedQuestion(null)
+                            setQuestionDropIndicator(null)
+                          }}
+                          onKeyDown={(event) => {
+                            if (!event.altKey) return
+                            if (event.key === 'ArrowUp') {
+                              event.preventDefault()
+                              reorderQuestionWithKeyboard(part.id, q.page, q.id, 'up')
+                            }
+                            if (event.key === 'ArrowDown') {
+                              event.preventDefault()
+                              reorderQuestionWithKeyboard(part.id, q.page, q.id, 'down')
+                            }
+                          }}
+                          className={`absolute -left-11 top-4 hidden h-10 w-8 cursor-grab select-none items-center justify-center rounded-xl border border-transparent bg-transparent text-lg font-semibold leading-none text-slate-400 shadow-none transition-colors hover:border-[var(--border)] hover:bg-white hover:text-slate-700 focus-visible:border-[var(--border-focus)] focus-visible:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] active:cursor-grabbing lg:inline-flex ${draggedQuestion?.qId === q.id ? 'opacity-70' : 'opacity-0 group-hover/setup-question:opacity-60 group-focus-within/setup-question:opacity-60'}`}
                         >
                           ⋮⋮
                         </button>
@@ -896,17 +969,29 @@ export default function StudyForm({
                         onDragOver={(event) => {
                           if (draggedQuestion?.partId === part.id && draggedQuestion.page === q.page) {
                             event.preventDefault()
+                            if (draggedQuestion.qId !== q.id) {
+                              setQuestionDropIndicator({ qId: q.id, position: dropPositionFromEvent(event) })
+                            }
                           }
+                        }}
+                        onDragLeave={() => {
+                          if (questionDropIndicator?.qId === q.id) setQuestionDropIndicator(null)
                         }}
                         onDrop={(event) => {
                           event.preventDefault()
                           if (draggedQuestion?.partId === part.id && draggedQuestion.page === q.page) {
-                            reorderQuestion(part.id, q.page, draggedQuestion.qId, q.id)
+                            const position = questionDropIndicator?.qId === q.id ? questionDropIndicator.position : dropPositionFromEvent(event)
+                            reorderQuestion(part.id, q.page, draggedQuestion.qId, q.id, position)
                           }
                           setDraggedQuestion(null)
+                          setQuestionDropIndicator(null)
                         }}
-                        className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-colors ${
-                          draggedQuestion?.qId === q.id ? 'border-indigo-300 bg-indigo-50/30' : 'border-[var(--border)]'
+                        className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-[background-color,border-color,box-shadow,opacity] duration-200 ${
+                          draggedQuestion?.qId === q.id
+                            ? 'border-[var(--accent-muted)] opacity-40'
+                            : landedQuestionId === q.id
+                              ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] shadow-[inset_0_0_0_1px_var(--accent-muted)]'
+                              : 'border-[var(--border)]'
                         }`}
                       >
                         <div
@@ -1125,33 +1210,73 @@ export default function StudyForm({
                               {regularOptions.map((opt, oi) => (
                                 <div
                                   key={oi}
+                                  className="group/setup-option relative"
                                   onDragOver={(event) => {
                                     if (draggedOption?.partId === part.id && draggedOption.qId === q.id) {
                                       event.preventDefault()
+                                      if (draggedOption.index !== oi) {
+                                        setOptionDropIndicator({ qId: q.id, index: oi, position: dropPositionFromEvent(event) })
+                                      }
                                     }
+                                  }}
+                                  onDragLeave={() => {
+                                    if (optionDropIndicator?.qId === q.id && optionDropIndicator.index === oi) setOptionDropIndicator(null)
                                   }}
                                   onDrop={(event) => {
                                     event.preventDefault()
                                     if (draggedOption?.partId === part.id && draggedOption.qId === q.id) {
-                                      reorderOption(part.id, q.id, draggedOption.index, oi)
+                                      const position = optionDropIndicator?.qId === q.id && optionDropIndicator.index === oi
+                                        ? optionDropIndicator.position
+                                        : dropPositionFromEvent(event)
+                                      reorderOption(part.id, q.id, draggedOption.index, oi, position)
                                     }
                                     setDraggedOption(null)
+                                    setOptionDropIndicator(null)
                                   }}
-                                  className={`grid grid-cols-[28px_minmax(0,1fr)_36px] items-center gap-2 rounded-xl transition-colors ${
-                                    draggedOption?.qId === q.id && draggedOption.index === oi ? 'bg-indigo-50' : ''
-                                  }`}
                                 >
+                                  {optionDropIndicator?.qId === q.id && optionDropIndicator.index === oi && (
+                                    <div
+                                      className={`pointer-events-none absolute left-0 right-0 z-20 ${optionDropIndicator.position === 'before' ? '-top-1' : '-bottom-1'}`}
+                                      aria-hidden
+                                    >
+                                      <div className="h-0.5 rounded-full bg-[var(--accent)] shadow-[0_0_0_2px_var(--accent-subtle)]" />
+                                    </div>
+                                  )}
+                                  <div
+                                    className={`grid grid-cols-[28px_minmax(0,1fr)_36px] items-center gap-2 rounded-xl transition-[background-color,box-shadow,opacity] duration-200 ${
+                                      draggedOption?.qId === q.id && draggedOption.index === oi
+                                        ? 'opacity-40'
+                                        : landedOption?.qId === q.id && landedOption.index === oi
+                                          ? 'bg-[var(--accent-subtle)] shadow-[inset_0_0_0_1px_var(--accent-muted)]'
+                                          : ''
+                                    }`}
+                                  >
                                   <button
                                     type="button"
                                     draggable={regularOptions.length > 1}
-                                    title={regularOptions.length > 1 ? 'Drag to reorder option' : 'Add another option to reorder'}
+                                    title={regularOptions.length > 1 ? 'Drag option. Use Alt+Up or Alt+Down to reorder with the keyboard.' : 'Add another option to reorder'}
                                     aria-label={`Drag option ${oi + 1} to reorder`}
+                                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                                     onDragStart={(event) => {
                                       setDraggedOption({ partId: part.id, qId: q.id, index: oi })
                                       event.dataTransfer.effectAllowed = 'move'
                                     }}
-                                    onDragEnd={() => setDraggedOption(null)}
-                                    className="inline-flex h-9 w-7 cursor-grab select-none items-center justify-center rounded-lg text-sm font-semibold leading-none text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
+                                    onDragEnd={() => {
+                                      setDraggedOption(null)
+                                      setOptionDropIndicator(null)
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (!event.altKey) return
+                                      if (event.key === 'ArrowUp') {
+                                        event.preventDefault()
+                                        reorderOptionWithKeyboard(part.id, q.id, oi, 'up')
+                                      }
+                                      if (event.key === 'ArrowDown') {
+                                        event.preventDefault()
+                                        reorderOptionWithKeyboard(part.id, q.id, oi, 'down')
+                                      }
+                                    }}
+                                    className={`inline-flex h-9 w-7 cursor-grab select-none items-center justify-center rounded-lg text-sm font-semibold leading-none text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] active:cursor-grabbing disabled:cursor-default disabled:opacity-40 ${draggedOption?.qId === q.id && draggedOption.index === oi ? 'opacity-70' : 'opacity-50 group-hover/setup-option:opacity-80 group-focus-within/setup-option:opacity-80'}`}
                                     disabled={regularOptions.length <= 1}
                                   >
                                     ⋮⋮
@@ -1166,6 +1291,7 @@ export default function StudyForm({
                                   </div>
                                   <IconButton type="button" label={`Delete option ${oi + 1}`} tone="trash" onClick={() => removeOption(part.id, q.id, oi)}
                                     className="h-8 w-8 rounded-lg"><TrashIcon /></IconButton>
+                                  </div>
                                 </div>
                               ))}
                               {hasOther && (

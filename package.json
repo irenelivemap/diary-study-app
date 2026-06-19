@@ -16,6 +16,7 @@
     "qa:retention": "tsx scripts/retention-policy-check.ts",
     "qa:analysis-docs": "tsx scripts/analysis-docs-check.ts",
     "qa:tag-lab": "tsx scripts/tag-lab-architecture-check.ts",
+    "qa:setup-drag": "tsx scripts/setup-drag-architecture-check.ts",
     "qa:study-shell": "tsx scripts/study-shell-architecture-check.ts",
     "qa:scaling": "tsx scripts/scaling-architecture-check.ts",
     "qa:invites": "tsx scripts/invite-flow-check.ts",
