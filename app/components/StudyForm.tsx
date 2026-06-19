@@ -1243,10 +1243,10 @@ export default function StudyForm({
 
                                 {q.type === 'MULTIPLE_CHOICE' && (
                                   <div className="max-w-md space-y-2">
-                                    <p className="text-sm font-medium text-slate-700">Participants can choose</p>
+                                    <p className="text-sm text-slate-600">Participants can choose</p>
                                     <div className="grid grid-cols-2 gap-2">
                                       <label>
-                                        <span className="mb-1 block text-xs font-semibold text-slate-600">At least</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-500">At least</span>
                                         <input
                                           type="number"
                                           min={q.required === false ? 0 : 1}
@@ -1261,7 +1261,7 @@ export default function StudyForm({
                                         />
                                       </label>
                                       <label>
-                                        <span className="mb-1 block text-xs font-semibold text-slate-600">At most</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-500">At most</span>
                                         <input
                                           type="number"
                                           min={Math.max(choiceLimitDefaults(q).min, 1)}
