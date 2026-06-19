@@ -117,7 +117,7 @@ Current summary: seven items are addressed for the current product scale, and on
 
    Why it matters: several researcher pages still build their own Prisma queries directly inside page files. That makes pages harder to review and makes it easy for one tab to accidentally fetch more data than it needs. A deeper module for overview, participants, analysis and data loading would give each page a small interface and keep query details in one place.
 
-   Current status: addressed for the current study pages. The shared study shell, Overview, Analysis and Data pages now load through dedicated server-side modules.
+   Current status: addressed for the current study pages. The shared study shell, Overview, Analysis, Analysis tag lab and Data pages now load through dedicated server-side modules.
 
 2. Move large Analysis and Data filtering to the server.
 
