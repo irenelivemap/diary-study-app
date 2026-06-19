@@ -73,6 +73,7 @@ export default async function EditStudyPage({
               type: q.type,
               scaleType: q.scaleType,
               options: q.options,
+              randomizeOptions: q.randomizeOptions,
               required: q.required,
               min: q.min ?? undefined,
               max: q.max ?? undefined,

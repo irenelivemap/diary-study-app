@@ -1,15 +1,15 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Question } from '@prisma/client'
 import RatingInput from './RatingInput'
 import { Button, TextInput } from '@/app/components/ui'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
 import DateTimeNowInput from './DateTimeNowInput'
-
-const OTHER_SENTINEL = '__OTHER__'
+import { OTHER_SENTINEL, orderedChoiceOptions } from '@/app/lib/choice-options'
 
 type Study = {
   id: string
+  randomSeed: string
   name: string
   questions: Question[]
 }
@@ -41,6 +41,17 @@ export default function PreviewForm({ study }: { study: Study }) {
 
   const pageCount = Math.max(...study.questions.map((q) => q.page ?? 1), 1)
   const pageQuestions = study.questions.filter((q) => (q.page ?? 1) === currentPage)
+  const orderedOptionsByQuestionId = useMemo(
+    () => new Map(study.questions.map((q) => [
+      q.id,
+      orderedChoiceOptions({
+        options: q.options,
+        randomize: q.randomizeOptions,
+        seed: `${study.randomSeed}:${q.id}`,
+      }),
+    ])),
+    [study.questions, study.randomSeed]
+  )
 
   function selectedValues(qId: string) {
     return selectedChoices[qId] ?? []
@@ -128,7 +139,7 @@ export default function PreviewForm({ study }: { study: Study }) {
       {pageQuestions.map((q) => {
         if (!isVisible(q)) return null
 
-        const regularOptions = q.options.filter((o) => o !== OTHER_SENTINEL)
+        const regularOptions = orderedOptionsByQuestionId.get(q.id) ?? []
         const hasOther = q.options.includes(OTHER_SENTINEL)
         const selectedOther = selectedOptions[q.id] === OTHER_SENTINEL
 

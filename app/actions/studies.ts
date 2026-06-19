@@ -23,6 +23,7 @@ export type QuestionInput = {
   text: string
   type: 'FREE_TEXT' | 'RATING' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'YES_NO' | 'SCREENSHOT' | 'DATE_TIME' | 'CONTENT'
   options?: string[]
+  randomizeOptions?: boolean
   required?: boolean
   min?: number
   max?: number
@@ -198,6 +199,7 @@ function buildPartCreate(part: PartInput, studyId: string) {
         type: q.type,
         scaleType: q.scaleType ?? 'numbers',
         options: sanitizedOptions(q.options),
+        randomizeOptions: q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE' ? q.randomizeOptions === true : false,
         required: q.type === 'CONTENT' ? false : q.required !== false,
         min: q.min ?? null,
         max: q.max ?? null,
@@ -362,6 +364,7 @@ export async function updateStudy(studyId: string, prevState: unknown, formData:
             type: question.type,
             scaleType: question.scaleType ?? 'numbers',
             options: sanitizedOptions(question.options),
+            randomizeOptions: question.type === 'SINGLE_CHOICE' || question.type === 'MULTIPLE_CHOICE' ? question.randomizeOptions === true : false,
             required: question.type === 'CONTENT' ? false : question.required !== false,
             min: question.min ?? null,
             max: question.max ?? null,
@@ -485,6 +488,7 @@ export async function duplicateStudy(studyId: string) {
             scaleType: question.scaleType,
             type: question.type,
             options: question.options,
+            randomizeOptions: question.randomizeOptions,
             required: question.required,
             min: question.min,
             max: question.max,

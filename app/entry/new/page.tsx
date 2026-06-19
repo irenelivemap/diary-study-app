@@ -133,7 +133,18 @@ export default async function NewEntryPage({
             <p className="text-sm text-indigo-900/80 leading-relaxed">{part.instructions}</p>
           </div>
         )}
-        <EntryForm study={{ id: studyId, partId, journeyId: journey?.id, name: part.name, questions: part.questions }} today={today} timezone={userTimezone ?? undefined} />
+        <EntryForm
+          study={{
+            id: studyId,
+            partId,
+            journeyId: journey?.id,
+            randomSeed: `${session.userId}:${studyId}:${partId}:${journey?.id ?? 'standard'}:${today}`,
+            name: part.name,
+            questions: part.questions,
+          }}
+          today={today}
+          timezone={userTimezone ?? undefined}
+        />
       </main>
     </div>
   )

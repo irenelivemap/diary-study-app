@@ -72,7 +72,15 @@ export default async function PreviewPage({
             <p className="text-sm text-indigo-800 leading-relaxed">{part.instructions}</p>
           </div>
         )}
-        <PreviewForm key={part.id} study={{ id: study.id, name: part.name, questions: part.questions }} />
+        <PreviewForm
+          key={part.id}
+          study={{
+            id: study.id,
+            randomSeed: `preview:${study.id}:${part.id}:${today}`,
+            name: part.name,
+            questions: part.questions,
+          }}
+        />
       </main>
     </>
   )

@@ -11,6 +11,7 @@ type Question = {
   text: string
   type: 'FREE_TEXT' | 'RATING' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'YES_NO' | 'SCREENSHOT' | 'DATE_TIME' | 'CONTENT'
   options: string[]
+  randomizeOptions: boolean
   required: boolean
   page: number
   min?: number
@@ -122,7 +123,7 @@ function defaultPart(order: number): Part {
   return {
     id: uid(), name: `Part ${order}`, order,
     instructions: '', flow: 'STANDARD', entryPolicy: 'MULTIPLE_PER_DAY', targetEntries: null, durationDays: null, dueDate: null, unlockRule: 'AFTER_PREVIOUS_TARGET', unlockAt: null, isActive: true,
-    questions: [{ id: uid(), text: '', type: 'FREE_TEXT', options: [], required: true, page: 1 }],
+    questions: [{ id: uid(), text: '', type: 'FREE_TEXT', options: [], randomizeOptions: false, required: true, page: 1 }],
   }
 }
 
@@ -227,7 +228,7 @@ export default function StudyForm({
 
   // ── Question operations ──────────────────────────────
   function addQuestion(partId: string, page: number) {
-    const newQ: Question = { id: uid(), text: '', type: 'FREE_TEXT', options: [], required: true, page }
+    const newQ: Question = { id: uid(), text: '', type: 'FREE_TEXT', options: [], randomizeOptions: false, required: true, page }
     setParts((p) => p.map((x) =>
       x.id !== partId ? x : { ...x, questions: [...x.questions, newQ] }
     ))
@@ -418,7 +419,7 @@ export default function StudyForm({
       const newQs = x.questions
         .filter((q) => q.page !== page)
         .map((q) => q.page > page ? { ...q, page: q.page - 1 } : q)
-      const fallback: Question = { id: uid(), text: '', type: 'FREE_TEXT', options: [], required: true, page: 1 }
+      const fallback: Question = { id: uid(), text: '', type: 'FREE_TEXT', options: [], randomizeOptions: false, required: true, page: 1 }
       return { ...x, questions: newQs.length > 0 ? newQs : [fallback] }
     }))
   }
@@ -1063,6 +1064,7 @@ export default function StudyForm({
                                       : { min: undefined, max: undefined }
                                   updateQuestion(part.id, q.id, {
                                     type: nextType,
+                                    randomizeOptions: nextType === 'SINGLE_CHOICE' || nextType === 'MULTIPLE_CHOICE' ? q.randomizeOptions : false,
                                     required: nextType === 'CONTENT' ? false : q.required,
                                     ...limits,
                                   })
@@ -1387,15 +1389,29 @@ export default function StudyForm({
                               </summary>
                               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                                  <button
-                                    type="button"
-                                    aria-pressed={q.required !== false}
-                                    onClick={() => updateQuestion(part.id, q.id, { required: q.required === false })}
-                                    className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                                  >
-                                    <SwitchVisual checked={q.required !== false} />
-                                    Required
-                                  </button>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      aria-pressed={q.required !== false}
+                                      onClick={() => updateQuestion(part.id, q.id, { required: q.required === false })}
+                                      className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                                    >
+                                      <SwitchVisual checked={q.required !== false} />
+                                      Required
+                                    </button>
+
+                                    {(q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') && (
+                                      <button
+                                        type="button"
+                                        aria-pressed={q.randomizeOptions === true}
+                                        onClick={() => updateQuestion(part.id, q.id, { randomizeOptions: q.randomizeOptions !== true })}
+                                        className="inline-flex h-10 w-fit items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                                      >
+                                        <SwitchVisual checked={q.randomizeOptions === true} />
+                                        Randomize option order
+                                      </button>
+                                    )}
+                                  </div>
 
                                   {q.type === 'MULTIPLE_CHOICE' && (
                                     <div className="grid grid-cols-2 gap-2 sm:w-64">

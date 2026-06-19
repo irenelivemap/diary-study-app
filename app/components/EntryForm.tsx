@@ -6,8 +6,7 @@ import RatingInput from './RatingInput'
 import { Button } from '@/app/components/ui'
 import { sanitizeHtml } from '@/app/lib/sanitize-html'
 import DateTimeNowInput from './DateTimeNowInput'
-
-const OTHER_SENTINEL = '__OTHER__'
+import { OTHER_SENTINEL, orderedChoiceOptions } from '@/app/lib/choice-options'
 
 function detectedTimezone() {
   if (typeof Intl === 'undefined') return ''
@@ -27,6 +26,7 @@ type Study = {
   id: string
   partId: string
   journeyId?: string
+  randomSeed: string
   name: string
   questions: Question[]
 }
@@ -62,6 +62,17 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
   const sanitizedQuestionText = useMemo(
     () => new Map(study.questions.map((q) => [q.id, sanitizeHtml(q.text)])),
     [study.questions]
+  )
+  const orderedOptionsByQuestionId = useMemo(
+    () => new Map(study.questions.map((q) => [
+      q.id,
+      orderedChoiceOptions({
+        options: q.options,
+        randomize: q.randomizeOptions,
+        seed: `${study.randomSeed}:${q.id}`,
+      }),
+    ])),
+    [study.questions, study.randomSeed]
   )
   const visibleQuestionIdSet = useMemo(
     () => new Set(study.questions
@@ -276,7 +287,7 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
       {pageQuestions.map((q) => {
         if (!isVisible(q)) return null
 
-        const regularOptions = q.options.filter((o) => o !== OTHER_SENTINEL)
+        const regularOptions = orderedOptionsByQuestionId.get(q.id) ?? []
         const hasOther = q.options.includes(OTHER_SENTINEL)
         const selectedOther = selectedOptions[q.id] === OTHER_SENTINEL
 
