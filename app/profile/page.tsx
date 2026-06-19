@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import ChangePasswordForm from '@/app/components/ChangePasswordForm'
 import NavBar from '@/app/components/NavBar'
 import ProfileForm from '@/app/components/ProfileForm'
+import TeamAccessSection from '@/app/components/TeamAccessSection'
 import { ButtonLink } from '@/app/components/ui'
 import { prisma } from '@/app/lib/db'
 import { getSession } from '@/app/lib/session'
@@ -27,10 +28,19 @@ export default async function ProfilePage({
   const homeHref = profileMode === 'PARTICIPANT' ? '/dashboard' : '/admin'
   const backLabel = profileMode === 'PARTICIPANT' ? 'Back to dashboard' : 'Back to admin'
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { name: true, firstName: true, lastName: true, email: true, role: true, demographics: true },
-  })
+  const [user, admins] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true, firstName: true, lastName: true, email: true, role: true, demographics: true },
+    }),
+    profileMode === 'ADMIN'
+      ? prisma.user.findMany({
+          where: { role: 'ADMIN' },
+          orderBy: [{ createdAt: 'asc' }],
+          select: { id: true, email: true, name: true, lastLoginAt: true, createdAt: true },
+        })
+      : Promise.resolve([]),
+  ])
   if (!user) redirect('/login')
 
   return (
@@ -45,20 +55,24 @@ export default async function ProfilePage({
         }).toString()}`}
         canSwitchModes={session.role === 'ADMIN'}
       />
-      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-4">
           <ButtonLink href={backHref} tone="secondary" size="sm">
             {backLabel}
           </ButtonLink>
         </div>
-        <ProfileForm
-          firstName={user.firstName}
-          lastName={user.lastName}
-          email={user.email}
-          demographics={user.demographics && typeof user.demographics === 'object' ? user.demographics as Record<string, unknown> : null}
-        />
-        <div className="mt-5">
+        <div className="space-y-5">
+          <ProfileForm
+            firstName={user.firstName}
+            lastName={user.lastName}
+            email={user.email}
+            demographics={user.demographics && typeof user.demographics === 'object' ? user.demographics as Record<string, unknown> : null}
+            showProfileQuestions={profileMode !== 'ADMIN'}
+          />
           <ChangePasswordForm />
+          {profileMode === 'ADMIN' && (
+            <TeamAccessSection admins={admins} currentUserId={session.userId} />
+          )}
         </div>
       </main>
     </div>

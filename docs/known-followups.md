@@ -45,20 +45,23 @@ Resolution:
 
 ### Team Access Management
 
-Status: Open
+Status: Partially addressed
 
-Admin users are currently created with the command-line `npm run create-admin` script. That is acceptable as an emergency or developer-only path, but it is not a friendly process for adding colleagues to the app.
+Admin users can now be invited from the admin profile/settings page, under Team access. The app creates or promotes the invited user as an admin, generates a password setup link through the existing reset-password flow, and shows a copyable setup link as a fallback if email delivery is not reliable. The command-line `npm run create-admin` script remains available for emergencies or first-time setup.
 
 Why it matters: sharing one login is risky because access cannot be revoked per person and it is harder to know who did what. A reviewer may also expect a researcher/admin product to have a visible way to invite team members.
 
-Suggested fix:
+Current limits:
 
-- Add a `Team access` area in researcher/admin settings.
-- Show current admins or researchers.
-- Let an existing admin invite another person by email.
-- Let the admin choose a role, such as `Admin` or `Researcher`, before sending the invite.
-- Let invited users accept the invite and set their own password.
-- Keep `npm run create-admin` as a fallback for emergencies or first-time setup.
+- The first version supports admins only.
+- There is not yet a separate `Researcher` role with narrower permissions.
+- Admin access can be removed for other admins, but users are demoted to participant rather than deleted.
+- The app prevents removing your own admin access and prevents removing the last admin.
+
+Suggested next fix:
+
+- Decide the exact difference between `Admin` and `Researcher`.
+- Add a narrower `Researcher` role only after permissions are defined.
 
 ### Reminder Cadence
 
