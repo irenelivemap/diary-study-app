@@ -484,6 +484,71 @@ test('researcher setup save state follows edits', async ({ page }) => {
   await expectNoHorizontalOverflow(page, 'Researcher setup dirty state')
 })
 
+test('researcher can invite an admin who sets their password', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const email = `qa.team-admin.${projectSlug}.${testInfo.workerIndex}.${Date.now()}@diari.test`
+  const newPassword = `qa-team-admin-${Date.now()}`
+  cleanupEmails.push(email)
+
+  await loginAdminByCookie(page)
+  await page.goto('/profile?from=admin&returnTo=/admin')
+  await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Team access' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Optional profile questions' })).toHaveCount(0)
+  await expect(page.getByText('Admins can manage studies')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove access' })).not.toHaveCount(0)
+
+  await page.getByLabel('Email address').fill(email)
+  await page.getByLabel('Name').fill('QA Team Admin')
+  await page.getByRole('button', { name: 'Invite admin' }).click()
+
+  await expect(page.getByText(/Admin access added/)).toBeVisible()
+  const setupUrl = await page.getByLabel('Admin setup link').inputValue()
+  expect(setupUrl).toContain('/reset-password?token=')
+
+  const invited = await db.user.findUnique({ where: { email } })
+  expect(invited?.role).toBe('ADMIN')
+
+  await page.context().clearCookies()
+  await page.goto(setupUrl)
+  await page.getByLabel('New password').fill(newPassword)
+  await page.getByLabel('Confirm password').fill(newPassword)
+  await page.getByRole('button', { name: 'Update password' }).click()
+  await expect(page).toHaveURL(/\/login\?reset=success/)
+
+  await page.getByLabel('Email address').fill(email)
+  await page.getByLabel('Password').fill(newPassword)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/admin/)
+  await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0)
+})
+
+test('researcher can remove another admin access', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const email = `qa.remove-admin.${projectSlug}.${testInfo.workerIndex}.${Date.now()}@diari.test`
+  cleanupEmails.push(email)
+  const target = await db.user.create({
+    data: {
+      email,
+      name: 'QA Remove Admin',
+      password: await bcrypt.hash('qa-remove-admin-123', 12),
+      role: 'ADMIN',
+    },
+  })
+
+  await loginAdminByCookie(page)
+  await page.goto('/profile?from=admin&returnTo=/admin')
+  await expect(page.getByText(email)).toBeVisible()
+  await page.getByRole('button', { name: 'Remove admin access for QA Remove Admin' }).click()
+  await page.getByRole('button', { name: 'Confirm' }).click()
+  await expect(page.getByText(email)).toHaveCount(0)
+
+  const updated = await db.user.findUnique({ where: { id: target.id } })
+  expect(updated?.role).toBe('PARTICIPANT')
+})
+
 test('researcher invite form returns from sending and exposes the invite link', async ({ page }, testInfo) => {
   const db = await requirePrisma()
   const study = await loadSimpleStudy()

@@ -73,6 +73,15 @@ assert.match(loginAction, /checkLoginRateLimit/, 'Login should check rate limits
 assert.match(loginAction, /recordFailedLogin/, 'Login should record failed attempts for invalid credentials.')
 assert.match(loginAction, /clearLoginRateLimit/, 'Login should clear throttling records after successful sign-in.')
 
+const teamActions = readFileSync(join(root, 'app/actions/team.ts'), 'utf8')
+assert.match(teamActions, /role\s*!==\s*['"]ADMIN['"]/, 'Team access actions should require ADMIN access.')
+assert.match(teamActions, /passwordResetToken\.create/, 'Admin invitations should use password setup tokens.')
+assert.match(teamActions, /adminCount\s*<=\s*1/, 'Team access should prevent removing the last admin.')
+assert.match(teamActions, /adminId\s*===\s*session\.userId/, 'Team access should prevent admins from removing themselves.')
+
+const profilePage = readFileSync(join(root, 'app/profile/page.tsx'), 'utf8')
+assert.match(profilePage, /profileMode\s*===\s*['"]ADMIN['"][\s\S]*TeamAccessSection/, 'Team access should only render in the admin profile mode.')
+
 const loginRateLimit = readFileSync(join(root, 'app/lib/login-rate-limit.ts'), 'utf8')
 assert.match(loginRateLimit, /x-forwarded-for/, 'Login rate limiting should include the client IP forwarded by the platform.')
 assert.match(loginRateLimit, /MAX_FAILED_ATTEMPTS\s*=\s*5/, 'Login rate limiting should block repeated password guesses.')
