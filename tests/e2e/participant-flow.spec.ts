@@ -643,3 +643,96 @@ test('researcher analysis summarizes free-text themes instead of raw tag lists',
   await expect(page.getByText(theme.label)).toBeVisible()
   await expect(page.getByText(childTag.label)).toHaveCount(0)
 })
+
+test('researcher can reorder and delete selected tags in the tag lab', async ({ page }) => {
+  const db = await requirePrisma()
+  await ensureSimpleAnalysisEntry()
+  const study = await loadSimpleStudy()
+  const question = study.parts[0].questions[0]
+  const suffix = `${Date.now()}-${test.info().workerIndex}`
+  const firstTag = await db.questionTag.create({
+    data: {
+      questionId: question.id,
+      label: `QA First ${suffix}`,
+      color: '#4f46e5',
+      sortOrder: 1000,
+    },
+  })
+  const secondTag = await db.questionTag.create({
+    data: {
+      questionId: question.id,
+      label: `QA Second ${suffix}`,
+      color: '#0d9488',
+      sortOrder: 2000,
+    },
+  })
+  cleanupTagIds.push(firstTag.id, secondTag.id)
+
+  await loginAdminByCookie(page)
+  await page.goto(`/admin/studies/${study.id}/analysis/${question.id}/tag`)
+  await expect(page.getByRole('heading', { name: question.text })).toBeVisible()
+
+  await page.getByLabel(`Drag ${firstTag.label}`).focus()
+  await page.keyboard.press('Alt+ArrowDown')
+  await expect(page.getByText(`Moved ${firstTag.label} down.`)).toBeVisible()
+  await expect.poll(async () => {
+    const [first, second] = await Promise.all([
+      db.questionTag.findUniqueOrThrow({ where: { id: firstTag.id }, select: { sortOrder: true } }),
+      db.questionTag.findUniqueOrThrow({ where: { id: secondTag.id }, select: { sortOrder: true } }),
+    ])
+    return first.sortOrder > second.sortOrder
+  }).toBe(true)
+
+  await page.getByLabel(`Select ${secondTag.label}`).check()
+  await page.getByLabel('Delete selected tags').click()
+  await expect(page.getByText('Delete 1 selected tag?')).toBeVisible()
+  await page.getByRole('button', { name: 'Confirm' }).click()
+  await expect(page.getByLabel(`Select ${secondTag.label}`)).toHaveCount(0)
+  await expect.poll(async () => db.questionTag.count({ where: { id: secondTag.id } })).toBe(0)
+})
+
+test('researcher can delete a selected theme without deleting its tags', async ({ page }) => {
+  const db = await requirePrisma()
+  await ensureSimpleAnalysisEntry()
+  const study = await loadSimpleStudy()
+  const question = study.parts[0].questions[0]
+  const suffix = `${Date.now()}-${test.info().workerIndex}`
+  const theme = await db.questionTag.create({
+    data: {
+      questionId: question.id,
+      label: `QA Theme Delete ${suffix}`,
+      color: '#7c3aed',
+      isTheme: true,
+      sortOrder: 1000,
+    },
+  })
+  const childTag = await db.questionTag.create({
+    data: {
+      questionId: question.id,
+      label: `QA Child Survives ${suffix}`,
+      color: '#d97706',
+      parentId: theme.id,
+      sortOrder: 1000,
+    },
+  })
+  cleanupTagIds.push(theme.id, childTag.id)
+
+  await loginAdminByCookie(page)
+  await page.goto(`/admin/studies/${study.id}/analysis/${question.id}/tag`)
+  await expect(page.getByRole('heading', { name: question.text })).toBeVisible()
+
+  await page.getByLabel(`Select ${theme.label}`).check()
+  await page.getByLabel('Delete selected themes').click()
+  await expect(page.getByText('Delete 1 selected theme? Tags will stay ungrouped.')).toBeVisible()
+  await page.getByRole('button', { name: 'Confirm' }).click()
+
+  await expect(page.getByLabel(`Select ${theme.label}`)).toHaveCount(0)
+  await expect(page.getByLabel(`Select ${childTag.label}`)).toBeVisible()
+  await expect.poll(async () => {
+    const [themeCount, child] = await Promise.all([
+      db.questionTag.count({ where: { id: theme.id } }),
+      db.questionTag.findUniqueOrThrow({ where: { id: childTag.id }, select: { parentId: true } }),
+    ])
+    return { themeCount, childParentId: child.parentId }
+  }).toEqual({ themeCount: 0, childParentId: null })
+})
