@@ -1,102 +1,17 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { prisma } from '@/app/lib/db'
 import { appBaseUrl } from '@/app/lib/email'
 import AddParticipantForm from '@/app/components/AddParticipantForm'
 import InviteLinkCard from '@/app/components/InviteLinkCard'
 import RemoveParticipantForm from '@/app/components/RemoveParticipantForm'
 import { Badge, ButtonLink } from '@/app/components/ui'
 import { phaseBadgeClass } from '@/app/lib/phase-colors'
-
-type ParticipantStatus = {
-  label: 'Not started' | 'Active' | 'Quiet'
-  detail: string
-  tone: 'neutral' | 'info' | 'warning'
-}
+import { loadStudyParticipantsData } from '@/app/lib/study-participants-data'
 
 export default async function StudyParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const study = await prisma.study.findUnique({
-    where: { id },
-    include: {
-      parts: {
-        orderBy: { order: 'asc' },
-        include: { _count: { select: { entries: { where: { isPilot: false } } } } },
-      },
-      participants: {
-        include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true, demographics: true } } },
-        orderBy: { joinedAt: 'asc' },
-      },
-      invitations: {
-        orderBy: { createdAt: 'desc' },
-      },
-    },
-  })
-  if (!study) notFound()
-
-  const includePilotEntries = study.status === 'PREPARATION'
-  const [entriesByPartAndUser, latestEntryByUser] = await Promise.all([
-    prisma.entry.groupBy({
-      by: ['partId', 'userId'],
-      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
-      _count: { id: true },
-    }),
-    prisma.entry.groupBy({
-      by: ['userId'],
-      where: { studyId: id, ...(includePilotEntries ? {} : { isPilot: false }) },
-      _max: { date: true },
-    }),
-  ])
-  const latestEntryMap = new Map(latestEntryByUser.flatMap((row) => row._max.date ? [[row.userId, row._max.date] as const] : []))
-
-  const entryCountMap: Record<string, Record<string, number>> = {}
-  for (const row of entriesByPartAndUser) {
-    if (!entryCountMap[row.userId]) entryCountMap[row.userId] = {}
-    entryCountMap[row.userId][row.partId] = row._count.id
-  }
-
-  const pendingInvitations = study.invitations.filter((invitation) => !invitation.acceptedAt)
-  const nowTime = new Date().getTime()
-
-  function participantStatus(userId: string): ParticipantStatus {
-    const userCounts = entryCountMap[userId] ?? {}
-    const total = Object.values(userCounts).reduce((a, b) => a + b, 0)
-    const latestDate = latestEntryMap.get(userId)
-
-    if (total === 0) {
-      return {
-        label: 'Not started',
-        detail: 'No entries yet',
-        tone: 'neutral',
-      }
-    }
-
-    if (latestDate) {
-      const daysSince = Math.floor((nowTime - new Date(`${latestDate}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24))
-      const formattedLatestDate = new Date(`${latestDate}T00:00:00`).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-      })
-      if (daysSince >= 7) {
-        return {
-          label: 'Quiet',
-          detail: `Last entry ${formattedLatestDate}`,
-          tone: 'warning',
-        }
-      }
-      return {
-        label: 'Active',
-        detail: `Last entry ${formattedLatestDate}`,
-        tone: 'info',
-      }
-    }
-
-    return {
-      label: 'Active',
-      detail: 'Has submitted at least one entry',
-      tone: 'info',
-    }
-  }
+  const data = await loadStudyParticipantsData(id)
+  if (!data) notFound()
 
   return (
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -107,10 +22,10 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">
                     Participant progress
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{study.participants.length}</span>
+                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{data.participants.length}</span>
                   </h2>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    {includePilotEntries ? 'Pilot entry counts by part while the study is in preparation.' : 'Participant status and fieldwork entry counts by part.'}
+                    {data.includePilotEntries ? 'Pilot entry counts by part while the study is in preparation.' : 'Participant status and fieldwork entry counts by part.'}
                   </p>
                 </div>
                 <ButtonLink href={`/admin/studies/${id}/data`} tone="secondary" size="sm">
@@ -118,15 +33,15 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                 </ButtonLink>
               </div>
 
-              {study.participants.length === 0 ? (
+              {data.participants.length === 0 ? (
                 <p className="text-sm text-slate-500 px-5 py-4">No participants yet.</p>
               ) : (
                 <div className="overflow-x-auto overscroll-x-contain">
-                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${480 + study.parts.length * 60}px` }}>
+                  <table className="w-full table-fixed text-sm" style={{ minWidth: `${480 + data.parts.length * 60}px` }}>
                     <colgroup>
                       <col style={{ width: 220 }} />
                       <col style={{ width: 150 }} />
-                      {study.parts.map((part) => <col key={part.id} style={{ width: 60 }} />)}
+                      {data.parts.map((part) => <col key={part.id} style={{ width: 60 }} />)}
                       <col style={{ width: 56 }} />
                       <col style={{ width: 54 }} />
                     </colgroup>
@@ -134,7 +49,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                       <tr className="border-b border-[var(--border-subtle)]">
                         <th className="px-5 py-3 text-left text-sm font-semibold text-slate-600">Name</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">Status</th>
-                        {study.parts.map((part, pi) => (
+                        {data.parts.map((part, pi) => (
                           <th key={part.id} className="px-2 py-3 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">
                             <span className={`text-xs font-bold text-white px-2 py-1 rounded-md ${phaseBadgeClass(pi)}`}>
                               PT {pi + 1}
@@ -146,11 +61,8 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border-subtle)]">
-                      {study.participants.map((participant) => {
+                      {data.participants.map((participant) => {
                         const { user } = participant
-                        const userCounts = entryCountMap[user.id] ?? {}
-                        const total = Object.values(userCounts).reduce((a, b) => a + b, 0)
-                        const status = participantStatus(user.id)
                         const participantHref = `/admin/studies/${id}/participants/${user.id}`
                         return (
                           <tr key={user.id} className="hover:bg-slate-50 transition-colors group">
@@ -170,12 +82,12 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                             </td>
                             <td className="px-4 py-3 align-middle">
                               <Link href={participantHref} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <Badge tone={status.tone} className="whitespace-nowrap">{status.label}</Badge>
-                                <p className="mt-1 text-xs leading-snug text-slate-500 whitespace-nowrap">{status.detail}</p>
+                                <Badge tone={participant.status.tone} className="whitespace-nowrap">{participant.status.label}</Badge>
+                                <p className="mt-1 text-xs leading-snug text-slate-500 whitespace-nowrap">{participant.status.detail}</p>
                               </Link>
                             </td>
-                            {study.parts.map((part) => {
-                              const count = userCounts[part.id] ?? 0
+                            {data.parts.map((part) => {
+                              const count = participant.countsByPart[part.id] ?? 0
                               return (
                                 <td key={part.id} className="px-2 py-3 text-center align-middle whitespace-nowrap">
                                   <Link href={participantHref} className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -190,8 +102,8 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
                             })}
                             <td className="px-2 py-3 text-center align-middle whitespace-nowrap">
                               <Link href={participantHref} className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <span className={`font-bold text-sm ${total > 0 ? 'text-slate-800' : 'text-slate-200'}`}>
-                                  {total || '—'}
+                                <span className={`font-bold text-sm ${participant.total > 0 ? 'text-slate-800' : 'text-slate-200'}`}>
+                                  {participant.total || '—'}
                                 </span>
                               </Link>
                             </td>
@@ -220,13 +132,13 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
               </div>
             </section>
 
-            {pendingInvitations.length > 0 && (
+            {data.pendingInvitations.length > 0 && (
               <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
                   <h2 className="text-sm font-semibold text-slate-800">Pending invitations</h2>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {pendingInvitations.map((invitation) => (
+                  {data.pendingInvitations.map((invitation) => (
                     <div key={invitation.id} className="px-5 py-3">
                       <p className="text-sm font-medium text-slate-800">{invitation.email}</p>
                       {invitation.externalParticipantId && (
@@ -245,7 +157,7 @@ export default async function StudyParticipantsPage({ params }: { params: Promis
               <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
                 <h2 className="text-sm font-semibold text-slate-800">Invite link</h2>
               </div>
-              <InviteLinkCard studyId={id} initialToken={study.inviteToken} baseUrl={appBaseUrl()} embedded />
+              <InviteLinkCard studyId={id} initialToken={data.inviteToken} baseUrl={appBaseUrl()} embedded />
             </section>
           </aside>
         </div>

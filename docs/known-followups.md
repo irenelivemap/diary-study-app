@@ -117,7 +117,7 @@ Current summary: seven items are addressed for the current product scale, and on
 
    Why it matters: several researcher pages still build their own Prisma queries directly inside page files. That makes pages harder to review and makes it easy for one tab to accidentally fetch more data than it needs. A deeper module for overview, participants, analysis and data loading would give each page a small interface and keep query details in one place.
 
-   Current status: addressed for the current study pages. The shared study shell, Overview, Analysis, Analysis tag lab and Data pages now load through dedicated server-side modules.
+   Current status: addressed for the current study pages. The shared study shell, Overview, Participants, Analysis, Analysis tag lab and Data pages now load through dedicated server-side modules.
 
 2. Move large Analysis and Data filtering to the server.
 
@@ -164,7 +164,7 @@ Current summary: seven items are addressed for the current product scale, and on
 Verification added or updated:
 
 - `npm run qa:study-shell` checks that study tabs keep the shared navigation shell and do not reintroduce page-level skeleton flashes.
-- `npm run qa:scaling` checks that Data, Analysis and participant dashboard pages keep their data loading behind dedicated modules, that Analysis keeps server-prepared question summaries, and that Prisma scripts use the shared database URL resolver.
+- `npm run qa:scaling` checks that Data, Analysis, Participants and participant dashboard pages keep their data loading behind dedicated modules, that Analysis keeps server-prepared question summaries, and that Prisma scripts use the shared database URL resolver.
 - Browser QA includes invite signup/join, participant entry submission, researcher Data visibility, theme-level Analysis summaries, and core tag-lab selection/reorder/delete behavior.
 - `npm run review:indexes` gives a repeatable way to inspect common researcher query plans after importing production-like data.
 
