@@ -1303,31 +1303,33 @@ export default function StudyForm({
 
                           {!isContentBlock && q.type === 'RATING' && (
                             <div className="space-y-3">
-                              <div className="flex flex-wrap gap-2">
-                                {SCALE_TYPES.map((t) => (
-                                  <button key={t.value} type="button"
-                                    onClick={() => {
-                                      const steps = (q.max ?? 7) - (q.min ?? 1) + 1
-                                      const opts = t.value === 'vas' ? ['', ''] : Array.from({ length: steps }, (_, i) => (q.options ?? [])[i] ?? '')
-                                      updateQuestion(part.id, q.id, { scaleType: t.value, options: opts })
-                                    }}
-                                    className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${scaleType === t.value ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 bg-white'}`}>
-                                    {t.label}
-                                  </button>
-                                ))}
-                              </div>
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                  <label className="text-sm text-slate-500">Min</label>
-                                  <input type="number" value={q.min ?? 1}
-                                    onChange={(e) => updateQuestion(part.id, q.id, { min: Number(e.target.value) })}
-                                    className="w-16 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-center bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex flex-wrap gap-2">
+                                  {SCALE_TYPES.map((t) => (
+                                    <button key={t.value} type="button"
+                                      onClick={() => {
+                                        const steps = (q.max ?? 7) - (q.min ?? 1) + 1
+                                        const opts = t.value === 'vas' ? ['', ''] : Array.from({ length: steps }, (_, i) => (q.options ?? [])[i] ?? '')
+                                        updateQuestion(part.id, q.id, { scaleType: t.value, options: opts })
+                                      }}
+                                      className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${scaleType === t.value ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:border-indigo-300 bg-white'}`}>
+                                      {t.label}
+                                    </button>
+                                  ))}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <label className="text-sm text-slate-500">Max</label>
+                                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+                                  <span className="pl-1 text-xs font-medium text-slate-500">Range</span>
+                                  <label className="sr-only" htmlFor={`${q.id}-min`}>Minimum rating value</label>
+                                  <input type="number" value={q.min ?? 1}
+                                    id={`${q.id}-min`}
+                                    onChange={(e) => updateQuestion(part.id, q.id, { min: Number(e.target.value) })}
+                                    className="h-8 w-14 rounded-lg border border-slate-200 bg-[var(--bg-sunken)] px-2 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                  <span className="text-xs text-slate-400">to</span>
+                                  <label className="sr-only" htmlFor={`${q.id}-max`}>Maximum rating value</label>
                                   <input type="number" value={q.max ?? 7}
+                                    id={`${q.id}-max`}
                                     onChange={(e) => updateQuestion(part.id, q.id, { max: Number(e.target.value) })}
-                                    className="w-16 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-center bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    className="h-8 w-14 rounded-lg border border-slate-200 bg-[var(--bg-sunken)] px-2 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                 </div>
                               </div>
                               {(scaleType === 'numbers_labeled' || scaleType === 'labels_only') && (
