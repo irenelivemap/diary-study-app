@@ -27,6 +27,39 @@ Long-term fix:
 
 ## Operational Follow-Ups
 
+### In-App Password Change
+
+Status: Addressed
+
+Users can sign in, use password recovery, and change their password from the signed-in profile page.
+
+Why it matters: new admin or researcher accounts may start with a temporary password. They need a clear way to replace it without asking a technical person to reset it or using the forgot-password flow unnecessarily.
+
+Resolution:
+
+- `/profile` includes a password section for signed-in users.
+- The user must enter their current password before choosing a new one.
+- The app rejects short passwords, mismatched confirmation, incorrect current passwords, and reusing the same password.
+- Existing password reset tokens are cleared after a successful change.
+- The password recovery flow remains available for users who are locked out.
+
+### Team Access Management
+
+Status: Open
+
+Admin users are currently created with the command-line `npm run create-admin` script. That is acceptable as an emergency or developer-only path, but it is not a friendly process for adding colleagues to the app.
+
+Why it matters: sharing one login is risky because access cannot be revoked per person and it is harder to know who did what. A reviewer may also expect a researcher/admin product to have a visible way to invite team members.
+
+Suggested fix:
+
+- Add a `Team access` area in researcher/admin settings.
+- Show current admins or researchers.
+- Let an existing admin invite another person by email.
+- Let the admin choose a role, such as `Admin` or `Researcher`, before sending the invite.
+- Let invited users accept the invite and set their own password.
+- Keep `npm run create-admin` as a fallback for emergencies or first-time setup.
+
 ### Reminder Cadence
 
 Status: Open
@@ -136,14 +169,14 @@ Verification added or updated:
 
 Status: Partially addressed
 
-The Data tab now applies table filters, search and pagination on the server, so the browser receives only the current page of entry rows. Analysis fetches entry data through a dedicated, narrower direct query, but still builds most summaries in the browser. `npm run qa:scaling` keeps the current seams in place.
+The Data tab now applies table filters, search and pagination on the server, so the browser receives only the current page of entry rows. The Analysis tab now applies its main row filters on the server and receives server-calculated top summary metrics. Per-question chart calculations still happen in the browser. `npm run qa:scaling` keeps the current seams in place.
 
-Why it matters: the current approach is much safer for small and medium studies, and the Data table is ready for larger response lists. Very large studies can still send a lot of answer data to the browser on the Analysis tab.
+Why it matters: the current approach is much safer for small and medium studies, and the Data table is ready for larger response lists. Very large studies can still send a lot of answer data to the browser on the Analysis tab when no filters are applied.
 
 Suggested fix:
 
-- Move Analysis filtering and summary generation further to the server.
-- Keep summary charts lightweight by fetching only the rows needed for the selected Analysis filters.
+- Move per-question Analysis chart summaries further to the server.
+- Keep detailed answer rows available only where the UI needs examples, tagging, or drill-down interactions.
 
 ### Participant Dashboard Query Size
 

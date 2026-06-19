@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import ChangePasswordForm from '@/app/components/ChangePasswordForm'
 import NavBar from '@/app/components/NavBar'
 import ProfileForm from '@/app/components/ProfileForm'
 import { ButtonLink } from '@/app/components/ui'
@@ -56,6 +57,9 @@ export default async function ProfilePage({
           email={user.email}
           demographics={user.demographics && typeof user.demographics === 'object' ? user.demographics as Record<string, unknown> : null}
         />
+        <div className="mt-5">
+          <ChangePasswordForm />
+        </div>
       </main>
     </div>
   )

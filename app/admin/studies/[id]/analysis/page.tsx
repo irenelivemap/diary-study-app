@@ -1,10 +1,16 @@
 import { notFound } from 'next/navigation'
 import AnalysisDashboard from '@/app/components/AnalysisDashboard'
-import { loadStudyAnalysisData } from '@/app/lib/study-analysis-data'
+import { loadStudyAnalysisData, parseStudyAnalysisFilters } from '@/app/lib/study-analysis-data'
 
-export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AnalysisPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { id } = await params
-  const data = await loadStudyAnalysisData(id)
+  const data = await loadStudyAnalysisData(id, parseStudyAnalysisFilters(await searchParams))
   if (!data) notFound()
 
   return (
@@ -17,6 +23,9 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           participants={data.participants}
           questions={data.questions}
           rows={data.rows}
+          filters={data.filters}
+          pilotRowCount={data.pilotRowCount}
+          summary={data.summary}
         />
       </main>
   )

@@ -186,7 +186,7 @@ export default function DataExplorer({
     if (nextDateFrom) params.set('from', nextDateFrom)
     if (nextDateTo) params.set('to', nextDateTo)
     if (nextSearch.trim()) params.set('search', nextSearch.trim())
-    if (nextIncludePilot) params.set('includePilot', 'true')
+    if (nextIncludePilot !== includePilotByDefault) params.set('includePilot', String(nextIncludePilot))
     if (nextPage > 1) params.set('page', String(nextPage))
 
     const query = params.toString()

@@ -340,6 +340,54 @@ test('participant can request and use a password reset link', async ({ page }, t
   await expect(page).toHaveURL(/\/dashboard/)
 })
 
+test('signed-in participant can change their password from profile', async ({ page }, testInfo) => {
+  const db = await requirePrisma()
+  const projectSlug = testInfo.project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+  const email = `qa.change-password.${projectSlug}.${testInfo.workerIndex}.${Date.now()}@diari.test`
+  const originalPassword = 'qa-change-original-123'
+  const newPassword = `qa-change-new-${Date.now()}`
+  await db.user.create({
+    data: {
+      email,
+      name: 'QA Password Change',
+      password: await bcrypt.hash(originalPassword, 12),
+      role: 'PARTICIPANT',
+    },
+  })
+  cleanupEmails.push(email)
+
+  await page.goto('/login')
+  await page.getByLabel('Email address').fill(email)
+  await page.getByLabel('Password').fill(originalPassword)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/dashboard/)
+
+  await page.goto('/profile?from=dashboard&returnTo=/dashboard')
+  const currentPasswordInput = page.locator('#current-password')
+  await currentPasswordInput.fill(originalPassword)
+  await expect(currentPasswordInput).toHaveAttribute('type', 'password')
+  await page.getByRole('button', { name: 'Show typed characters' }).first().click()
+  await expect(currentPasswordInput).toHaveAttribute('type', 'text')
+  await page.getByRole('button', { name: 'Hide typed characters' }).first().click()
+  await expect(currentPasswordInput).toHaveAttribute('type', 'password')
+  await page.getByLabel('New password').fill(newPassword)
+  await page.getByLabel('Confirm password').fill(newPassword)
+  await page.getByRole('button', { name: 'Update password' }).click()
+  await expect(page.getByText('Password updated.')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page).toHaveURL(/\/login/)
+  await page.getByLabel('Email address').fill(email)
+  await page.getByLabel('Password').fill(originalPassword)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByText('Invalid email or password.')).toBeVisible()
+
+  await page.getByLabel('Email address').fill(email)
+  await page.getByLabel('Password').fill(newPassword)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/dashboard/)
+})
+
 test('profile keeps a participant on the participant side when going back', async ({ page }) => {
   await loginParticipant(page)
 

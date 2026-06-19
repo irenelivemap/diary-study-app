@@ -3,6 +3,7 @@ import { Suspense, useActionState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { login } from '@/app/actions/auth'
+import PasswordInput from '@/app/components/auth/PasswordInput'
 import { Button, TextInput } from '@/app/components/ui'
 
 
@@ -77,15 +78,20 @@ function LoginContent() {
                 className="h-12" />
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <label htmlFor="password" className="block text-sm font-medium text-slate-700">Password</label>
+              <PasswordInput
+                id="password"
+                name="password"
+                label="Password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className="h-12"
+              />
+              <div className="mt-2 flex justify-end">
                 <Link href="/forgot-password" className="text-sm font-medium text-indigo-600 hover:underline">
                   Forgot password?
                 </Link>
               </div>
-              <TextInput id="password" name="password" type="password" required autoComplete="current-password"
-                placeholder="••••••••"
-                className="h-12" />
             </div>
             {state?.error && (
               <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
