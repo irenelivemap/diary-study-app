@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Card, SwitchVisual, TextInput } from '@/app/components/ui'
 import SelectMenu from '@/app/components/SelectMenu'
 import { createQuestionTag, deleteQuestionTag, updateAnswerTags, updateQuestionTag } from '@/app/actions/analysis'
 import { entryQualityLabel } from '@/app/lib/entry-state'
 import { answerValue as normalizedAnswerValue, answerWasShown, parseMultipleChoiceAnswer } from '@/app/lib/answer-dataset'
 import WordCloudChart from '@/app/components/WordCloudChart'
+import type { StudyAnalysisFilters, StudyAnalysisSummary } from '@/app/lib/study-analysis-data'
 
 type Question = {
   id: string
@@ -70,6 +71,9 @@ type Props = {
   participants: Participant[]
   questions: Question[]
   rows: Row[]
+  filters?: StudyAnalysisFilters
+  pilotRowCount?: number
+  summary?: StudyAnalysisSummary
 }
 
 type DataPoint = { label: string; value: number }
@@ -1633,28 +1637,53 @@ function QuestionAnalysisCard({
   )
 }
 
-export default function AnalysisDashboard({ studyId, includePilotByDefault = false, parts, participants, questions, rows }: Props) {
+export default function AnalysisDashboard({
+  studyId,
+  includePilotByDefault = false,
+  parts,
+  participants,
+  questions,
+  rows,
+  filters,
+  pilotRowCount: serverPilotRowCount,
+  summary,
+}: Props) {
+  const router = useRouter()
+  const pathname = usePathname()
   const answerQuestions = useMemo(
     () => questions.filter((question) => question.type !== 'CONTENT' && question.type !== 'SCREENSHOT'),
     [questions]
   )
-const [partId, setPartId] = useState('all')
-  const [participantId, setParticipantId] = useState('all')
-  const [questionType, setQuestionType] = useState('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [includePilotData, setIncludePilotData] = useState(includePilotByDefault)
+  const partId = filters?.partId ?? 'all'
+  const participantId = filters?.participantId ?? 'all'
+  const questionType = filters?.questionType ?? 'all'
+  const dateFrom = filters?.dateFrom ?? ''
+  const dateTo = filters?.dateTo ?? ''
+  const includePilotData = filters?.includePilotData ?? includePilotByDefault
+
+  function updateAnalysisFilters(next: Partial<StudyAnalysisFilters>) {
+    const nextPart = next.partId ?? partId
+    const nextParticipant = next.participantId ?? participantId
+    const nextType = next.questionType ?? questionType
+    const nextDateFrom = next.dateFrom ?? dateFrom
+    const nextDateTo = next.dateTo ?? dateTo
+    const nextIncludePilot = next.includePilotData ?? includePilotData
+    const params = new URLSearchParams()
+
+    if (nextPart !== 'all') params.set('part', nextPart)
+    if (nextParticipant !== 'all') params.set('participant', nextParticipant)
+    if (nextType !== 'all') params.set('type', nextType)
+    if (nextDateFrom) params.set('from', nextDateFrom)
+    if (nextDateTo) params.set('to', nextDateTo)
+    if (nextIncludePilot !== includePilotByDefault) params.set('includePilot', String(nextIncludePilot))
+
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
 
   const questionTypes = Array.from(new Set(answerQuestions.map((question) => question.type)))
-  const pilotRowCount = useMemo(() => rows.filter((row) => row.isPilot).length, [rows])
-  const filteredRows = useMemo(() => rows.filter((row) => {
-    if (!includePilotData && row.isPilot) return false
-    if (partId !== 'all' && row.partId !== partId) return false
-    if (participantId !== 'all' && row.participantId !== participantId) return false
-    if (dateFrom && row.date < dateFrom) return false
-    if (dateTo && row.date > dateTo) return false
-    return true
-  }), [rows, includePilotData, partId, participantId, dateFrom, dateTo])
+  const pilotRowCount = serverPilotRowCount ?? rows.filter((row) => row.isPilot).length
+  const filteredRows = rows
 
   const filteredQuestions = useMemo(() => answerQuestions.filter((question) => {
     if (partId !== 'all' && question.partId !== partId) return false
@@ -1662,27 +1691,22 @@ const [partId, setPartId] = useState('all')
     return true
   }), [answerQuestions, partId, questionType])
 
-  const coverageTotals = filteredQuestions.reduce((totals, question) => {
-    const analysis = buildAnalysis(question, filteredRows)
-    return {
-      answered: totals.answered + analysis.answered,
-      eligible: totals.eligible + analysis.eligible,
-      missing: totals.missing + analysis.missing,
-      notShown: totals.notShown + analysis.notShown,
-    }
-  }, { answered: 0, eligible: 0, missing: 0, notShown: 0 })
+  const coverageTotals = summary ?? {
+    entryCount: filteredRows.length,
+    participantCount: new Set(filteredRows.map((row) => row.participantId)).size,
+    answered: 0,
+    eligible: 0,
+    missing: 0,
+    notShown: 0,
+    coverage: 0,
+    qualityFlagEntries: [],
+    journeyContinuity: buildJourneyContinuity(parts, filteredRows),
+  }
   const answeredValues = coverageTotals.answered
   const possibleValues = coverageTotals.eligible
-  const coverage = possibleValues ? Math.round((answeredValues / possibleValues) * 100) : 0
-  const journeyContinuity = useMemo(
-    () => buildJourneyContinuity(parts, filteredRows),
-    [parts, filteredRows]
-  )
-  const qualityFlagCounts = filteredRows.reduce((counts, row) => {
-    for (const flag of row.qualityFlags) counts.set(flag, (counts.get(flag) ?? 0) + 1)
-    return counts
-  }, new Map<string, number>())
-  const qualityFlagEntries = Array.from(qualityFlagCounts.entries()).sort((a, b) => b[1] - a[1])
+  const coverage = coverageTotals.coverage
+  const journeyContinuity = coverageTotals.journeyContinuity
+  const qualityFlagEntries = coverageTotals.qualityFlagEntries.map(({ flag, count }) => [flag, count] as const)
 
   const questionGroups = useMemo(() => {
     let globalIndex = 0
@@ -1703,7 +1727,7 @@ const [partId, setPartId] = useState('all')
           <SelectMenu
             className="w-full sm:w-auto sm:min-w-[140px]"
             value={partId}
-            onChange={setPartId}
+            onChange={(value) => updateAnalysisFilters({ partId: value })}
             options={[
               { value: 'all', label: 'All parts' },
               ...parts.map((part) => ({ value: part.id, label: part.name })),
@@ -1712,7 +1736,7 @@ const [partId, setPartId] = useState('all')
           <SelectMenu
             className="w-full sm:w-auto sm:min-w-[160px]"
             value={participantId}
-            onChange={setParticipantId}
+            onChange={(value) => updateAnalysisFilters({ participantId: value })}
             options={[
               { value: 'all', label: 'All participants' },
               ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
@@ -1721,20 +1745,20 @@ const [partId, setPartId] = useState('all')
           <SelectMenu
             className="w-full sm:w-auto sm:min-w-[130px]"
             value={questionType}
-            onChange={setQuestionType}
+            onChange={(value) => updateAnalysisFilters({ questionType: value })}
             options={[
               { value: 'all', label: 'All types' },
               ...questionTypes.map((type) => ({ value: type, label: questionTypeLabel(type) })),
             ]}
           />
           <div className="flex w-full items-center gap-2 sm:w-auto">
-            <TextInput type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="flex-1 sm:w-36 sm:flex-none" />
+            <TextInput type="date" value={dateFrom} onChange={(event) => updateAnalysisFilters({ dateFrom: event.target.value })} className="flex-1 sm:w-36 sm:flex-none" />
             <span className="text-xs text-slate-400">–</span>
-            <TextInput type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="flex-1 sm:w-36 sm:flex-none" />
+            <TextInput type="date" value={dateTo} onChange={(event) => updateAnalysisFilters({ dateTo: event.target.value })} className="flex-1 sm:w-36 sm:flex-none" />
           </div>
           <button
             type="button"
-            onClick={() => setIncludePilotData((current) => !current)}
+            onClick={() => updateAnalysisFilters({ includePilotData: !includePilotData })}
             disabled={pilotRowCount === 0}
             className="flex w-full items-center gap-2 transition-opacity disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:ml-1"
             aria-pressed={includePilotData}
@@ -1747,7 +1771,7 @@ const [partId, setPartId] = useState('all')
           </button>
         </div>
         <p className="mt-3 text-sm text-slate-500">
-          {filteredRows.length} entries · {new Set(filteredRows.map((r) => r.participantId)).size} participants · {coverage}% completion
+          {coverageTotals.entryCount} entries · {coverageTotals.participantCount} participants · {coverage}% completion
           {coverageTotals.missing > 0 && ` · ${coverageTotals.missing} missing`}
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

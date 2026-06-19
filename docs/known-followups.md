@@ -136,14 +136,14 @@ Verification added or updated:
 
 Status: Partially addressed
 
-The Data tab now applies table filters, search and pagination on the server, so the browser receives only the current page of entry rows. Analysis fetches entry data through a dedicated, narrower direct query, but still builds most summaries in the browser. `npm run qa:scaling` keeps the current seams in place.
+The Data tab now applies table filters, search and pagination on the server, so the browser receives only the current page of entry rows. The Analysis tab now applies its main row filters on the server and receives server-calculated top summary metrics. Per-question chart calculations still happen in the browser. `npm run qa:scaling` keeps the current seams in place.
 
-Why it matters: the current approach is much safer for small and medium studies, and the Data table is ready for larger response lists. Very large studies can still send a lot of answer data to the browser on the Analysis tab.
+Why it matters: the current approach is much safer for small and medium studies, and the Data table is ready for larger response lists. Very large studies can still send a lot of answer data to the browser on the Analysis tab when no filters are applied.
 
 Suggested fix:
 
-- Move Analysis filtering and summary generation further to the server.
-- Keep summary charts lightweight by fetching only the rows needed for the selected Analysis filters.
+- Move per-question Analysis chart summaries further to the server.
+- Keep detailed answer rows available only where the UI needs examples, tagging, or drill-down interactions.
 
 ### Participant Dashboard Query Size
 
