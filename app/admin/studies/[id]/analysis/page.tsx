@@ -23,7 +23,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
         include: {
           questions: {
             orderBy: [{ page: 'asc' }, { order: 'asc' }],
-            include: { tagDefinitions: { orderBy: { label: 'asc' } } },
+            include: { tagDefinitions: { orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] } },
           },
         },
       },
@@ -74,6 +74,10 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
         id: tag.id,
         label: tag.label,
         color: tag.color,
+        parentId: tag.parentId,
+        description: tag.description,
+        sortOrder: tag.sortOrder,
+        isTheme: tag.isTheme,
       })),
     }))
   )

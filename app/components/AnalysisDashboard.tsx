@@ -23,7 +23,15 @@ type Question = {
 }
 type Part = { id: string; name: string; flow?: string }
 type Participant = { id: string; name: string; email: string }
-export type TagDefinition = { id: string; label: string; color: string }
+export type TagDefinition = {
+  id: string
+  label: string
+  color: string
+  parentId?: string | null
+  description?: string | null
+  sortOrder?: number
+  isTheme?: boolean
+}
 export type FreeTextAnswer = {
   entryId: string
   participantName: string
@@ -67,6 +75,7 @@ type Props = {
 type DataPoint = { label: string; value: number }
 type ScalePoint = { score: number; label: string; count: number }
 type ScaleBin = { label: string; start: number; end: number; count: number }
+type ThemeDistributionPoint = DataPoint & { id: string; color: string; description?: string | null }
 type AnalysisResult = ReturnType<typeof buildAnalysis>
 type JourneyContinuity = {
   journeyCount: number
@@ -417,6 +426,39 @@ function freeTextAnswers(question: Question, rows: Row[]): FreeTextAnswer[] {
     }))
     .filter((row) => row.answer)
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+}
+
+function themeDistributionPoints(question: Question, answers: FreeTextAnswer[]): ThemeDistributionPoint[] {
+  const themes = question.tagDefinitions
+    .filter((tag) => tag.isTheme)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label))
+  if (!themes.length) return []
+
+  const childThemeByTagId = new Map(
+    question.tagDefinitions
+      .filter((tag) => !tag.isTheme && tag.parentId)
+      .map((tag) => [tag.id, tag.parentId as string])
+  )
+
+  return themes
+    .map((theme) => {
+      const count = answers.filter((answer) => {
+        const matchedThemeIds = new Set(
+          answer.tags
+            .map((tag) => tag.id === theme.id ? theme.id : childThemeByTagId.get(tag.id))
+            .filter(Boolean)
+        )
+        return matchedThemeIds.has(theme.id)
+      }).length
+      return {
+        id: theme.id,
+        label: theme.label,
+        value: count,
+        color: theme.color,
+        description: theme.description,
+      }
+    })
+    .filter((point) => point.value > 0)
 }
 
 function formatSubmittedAt(value: string) {
@@ -1391,6 +1433,10 @@ function QuestionAnalysisCard({
   const svgRef = useRef<SVGSVGElement | null>(null)
   const analysis = useMemo(() => buildAnalysis(question, rows), [question, rows])
   const textAnswers = useMemo(() => question.type === 'FREE_TEXT' ? freeTextAnswers(question, rows) : [], [question, rows])
+  const themeDistribution = useMemo(
+    () => question.type === 'FREE_TEXT' ? themeDistributionPoints(question, textAnswers) : [],
+    [question, textAnswers]
+  )
   const filename = `${String(index + 1).padStart(2, '0')}_${slugify(question.text)}`
   const plotSubtitle =
     question.type === 'MULTIPLE_CHOICE'
@@ -1500,43 +1546,13 @@ function QuestionAnalysisCard({
           <WordCloudChart
             answers={textAnswers.map((a) => a.answer)}
             questionId={question.id}
+            afterChart={themeDistribution.length > 0 ? (
+              <section className="space-y-3">
+                <h4 className="text-sm font-semibold text-[var(--text-secondary)]">Theme distribution</h4>
+                <InlineBarChart points={themeDistribution} denominator={textAnswers.length} />
+              </section>
+            ) : undefined}
           />
-          {question.tagDefinitions.length > 0 && (() => {
-            const tagCounts = question.tagDefinitions.map((tag) => ({
-              tag,
-              count: textAnswers.filter((a) => a.tags.some((t) => t.id === tag.id)).length,
-            }))
-            const maxCount = Math.max(...tagCounts.map((t) => t.count), 1)
-            return (
-              <div className="rounded-xl bg-[var(--bg-sunken)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">Tag distribution</h4>
-                <div className="space-y-2">
-                  {tagCounts.map(({ tag, count }) => {
-                    const pct = textAnswers.length ? Math.round((count / textAnswers.length) * 100) : 0
-                    return (
-                      <div
-                        key={tag.id}
-                        className="grid items-center gap-3"
-                        style={{ gridTemplateColumns: 'minmax(100px, 160px) 1fr 44px' }}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                          <span className="truncate text-sm text-[var(--text-secondary)]">{tag.label}</span>
-                        </span>
-                        <div className="h-2 overflow-hidden rounded-full bg-white">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${Math.max(4, (count / maxCount) * 100)}%`, backgroundColor: tag.color }}
-                          />
-                        </div>
-                        <span className="text-right text-sm font-bold text-[var(--text)]">{pct}%</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })()}
           <div className="flex justify-end">
             <a
               href={`/admin/studies/${studyId}/analysis/${question.id}/tag`}

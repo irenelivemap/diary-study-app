@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 
 const STOP_WORDS = new Set([
   'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves',
@@ -100,9 +101,11 @@ function packCircles(radii: number[], gap = 4): Placement[] {
 export default function WordCloudChart({
   answers,
   questionId,
+  afterChart,
 }: {
   answers: string[]
   questionId: string
+  afterChart?: ReactNode
 }) {
   const [posFilter, setPosFilter] = useState<POSFilter>('all')
   const [topN, setTopN] = useState(10)
@@ -119,6 +122,7 @@ export default function WordCloudChart({
   const [loading, setLoading] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
   const [selectedWord, setSelectedWord] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   const processWords = useCallback(async () => {
     setLoading(true)
@@ -232,6 +236,10 @@ export default function WordCloudChart({
     [selectedWord, words]
   )
 
+  const toggleWordSelection = (word: string) => {
+    setSelectedWord((current) => current === word ? null : word)
+  }
+
   const excludeWord = (word: string) => {
     const next = [...excludedWords, word]
     setExcludedWords(next)
@@ -289,10 +297,36 @@ export default function WordCloudChart({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          aria-pressed={expanded}
+          title={expanded ? 'Compact chart' : 'Magnify chart'}
+          className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+            expanded
+              ? 'border-[var(--accent-muted)] bg-[var(--accent-subtle)] text-[var(--text-link)]'
+              : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--bg-sunken)]'
+          }`}
+        >
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {expanded ? (
+              <>
+                <circle cx="7" cy="7" r="4" />
+                <path d="M10 10l3 3M5.5 7h3" />
+              </>
+            ) : (
+              <>
+                <circle cx="7" cy="7" r="4" />
+                <path d="M10 10l3 3M7 5.5v3M5.5 7h3" />
+              </>
+            )}
+          </svg>
+          <span>{expanded ? 'Compact' : 'Magnify'}</span>
+        </button>
       </div>
 
       {/* Bubble chart */}
-      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+      <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-white">
         {loading ? (
           <div className="flex h-48 items-center justify-center">
             <p className="text-sm text-[var(--text-tertiary)]">Analysing…</p>
@@ -306,23 +340,40 @@ export default function WordCloudChart({
             <svg
               viewBox={viewBox}
               className="w-full"
-              style={{ height: topN <= 10 ? '360px' : '400px', maxHeight: '44vh', minHeight: '300px' }}
+              style={{
+                height: expanded ? '640px' : topN <= 10 ? '360px' : '400px',
+                maxHeight: expanded ? '72vh' : '44vh',
+                minHeight: expanded ? '460px' : '300px',
+              }}
             >
               {words.map((word, i) => {
                 const p = placements[i]
                 if (!p) return null
                 const stroke = posStroke(word.pos, word.ratio)
                 const isHovered = hovered === word.text || selectedWord === word.text
-                const textSize = Math.min(14, Math.max(8, (p.r * 1.55) / Math.max(3, word.text.length)))
+                const textSize = expanded
+                  ? Math.min(18, Math.max(10, (p.r * 1.85) / Math.max(3, word.text.length)))
+                  : Math.min(14, Math.max(8, (p.r * 1.55) / Math.max(3, word.text.length)))
                 return (
                   <g
                     key={word.text}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setSelectedWord((current) => current === word.text ? null : word.text)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${word.text}, ${word.count} ${word.count === 1 ? 'mention' : 'mentions'}. Select to inspect answers.`}
+                    className="focus:outline-none"
+                    style={{ cursor: 'pointer', outline: 'none' }}
+                    onClick={() => toggleWordSelection(word.text)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        toggleWordSelection(word.text)
+                      }
+                    }}
+                    onFocus={() => setHovered(word.text)}
+                    onBlur={() => setHovered(null)}
                     onMouseEnter={() => setHovered(word.text)}
                     onMouseLeave={() => setHovered(null)}
                   >
-                    <title>{word.text} · {word.count} {word.count === 1 ? 'mention' : 'mentions'} — click to inspect answers</title>
                     <circle
                       cx={p.x}
                       cy={p.y}
@@ -364,6 +415,11 @@ export default function WordCloudChart({
               </div>
             )}
           </>
+        )}
+        {afterChart && !loading && (
+          <div className="border-t border-[var(--border-subtle)] px-5 py-4">
+            {afterChart}
+          </div>
         )}
       </div>
 
