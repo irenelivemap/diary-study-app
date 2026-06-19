@@ -19,6 +19,7 @@ function walk(dir: string): string[] {
 
 const dataPage = read('app/admin/studies/[id]/data/page.tsx')
 const analysisPage = read('app/admin/studies/[id]/analysis/page.tsx')
+const participantsPage = read('app/admin/studies/[id]/participants/page.tsx')
 const dashboardPage = read('app/dashboard/page.tsx')
 const db = read('app/lib/db.ts')
 const envExample = read('.env.example')
@@ -27,6 +28,8 @@ assert.match(dataPage, /loadStudyDataTableData/, 'Data page should load through 
 assert.match(dataPage, /parseStudyDataTableFilters/, 'Data page should pass URL filters into the server-side data-table loader.')
 assert.match(analysisPage, /loadStudyAnalysisData/, 'Analysis page should load through the dedicated analysis module.')
 assert.match(analysisPage, /parseStudyAnalysisFilters/, 'Analysis page should pass URL filters into the server-side analysis loader.')
+assert.match(participantsPage, /loadStudyParticipantsData/, 'Participants page should load through the dedicated participants module.')
+assert.doesNotMatch(participantsPage, /from ['"]@\/app\/lib\/db['"]/, 'Participants page should not import Prisma directly.')
 assert.match(dashboardPage, /loadParticipantDashboardData/, 'Participant dashboard page should load through the dedicated dashboard data module.')
 assert.doesNotMatch(dashboardPage, /from ['"]@\/app\/lib\/db['"]/, 'Participant dashboard page should not import Prisma directly.')
 assert.match(db, /resolveDatabaseUrl/, 'App Prisma client should use the shared database URL resolver.')
