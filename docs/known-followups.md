@@ -105,6 +105,31 @@ Suggested fix:
 
 ## Technical Cleanup
 
+### Remaining Cleanup Summary
+
+Status: Open
+
+This is the short current list after the June 19 cleanup pass.
+
+Must do before real rollout:
+
+- Verify the Resend email sending domain so Gmail invitations and reminders are reliable.
+- Protect `main` in GitHub so required checks pass before changes land.
+- Review database indexes after importing production-like data with `npm run review:indexes`.
+
+Worth doing next:
+
+- Extract the individual participant detail page data loading into a dedicated server-side module.
+- Add browser coverage for pointer drag/drop in the tag lab.
+- Add browser coverage for AI grouping review, including apply and cancel states.
+- Decide whether the app needs a narrower `Researcher` role, or whether simple admin access is enough for now.
+
+Can wait:
+
+- Decide whether signed commits are expected by the company.
+- Consider on-demand free-text drill-down loading only if very large studies make the Analysis page heavy.
+- Decide whether daily reminders are enough, or whether Vercel Pro/external scheduling is needed.
+
 ### Technical Cleanup Priority List
 
 Status: Mostly addressed
@@ -143,19 +168,25 @@ Current summary: seven items are addressed for the current product scale, and on
 
    Current status: partially addressed. Browser QA now checks that theme-level summaries appear in Analysis without exposing raw child tag labels. It also covers tag-lab keyboard reorder, selected tag deletion, and selected theme deletion that keeps child tags ungrouped. More tag-lab interaction coverage is still useful for pointer drag/drop and AI grouping review flows.
 
-6. Split remaining large client modules when they become hard to change.
+6. Extract the individual participant detail page data loader.
+
+   Why it matters: the participant detail route still owns a larger Prisma query and display-shaping logic directly inside the page file. Extracting it into a dedicated module would match the cleaned-up pattern used by Overview, Participants, Data, Analysis and the Analysis tag lab.
+
+   Current status: open. This is useful, but lower risk than the list, Analysis, Data and tag-lab paths already cleaned up.
+
+7. Split remaining large client modules when they become hard to change.
 
    Why it matters: `AnalysisDashboard`, `DataExplorer` and `StudyForm` still contain many responsibilities. They do not need a cosmetic split, but when touching them next, extract deeper modules around real concepts: chart rendering, dataset filtering, export preparation, setup editing and validation.
 
    Current status: addressed as far as is useful now. Server-side data preparation for Analysis and Data has moved out of the page files. The large client modules should be split only when the next change needs a clearer internal seam, rather than splitting them cosmetically.
 
-7. Standardize loading and pending states across researcher pages.
+8. Standardize loading and pending states across researcher pages.
 
    Why it matters: the app should feel calm when moving between tabs or submitting forms. Loading states should be small and local, not full-page flashes or placeholder blocks unless there is genuinely no existing context to keep on screen.
 
    Current status: addressed for study tabs. The operating guide now records the stable-shell/no-blocky-skeleton principle.
 
-8. Review database indexes after real data exists.
+9. Review database indexes after real data exists.
 
    Why it matters: current indexes were added based on expected access patterns. Once there is real production-like data, check the slowest queries and add or adjust indexes based on evidence rather than guessing.
 
