@@ -953,6 +953,7 @@ export default function StudyForm({
                       ? `Shown if ${plainText(triggerQ.text).slice(0, 36) || 'selected question'} is ${q.showIfValue}`
                       : null
                     const canSetCondition = allBefore.length > 0 || Boolean(q.showIfQuestionId || q.showIfValue)
+                    const isEditingCondition = Boolean(q.showIfQuestionId || q.showIfValue)
                     const settingsOpen = openQuestionSettingsId === q.id
 
                     return (
@@ -1206,7 +1207,7 @@ export default function StudyForm({
                                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Condition</p>
                                     <p className="mt-1 text-sm text-slate-600">{conditionSummary ?? 'Always shown'}</p>
                                   </div>
-                                  {(q.showIfQuestionId || q.showIfValue) && (
+                                  {isEditingCondition ? (
                                     <Button
                                       type="button"
                                       tone="ghost"
@@ -1216,9 +1217,19 @@ export default function StudyForm({
                                     >
                                       Clear
                                     </Button>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      tone="secondary"
+                                      size="sm"
+                                      onClick={() => updateQuestion(part.id, q.id, { showIfQuestionId: allBefore[0]?.id ?? null, showIfValue: null })}
+                                    >
+                                      Add condition
+                                    </Button>
                                   )}
                                 </div>
 
+                                {isEditingCondition && (
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-sm text-slate-500">Show only if</span>
                                   <div className="min-w-64 flex-1">
@@ -1265,6 +1276,7 @@ export default function StudyForm({
                                     </>
                                   )}
                                 </div>
+                                )}
                               </div>
                               )}
                             </div>
