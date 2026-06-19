@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import Link from 'next/link'
 import { signup } from '@/app/actions/auth'
+import PasswordInput from '@/app/components/auth/PasswordInput'
 import { Button, TextInput } from '@/app/components/ui'
 
 export default function SignupForm({
@@ -48,18 +49,15 @@ export default function SignupForm({
           placeholder="you@example.com"
         />
       </div>
-      <div>
-        <label htmlFor="signup-password" className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
-        <TextInput
-          id="signup-password"
-          name="password"
-          type="password"
-          required
-          minLength={8}
-          className="h-12"
-          placeholder="Min. 8 characters"
-        />
-      </div>
+      <PasswordInput
+        id="signup-password"
+        name="password"
+        label="Password"
+        required
+        minLength={8}
+        className="h-12"
+        placeholder="Min. 8 characters"
+      />
 
       {state?.error && (
         <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-100">

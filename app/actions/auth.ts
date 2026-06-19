@@ -163,6 +163,48 @@ export async function resetPassword(
   redirect('/login?reset=success')
 }
 
+export async function changePassword(
+  prevState: { error?: string; success?: boolean } | null,
+  formData: FormData
+) {
+  const session = await getSession()
+  if (!session) redirect('/login')
+
+  const currentPassword = String(formData.get('currentPassword') ?? '')
+  const password = String(formData.get('password') ?? '')
+  const confirmPassword = String(formData.get('confirmPassword') ?? '')
+
+  if (!currentPassword || !password || !confirmPassword) {
+    return { error: 'Current password, new password, and confirmation are required.' }
+  }
+  if (password.length < 8) return { error: 'Password must be at least 8 characters.' }
+  if (password !== confirmPassword) return { error: 'Passwords do not match.' }
+  if (currentPassword === password) return { error: 'Choose a new password that is different from your current password.' }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { id: true, email: true, password: true },
+  })
+  if (!user) redirect('/login')
+
+  const valid = await bcrypt.compare(currentPassword, user.password)
+  if (!valid) return { error: 'Current password is incorrect.' }
+
+  const hashed = await bcrypt.hash(password, 12)
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed },
+    }),
+    prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    }),
+  ])
+
+  await clearLoginRateLimit(await loginRateLimitKeys(user.email))
+  return { success: true }
+}
+
 export async function signup(prevState: { error?: string } | null, formData: FormData) {
   const email = normalizeEmail(formData.get('email'))
   const password = String(formData.get('password') ?? '')
