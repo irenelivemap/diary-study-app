@@ -120,15 +120,15 @@ export default function DataExplorer({
   const answerQuestions = questions.filter((q) => q.type !== 'CONTENT')
   const selectedParts = useMemo(
     () => new Set(filters?.partIds.length ? filters.partIds : parts.map((p) => p.id)),
-    [filters?.partIds, parts]
+    [filters, parts]
   )
   const selectedParticipants = useMemo(
     () => new Set(filters?.participantIds.length ? filters.participantIds : participants.map((p) => p.id)),
-    [filters?.participantIds, participants]
+    [filters, participants]
   )
   const selectedQualityFlags = useMemo(
     () => filters?.qualityFlags.length ? new Set(filters.qualityFlags) : null,
-    [filters?.qualityFlags]
+    [filters]
   )
   const dateFrom = filters?.dateFrom ?? ''
   const dateTo = filters?.dateTo ?? ''
@@ -139,7 +139,8 @@ export default function DataExplorer({
   const [selectedQuestionCols, setSelectedQuestionCols] = useState<Set<string>>(new Set(answerQuestions.map((q) => q.id)))
   const [anonymize, setAnonymize] = useState(true)
   const [entryToDelete, setEntryToDelete] = useState<DatasetRow | null>(null)
-  const [searchDraft, setSearchDraft] = useState(search)
+  const [searchDraftState, setSearchDraftState] = useState({ source: search, value: search })
+  const searchDraft = searchDraftState.source === search ? searchDraftState.value : search
   const pilotRowCount = serverPilotRowCount ?? rows.filter((row) => row.isPilot).length
   const showJourney = serverShowJourney ?? datasetHasJourney(rows)
   const availableQualityFlags = serverAvailableQualityFlags ?? Array.from(new Set(rows.flatMap((row) => row.qualityFlags))).sort()
@@ -158,10 +159,6 @@ export default function DataExplorer({
     }
     return next
   }
-
-  useEffect(() => {
-    setSearchDraft(search)
-  }, [search])
 
   function updateServerFilters(next: Partial<{
     partIds: string[]
@@ -300,7 +297,7 @@ export default function DataExplorer({
         <div className="flex items-center gap-2 flex-wrap">
           <TextInput
             value={searchDraft}
-            onChange={(event) => setSearchDraft(event.target.value)}
+            onChange={(event) => setSearchDraftState({ source: search, value: event.target.value })}
             onKeyDown={(event) => {
               if (event.key === 'Enter') updateServerFilters({ search: searchDraft, page: 1 })
             }}

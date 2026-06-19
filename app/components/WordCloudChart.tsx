@@ -197,9 +197,7 @@ export default function WordCloudChart({
     void processWords()
   }, [processWords])
 
-  useEffect(() => {
-    if (selectedWord && !words.some((word) => word.text === selectedWord)) setSelectedWord(null)
-  }, [selectedWord, words])
+  const visibleSelectedWord = selectedWord && words.some((word) => word.text === selectedWord) ? selectedWord : null
 
   const placements = useMemo(() => {
     if (!words.length) return []
@@ -226,17 +224,17 @@ export default function WordCloudChart({
   }, [words])
 
   const selectedWordAnswers = useMemo<WordAnswer[]>(() => {
-    if (!selectedWord) return []
-    const pattern = new RegExp(`\\b${selectedWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+    if (!visibleSelectedWord) return []
+    const pattern = new RegExp(`\\b${visibleSelectedWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
     return answers.flatMap((answer, index) => {
       const matches = answer.match(pattern)?.length ?? 0
       return matches > 0 ? [{ answer, index, matches }] : []
     })
-  }, [answers, selectedWord])
+  }, [answers, visibleSelectedWord])
 
   const selectedWordData = useMemo(
-    () => selectedWord ? words.find((word) => word.text === selectedWord) ?? null : null,
-    [selectedWord, words]
+    () => visibleSelectedWord ? words.find((word) => word.text === visibleSelectedWord) ?? null : null,
+    [visibleSelectedWord, words]
   )
 
   const toggleWordSelection = (word: string) => {

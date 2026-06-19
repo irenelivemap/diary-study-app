@@ -5,7 +5,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ButtonLink } from '@/app/components/ui'
 import StudyStatusToggle from '@/app/components/StudyStatusToggle'
 
@@ -31,10 +31,7 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
   const pathname = usePathname()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
   const activeTab = active ?? activeTabFromPath(pathname, studyId)
-
-  useEffect(() => {
-    if (pendingHref === pathname) setPendingHref(null)
-  }, [pathname, pendingHref])
+  const visiblePendingHref = pendingHref === pathname ? null : pendingHref
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--bg-surface)]">
@@ -75,13 +72,13 @@ export default function StudyTabs({ studyId, active, studyName, status }: Props)
               onClick={() => setPendingHref(tab.href(studyId))}
               aria-current={activeTab === tab.id ? 'page' : undefined}
               className={`relative -mb-px min-h-11 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                activeTab === tab.id || (pendingHref === tab.href(studyId) && pathname !== pendingHref)
+                activeTab === tab.id || visiblePendingHref === tab.href(studyId)
                   ? 'border-[var(--accent)] text-[var(--accent)]'
                   : 'border-transparent text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text)]'
               }`}
             >
               {tab.label}
-              {pendingHref === tab.href(studyId) && pathname !== pendingHref && (
+              {visiblePendingHref === tab.href(studyId) && (
                 <span className="absolute bottom-0 left-4 right-4 h-0.5 animate-pulse rounded-full bg-[var(--accent-muted)]" />
               )}
             </Link>
