@@ -141,7 +141,7 @@ Current summary: seven items are addressed for the current product scale, and on
 
    Why it matters: the tag lab and analysis views are central to the product and have changed quickly. Tests should cover creating tags, grouping themes, applying AI-generated tags, deleting selected tags, and confirming that the analysis overview shows theme-level summaries.
 
-   Current status: partially addressed. Browser QA now checks that theme-level summaries appear in Analysis without exposing raw child tag labels. More tag-lab interaction coverage is still useful, especially for drag/drop, selected delete, and AI grouping review flows.
+   Current status: partially addressed. Browser QA now checks that theme-level summaries appear in Analysis without exposing raw child tag labels. It also covers tag-lab keyboard reorder, selected tag deletion, and selected theme deletion that keeps child tags ungrouped. More tag-lab interaction coverage is still useful for pointer drag/drop and AI grouping review flows.
 
 6. Split remaining large client modules when they become hard to change.
 
@@ -165,7 +165,7 @@ Verification added or updated:
 
 - `npm run qa:study-shell` checks that study tabs keep the shared navigation shell and do not reintroduce page-level skeleton flashes.
 - `npm run qa:scaling` checks that Data, Analysis and participant dashboard pages keep their data loading behind dedicated modules, that Analysis keeps server-prepared question summaries, and that Prisma scripts use the shared database URL resolver.
-- Browser QA includes invite signup/join, participant entry submission, researcher Data visibility, and theme-level Analysis summaries.
+- Browser QA includes invite signup/join, participant entry submission, researcher Data visibility, theme-level Analysis summaries, and core tag-lab selection/reorder/delete behavior.
 - `npm run review:indexes` gives a repeatable way to inspect common researcher query plans after importing production-like data.
 
 ### Researcher Views at Larger Study Sizes
