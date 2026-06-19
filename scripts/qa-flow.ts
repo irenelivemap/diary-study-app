@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { SignJWT } from 'jose'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { resolveDatabaseUrl } from '../app/lib/database-url'
 
 type QaResult = {
   name: string
@@ -17,7 +18,7 @@ const JOURNEY_STUDY_NAME = 'QA Smoke — Journey Study'
 const baseUrl = normalizeBaseUrl(process.env.QA_BASE_URL || process.env.SMOKE_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000')
 const results: QaResult[] = []
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+const adapter = new PrismaPg({ connectionString: resolveDatabaseUrl() })
 const prisma = new PrismaClient({ adapter })
 
 function normalizeBaseUrl(value: string) {

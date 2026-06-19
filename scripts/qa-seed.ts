@@ -3,13 +3,14 @@ import { randomBytes } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
+import { resolveDatabaseUrl } from '../app/lib/database-url'
 
 const QA_PARTICIPANT_EMAIL = process.env.QA_PARTICIPANT_EMAIL || 'qa.participant@diari.test'
 const QA_PARTICIPANT_PASSWORD = process.env.QA_PARTICIPANT_PASSWORD || 'qa-participant-123'
 const SIMPLE_STUDY_NAME = 'QA Smoke — Simple Diary'
 const JOURNEY_STUDY_NAME = 'QA Smoke — Journey Study'
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+const adapter = new PrismaPg({ connectionString: resolveDatabaseUrl() })
 const prisma = new PrismaClient({ adapter })
 
 function token() {

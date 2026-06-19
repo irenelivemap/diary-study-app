@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { SignJWT } from 'jose'
 import bcrypt from 'bcryptjs'
 import { passwordResetTokenHash } from '@/app/lib/password-reset'
+import { resolveDatabaseUrl } from '@/app/lib/database-url'
 
 const QA_PARTICIPANT_EMAIL = process.env.QA_PARTICIPANT_EMAIL || 'qa.participant@diari.test'
 const SIMPLE_STUDY_NAME = 'QA Smoke — Simple Diary'
@@ -19,16 +20,20 @@ const baseURL =
 
 function createPrismaClient() {
   return process.env.DATABASE_URL
-    ? new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })
+    ? new PrismaClient({ adapter: new PrismaPg({ connectionString: resolveDatabaseUrl() }) })
     : null
 }
 
 let prisma = createPrismaClient()
 const cleanupEmails: string[] = []
 const cleanupInvitationEmails: string[] = []
+const cleanupTagIds: string[] = []
 
 test.afterAll(async () => {
   if (prisma) {
+    if (cleanupTagIds.length > 0) {
+      await prisma.questionTag.deleteMany({ where: { id: { in: cleanupTagIds } } })
+    }
     if (cleanupInvitationEmails.length > 0) {
       await prisma.studyInvitation.deleteMany({ where: { email: { in: cleanupInvitationEmails } } })
     }
@@ -483,4 +488,46 @@ test('researcher analysis shows quality and journey continuity summaries', async
   await expect(page.getByText('Journey continuity')).toBeVisible()
   await expect(page.getByText('Stage coverage')).toBeVisible()
   await expectNoHorizontalOverflow(page, 'Researcher analysis dashboard')
+})
+
+test('researcher analysis summarizes free-text themes instead of raw tag lists', async ({ page }) => {
+  const db = await requirePrisma()
+  const entry = await ensureSimpleAnalysisEntry()
+  const study = await loadSimpleStudy()
+  const question = study.parts[0].questions[0]
+  const answer = await db.answer.findFirstOrThrow({
+    where: { entryId: entry.id, questionId: question.id },
+  })
+  const suffix = `${Date.now()}-${test.info().workerIndex}`
+  const theme = await db.questionTag.create({
+    data: {
+      questionId: question.id,
+      label: `QA Theme ${suffix}`,
+      color: '#4f46e5',
+      isTheme: true,
+      sortOrder: 1,
+    },
+  })
+  const childTag = await db.questionTag.create({
+    data: {
+      questionId: question.id,
+      label: `QA Code ${suffix}`,
+      color: '#0d9488',
+      parentId: theme.id,
+      sortOrder: 2,
+    },
+  })
+  cleanupTagIds.push(theme.id, childTag.id)
+  await db.answerTag.create({
+    data: {
+      answerId: answer.id,
+      tagId: childTag.id,
+    },
+  })
+
+  await loginAdminByCookie(page)
+  await page.goto(`/admin/studies/${study.id}/analysis`)
+  await expect(page.getByText('Theme distribution')).toBeVisible()
+  await expect(page.getByText(theme.label)).toBeVisible()
+  await expect(page.getByText(childTag.label)).toHaveCount(0)
 })

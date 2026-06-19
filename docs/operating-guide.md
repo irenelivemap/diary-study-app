@@ -39,6 +39,8 @@ npm run qa:actions
 npm run qa:reminders
 npm run qa:reminder-delivery
 npm run qa:dataset
+npm run qa:study-shell
+npm run qa:scaling
 npm run typecheck
 npm run build
 ```
@@ -100,6 +102,16 @@ npx prisma migrate deploy
 ```
 
 Use `migrate deploy` for production. Do not use `db push` on production.
+
+## Database Index Review
+
+After importing production-like data, review common researcher query plans:
+
+```bash
+npm run review:indexes
+```
+
+Sequential scans are acceptable on tiny tables, but large production tables should generally use index or bitmap index scans for the common study entry and answer paths. Re-run this after adding new researcher filters or changing Data/Analysis query behavior.
 
 ## Inviting Participants
 
@@ -272,6 +284,7 @@ Interface principle:
 
 - Repeated list rows should keep structural controls visible when they explain the row model, such as expand/collapse, selection checkboxes and drag handles. Prefer selected-item bulk actions over repeated row-level destructive icons; when selected-state actions multiply, collapse them into a single `Actions` menu and keep destructive actions behind confirmation.
 - Drag-and-drop lists must follow the shared pattern in `DESIGN.md`: subtle dedicated handles, clear insertion lines, target-container feedback, post-drop highlight, keyboard reordering and section-local confirmations.
+- Researcher tab navigation should keep the study shell stable. Use small local pending indicators, such as the active tab underline or an inline button label, instead of full-page skeletons or blocky placeholder rectangles when the user already has useful context on screen.
 
 ## Retention And Deletion Policy
 

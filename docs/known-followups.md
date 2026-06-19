@@ -69,11 +69,74 @@ Suggested fix:
 
 ## Technical Cleanup
 
+### Technical Cleanup Priority List
+
+Status: Mostly addressed
+
+Use this as the recommended order for cleanup work. The goal is not to rewrite the app; it is to make the most-used researcher and participant flows easier to maintain, easier to test, and less likely to slow down as real study data grows.
+
+Current summary: six items are addressed for the current product scale, one item is partially addressed, and one remains a production-data review task.
+
+1. Create dedicated data-loading modules for study pages.
+
+   Why it matters: several researcher pages still build their own Prisma queries directly inside page files. That makes pages harder to review and makes it easy for one tab to accidentally fetch more data than it needs. A deeper module for overview, participants, analysis and data loading would give each page a small interface and keep query details in one place.
+
+   Current status: addressed for the current study pages. The shared study shell, Overview, Analysis and Data pages now load through dedicated server-side modules.
+
+2. Move large Analysis and Data filtering to the server.
+
+   Why it matters: the browser still receives a lot of answer data for larger studies. This is fine for current demo-scale data, but real studies may have many participants, entries and answers. Server-side filtering, pagination and summaries would keep the interface faster and reduce memory use in the browser.
+
+   Current status: partially addressed. Analysis and Data now have dedicated data-loading modules, which gives this work a cleaner seam, and `npm run qa:scaling` checks that these pages keep using those modules. The actual large-study filtering and pagination still needs product decisions about URL filters, export behavior and chart summaries.
+
+3. Define a shared study-shell module and keep tab pages thin.
+
+   Why it matters: the study navigation was improved with a shared layout, but the pattern should be made explicit so future pages do not recreate their own navigation, session checks or loading behavior. This protects the smoother tab-switching interaction.
+
+   Current status: addressed. Study pages now share one layout, and `npm run qa:study-shell` checks that tab pages do not reintroduce duplicate shells or blocky route-level loading placeholders.
+
+4. Add integration tests for participant invite, join and entry submission.
+
+   Why it matters: these are the most important real-world flows. A small number of tests that exercise the full path would catch broken invite links, account/session issues, and entries that save but do not appear in researcher views.
+
+   Current status: addressed for current flows. Browser QA covers invite signup/join, participant entry submission and the saved answer appearing in the researcher Data view.
+
+5. Add integration tests for researcher analysis/tagging behavior.
+
+   Why it matters: the tag lab and analysis views are central to the product and have changed quickly. Tests should cover creating tags, grouping themes, applying AI-generated tags, deleting selected tags, and confirming that the analysis overview shows theme-level summaries.
+
+   Current status: partially addressed. Browser QA now checks that theme-level summaries appear in Analysis without exposing raw child tag labels. More tag-lab interaction coverage is still useful, especially for drag/drop, selected delete, and AI grouping review flows.
+
+6. Split remaining large client modules when they become hard to change.
+
+   Why it matters: `AnalysisDashboard`, `DataExplorer` and `StudyForm` still contain many responsibilities. They do not need a cosmetic split, but when touching them next, extract deeper modules around real concepts: chart rendering, dataset filtering, export preparation, setup editing and validation.
+
+   Current status: addressed as far as is useful now. Server-side data preparation for Analysis and Data has moved out of the page files. The large client modules should be split only when the next change needs a clearer internal seam, rather than splitting them cosmetically.
+
+7. Standardize loading and pending states across researcher pages.
+
+   Why it matters: the app should feel calm when moving between tabs or submitting forms. Loading states should be small and local, not full-page flashes or placeholder blocks unless there is genuinely no existing context to keep on screen.
+
+   Current status: addressed for study tabs. The operating guide now records the stable-shell/no-blocky-skeleton principle.
+
+8. Review database indexes after real data exists.
+
+   Why it matters: current indexes were added based on expected access patterns. Once there is real production-like data, check the slowest queries and add or adjust indexes based on evidence rather than guessing.
+
+   Current status: workflow added. Run `npm run review:indexes` against a production-like database to inspect query plans for common researcher data paths.
+
+Verification added or updated:
+
+- `npm run qa:study-shell` checks that study tabs keep the shared navigation shell and do not reintroduce page-level skeleton flashes.
+- `npm run qa:scaling` checks that Data, Analysis and participant dashboard pages keep their data loading behind dedicated modules, and that Prisma scripts use the shared database URL resolver.
+- Browser QA includes invite signup/join, participant entry submission, researcher Data visibility, and theme-level Analysis summaries.
+- `npm run review:indexes` gives a repeatable way to inspect common researcher query plans after importing production-like data.
+
 ### Researcher Views at Larger Study Sizes
 
 Status: Partially addressed
 
-The Data and Analysis tabs now fetch entry data through narrower direct queries, and the Data table renders entries in pages instead of drawing every row at once. The next scaling step is to move more filtering and summarisation to the server.
+The Data and Analysis tabs now fetch entry data through dedicated, narrower direct queries, and the Data table renders entries in pages instead of drawing every row at once. `npm run qa:scaling` keeps those seams in place. The next scaling step is to move more filtering and summarisation to the server.
 
 Why it matters: the current approach is much safer for small and medium studies, but very large studies can still send a lot of answer data to the browser.
 
@@ -86,7 +149,7 @@ Suggested fix:
 
 Status: Addressed for current scale
 
-The participant dashboard now selects only the fields needed to decide what the participant can answer next and to show small entry/journey summaries.
+The participant dashboard now selects only the fields needed to decide what the participant can answer next and to show small entry/journey summaries. Its query is isolated in `loadParticipantDashboardData`, so the page no longer imports Prisma directly.
 
 Why it matters: this keeps the dashboard fast without changing what the participant sees. A deeper split may still be useful if participants join many studies or create a high volume of journey entries.
 
@@ -109,18 +172,18 @@ Suggested fix:
 
 ### Postgres SSL Mode Warning
 
-Status: Open
+Status: Addressed
 
-QA logs currently show a warning from the Postgres connection string parser about future SSL behavior:
+QA logs were showing a warning from the Postgres connection string parser about future SSL behavior:
 
 `sslmode=prefer`, `require`, and `verify-ca` are currently treated like `verify-full`, but this behavior will change in a future major version.
 
-Why it matters: this is not breaking QA now, but it is noisy and could become a real configuration issue after dependency upgrades.
+Why it matters: this was not breaking QA, but it was noisy and could become a real configuration issue after dependency upgrades.
 
-Suggested fix:
+Resolution:
 
-- Update the database connection string to explicitly use the intended SSL mode.
-- Prefer `sslmode=verify-full` if that matches the current desired behavior.
+- `.env.example` now uses `sslmode=verify-full`.
+- The app, QA scripts, seed scripts and browser tests use one shared `resolveDatabaseUrl()` helper so a Neon-style `sslmode=require` value is normalized before Prisma/pg parses it.
 
 ## Review Checklist
 

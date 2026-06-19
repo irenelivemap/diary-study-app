@@ -5,10 +5,11 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
 import { sendDueReminders } from '../app/lib/reminders'
+import { resolveDatabaseUrl } from '../app/lib/database-url'
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.')
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+const adapter = new PrismaPg({ connectionString: resolveDatabaseUrl() })
 const prisma = new PrismaClient({ adapter })
 
 function token() {

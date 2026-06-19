@@ -1,18 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-
-function databaseUrl() {
-  const url = process.env.DATABASE_URL
-  if (!url) throw new Error('DATABASE_URL is not set')
-
-  // Neon commonly gives sslmode=require. The pg driver currently treats it as
-  // verify-full and warns that this will change, which triggers Next's dev
-  // overlay. Make the current behavior explicit before pg parses the URL.
-  return url.replace('sslmode=require', 'sslmode=verify-full')
-}
+import { resolveDatabaseUrl } from '@/app/lib/database-url'
 
 function createPrisma() {
-  const adapter = new PrismaPg({ connectionString: databaseUrl() })
+  const adapter = new PrismaPg({ connectionString: resolveDatabaseUrl() })
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === 'development' ? ['error'] : [],

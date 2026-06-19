@@ -159,10 +159,19 @@ If you need to debug a specific layer, run the pieces separately:
 npm run qa:env
 npm run qa:actions
 npm run qa:dataset
+npm run qa:tag-lab
+npm run qa:study-shell
+npm run qa:scaling
 npm run qa:seed
 QA_BASE_URL="https://diary-study-app.vercel.app" npm run smoke
 QA_BASE_URL="https://diary-study-app.vercel.app" npm run qa:flow
 ```
+
+The architecture checks are intentionally small and focused:
+
+- `npm run qa:tag-lab` keeps the tag lab split into focused modules instead of drifting back into one large file.
+- `npm run qa:study-shell` keeps study tabs on the shared shell, without duplicate navigation/session wrappers or blocky route-level loading placeholders.
+- `npm run qa:scaling` keeps the larger-data seams in place: dedicated Data/Analysis loaders, dedicated participant dashboard loading, and explicit database SSL handling.
 
 To run the real browser check, which signs in as the QA participant and submits a simple entry through the UI:
 
@@ -175,6 +184,14 @@ If this is the first time running browser QA on a machine, install the Chromium 
 ```bash
 npx playwright install chromium
 ```
+
+To review database query plans after importing production-like data:
+
+```bash
+npm run review:indexes
+```
+
+This is a diagnostic check, not a pass/fail QA gate. It helps decide whether common researcher Data and Analysis queries need new or adjusted database indexes.
 
 ## GitHub Actions
 
