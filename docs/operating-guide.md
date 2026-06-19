@@ -1,10 +1,6 @@
 # diARI Operating Guide
 
-## Summary
-
-This document is the practical runbook for operating diARI with real studies and participants. It covers lifecycle decisions, pre-launch checks, local QA, production environment settings, migrations, and routine operations.
-
-This guide is the repeatable checklist for running diARI with real participants.
+This is the practical runbook for operating diARI with real studies and participants. It covers lifecycle decisions, pre-launch checks, local QA, production environment settings, migrations, and routine operations.
 
 ## Study Lifecycle
 

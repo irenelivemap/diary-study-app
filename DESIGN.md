@@ -1,7 +1,5 @@
 # diARI — Design System
 
-## Summary
-
 This document is the visual and interaction reference for diARI. It defines the design tokens, component rules, drag-and-drop behavior, and UI principles that future design and engineering work should follow.
 
 > This document is the authoritative reference for the visual system. All tokens are defined in `app/globals.css`. Components in `app/components/ui.tsx` implement the base set. See `PRODUCT.md` for design intent and audience brief.

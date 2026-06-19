@@ -1,7 +1,5 @@
 # diARI — Product Design Brief
 
-## Summary
-
 This document explains what diARI is, who it serves, and how the product should feel. Use it to understand the intended user experience before changing participant or researcher workflows.
 
 ## What it is

@@ -1,7 +1,5 @@
 # Prisma Migrations
 
-## Summary
-
 This folder contains the database change history for diARI. Each dated folder is one migration: a set of SQL instructions that updates the database structure so it matches the app code.
 
 ## Why This Folder Exists

@@ -1,7 +1,5 @@
 # Security Notes
 
-## Summary
-
 This document lists the security expectations for the app: required secrets, production email/upload settings, AI data-handling cautions, dependency audit notes, and known hardening gaps.
 
 ## Secrets

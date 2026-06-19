@@ -1,10 +1,6 @@
 # Diary Study App
 
-## Summary
-
-This document introduces the diary study app, explains the main features, and gives the setup steps needed to run it locally or deploy it with the required services.
-
-A reusable web platform for running diary studies. Researchers create studies with custom questions; participants log in daily to submit entries.
+This is a reusable web platform for running diary studies. Researchers create studies with custom questions; participants log in daily to submit entries.
 
 ## Features
 

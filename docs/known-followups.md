@@ -1,7 +1,5 @@
 # Known Follow-Ups
 
-## Summary
-
 This document tracks non-blocking product, operational, and technical work that should not be forgotten. Review it regularly so temporary decisions and future improvements stay visible.
 
 Last reviewed: 2026-06-19
