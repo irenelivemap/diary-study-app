@@ -25,24 +25,39 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
             orderBy: [{ page: 'asc' }, { order: 'asc' }],
             include: { tagDefinitions: { orderBy: { label: 'asc' } } },
           },
-          entries: {
-            include: {
-              user: { select: { id: true, name: true, email: true } },
-              journey: { select: { id: true, label: true, completedAt: true, createdAt: true } },
-              answers: {
-                include: {
-                  tags: { include: { tag: true }, orderBy: { tag: { label: 'asc' } } },
-                },
-              },
-            },
-            orderBy: [{ userId: 'asc' }, { date: 'asc' }],
-          },
         },
       },
     },
   })
   if (!study) notFound()
   const includePilotByDefault = study.status === 'PREPARATION'
+  const entries = await prisma.entry.findMany({
+    where: { studyId: id },
+    orderBy: [{ userId: 'asc' }, { date: 'asc' }],
+    select: {
+      id: true,
+      partId: true,
+      date: true,
+      submittedAt: true,
+      timezone: true,
+      isPilot: true,
+      qualityFlags: true,
+      user: { select: { id: true, name: true, email: true } },
+      journey: { select: { id: true, label: true, completedAt: true, createdAt: true } },
+      answers: {
+        select: {
+          id: true,
+          questionId: true,
+          value: true,
+          wasShown: true,
+          tags: {
+            select: { tag: { select: { id: true, label: true, color: true } } },
+            orderBy: { tag: { label: 'asc' } },
+          },
+        },
+      },
+    },
+  })
 
   const questions = study.parts.flatMap((part) =>
     part.questions.map((question) => ({
@@ -63,11 +78,14 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
     }))
   )
 
-  const rows = study.parts.flatMap((part) =>
-    part.entries.map((entry) => ({
+  const partNameById = new Map(study.parts.map((part) => [part.id, part.name]))
+  const rows = entries.flatMap((entry) => {
+    const partName = partNameById.get(entry.partId)
+    if (!partName) return []
+    return [{
       entryId: entry.id,
-      partId: part.id,
-      partName: part.name,
+      partId: entry.partId,
+      partName,
       participantId: entry.user.id,
       participantName: entry.user.name,
       participantEmail: entry.user.email,
@@ -93,8 +111,8 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           })),
         },
       ])),
-    }))
-  )
+    }]
+  })
 
   const parts = study.parts.map((part) => ({ id: part.id, name: part.name, flow: part.flow }))
   const participants = study.participants.map((participant) => ({

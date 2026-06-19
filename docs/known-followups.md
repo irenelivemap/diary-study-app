@@ -69,6 +69,44 @@ Suggested fix:
 
 ## Technical Cleanup
 
+### Researcher Views at Larger Study Sizes
+
+Status: Partially addressed
+
+The Data and Analysis tabs now fetch entry data through narrower direct queries, and the Data table renders entries in pages instead of drawing every row at once. The next scaling step is to move more filtering and summarisation to the server.
+
+Why it matters: the current approach is much safer for small and medium studies, but very large studies can still send a lot of answer data to the browser.
+
+Suggested fix:
+
+- Move filtering, search, and pagination for large response lists fully to the server.
+- Keep summary charts lightweight by fetching only the rows needed for the selected filters.
+
+### Participant Dashboard Query Size
+
+Status: Addressed for current scale
+
+The participant dashboard now selects only the fields needed to decide what the participant can answer next and to show small entry/journey summaries.
+
+Why it matters: this keeps the dashboard fast without changing what the participant sees. A deeper split may still be useful if participants join many studies or create a high volume of journey entries.
+
+Suggested fix:
+
+- Monitor dashboard load time once real study data exists.
+- If needed, split dashboard data into a small initial query plus follow-up counts.
+
+### Entry Submit Revalidation Scope
+
+Status: Addressed for current scale
+
+After a participant submits an entry, the app now refreshes the study admin subtree with a single invalidation instead of listing every researcher page one by one.
+
+Why it matters: this keeps researcher pages fresh while reducing submit-action bookkeeping.
+
+Suggested fix:
+
+- If submit latency becomes an issue at production scale, replace path revalidation with narrower cache tags or targeted refreshes.
+
 ### Postgres SSL Mode Warning
 
 Status: Open

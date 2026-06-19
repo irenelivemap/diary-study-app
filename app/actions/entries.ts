@@ -63,6 +63,10 @@ function isValidUploadedFileValue(value: string) {
   return /^https?:\/\//.test(value) || value.startsWith('/api/upload/file?')
 }
 
+function revalidateStudyResponseViews(studyId: string) {
+  revalidatePath(`/admin/studies/${studyId}`, 'layout')
+}
+
 async function requireAdmin() {
   const session = await getSession()
   if (!session || session.role !== 'ADMIN') redirect('/login')
@@ -98,10 +102,7 @@ export async function deleteEntryFromForm(formData: FormData) {
     await deleteUploadedAnswerFiles(uploadValues)
   }
 
-  revalidatePath(`/admin/studies/${studyId}`)
-  revalidatePath(`/admin/studies/${studyId}/data`)
-  revalidatePath(`/admin/studies/${studyId}/analysis`)
-  revalidatePath(`/admin/studies/${studyId}/participants`)
+  revalidateStudyResponseViews(studyId)
   redirect(`/admin/studies/${studyId}/data`)
 }
 
@@ -394,10 +395,6 @@ export async function submitEntry(prevState: unknown, formData: FormData) {
   }
 
   revalidatePath('/dashboard')
-  revalidatePath(`/admin/studies/${studyId}`)
-  revalidatePath(`/admin/studies/${studyId}/data`)
-  revalidatePath(`/admin/studies/${studyId}/analysis`)
-  revalidatePath(`/admin/studies/${studyId}/participants`)
-  revalidatePath(`/admin/studies/${studyId}/participants/${session.userId}`)
+  revalidateStudyResponseViews(studyId)
   redirect(`/entry/${entry.id}`)
 }

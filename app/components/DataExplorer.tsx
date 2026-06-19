@@ -43,6 +43,7 @@ const BASE_COLUMNS = [
   { id: 'qualityFlags', label: 'Quality flags' },
   { id: 'studyVersion', label: 'Study version' },
 ] as const
+const TABLE_PAGE_SIZE = 100
 
 type BaseColumnId = typeof BASE_COLUMNS[number]['id']
 
@@ -102,6 +103,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
   const [entryToDelete, setEntryToDelete] = useState<DatasetRow | null>(null)
   const [search, setSearch] = useState('')
   const [includePilotData, setIncludePilotData] = useState(includePilotByDefault)
+  const [currentPage, setCurrentPage] = useState(1)
   const pilotRowCount = useMemo(() => countPilotRows(rows), [rows])
   const datasetRows = useMemo(
     () => filterDatasetRowsByPilot(rows, includePilotData),
@@ -152,6 +154,16 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
     }
     return true
   }), [datasetRows, selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search])
+  const tablePageCount = Math.max(1, Math.ceil(filteredRows.length / TABLE_PAGE_SIZE))
+  const visibleRows = useMemo(() => {
+    const safePage = Math.min(currentPage, tablePageCount)
+    const start = (safePage - 1) * TABLE_PAGE_SIZE
+    return filteredRows.slice(start, start + TABLE_PAGE_SIZE)
+  }, [currentPage, filteredRows, tablePageCount])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedParts, selectedParticipants, selectedQualityFlags, dateFrom, dateTo, search, includePilotData])
 
   const selectedQuestions = answerQuestions.filter((q) => selectedQuestionCols.has(q.id))
 
@@ -569,7 +581,7 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredRows.map((row, ri) => (
+                {visibleRows.map((row, ri) => (
                   <tr key={row.entryId} className={`hover:bg-indigo-50/30 transition-colors ${ri % 2 === 0 ? '' : 'bg-slate-50/40'}`}>
                     <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap sticky left-0 border-r border-slate-100 z-10 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${baseColumnSelected('entryId') ? '' : 'opacity-60'}`}>
                       <span className={`${baseColumnSelected('entryId') ? '' : 'opacity-60'}`}>{row.entryId.slice(0, 10)}</span>
@@ -663,9 +675,35 @@ export default function DataExplorer({ studyId, studyName, studyVersion, include
           </div>
           <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
             <p className="text-xs text-slate-400">
-              {filteredRows.length} {filteredRows.length === 1 ? 'entry' : 'entries'} · {selectedColumnCount} columns selected for download
+              Showing {visibleRows.length} of {filteredRows.length} {filteredRows.length === 1 ? 'entry' : 'entries'} · {selectedColumnCount} columns selected for download
             </p>
-            <p className="text-xs text-slate-400 hidden sm:block">The table remains visible; checkboxes choose CSV export columns</p>
+            {tablePageCount > 1 ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  tone="secondary"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-medium text-slate-500">
+                  Page {Math.min(currentPage, tablePageCount)} of {tablePageCount}
+                </span>
+                <Button
+                  type="button"
+                  tone="secondary"
+                  size="sm"
+                  disabled={currentPage >= tablePageCount}
+                  onClick={() => setCurrentPage((page) => Math.min(tablePageCount, page + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 hidden sm:block">The table remains visible; checkboxes choose CSV export columns</p>
+            )}
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 'use client'
-import { useActionState, useEffect, useRef, useState } from 'react'
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { submitEntry } from '@/app/actions/entries'
 import type { Question } from '@prisma/client'
 import RatingInput from './RatingInput'
@@ -12,6 +12,15 @@ const OTHER_SENTINEL = '__OTHER__'
 function detectedTimezone() {
   if (typeof Intl === 'undefined') return ''
   return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+}
+
+function answerMatchesCondition(sourceAnswer: string | undefined, expectedValue: string) {
+  if (!sourceAnswer) return false
+  try {
+    const parsed = JSON.parse(sourceAnswer)
+    if (Array.isArray(parsed)) return parsed.includes(expectedValue)
+  } catch {}
+  return sourceAnswer === expectedValue
 }
 
 type Study = {
@@ -35,21 +44,38 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
   const [localError, setLocalError] = useState('')
   const [timezone] = useState(() => initialTimezone || detectedTimezone())
   const formRef = useRef<HTMLFormElement>(null)
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftKey = `diari-draft-${study.journeyId ?? study.partId}-${today}`
 
   function setAnswer(qId: string, value: string) {
     setAnswers((a) => ({ ...a, [qId]: value }))
   }
 
+  const pageCount = useMemo(
+    () => Math.max(...study.questions.map((q) => q.page ?? 1), 1),
+    [study.questions]
+  )
+  const pageQuestions = useMemo(
+    () => study.questions.filter((q) => (q.page ?? 1) === currentPage),
+    [currentPage, study.questions]
+  )
+  const sanitizedQuestionText = useMemo(
+    () => new Map(study.questions.map((q) => [q.id, sanitizeHtml(q.text)])),
+    [study.questions]
+  )
+  const visibleQuestionIdSet = useMemo(
+    () => new Set(study.questions
+      .filter((q) => !q.showIfQuestionId || !q.showIfValue || answerMatchesCondition(answers[q.showIfQuestionId], q.showIfValue))
+      .map((q) => q.id)),
+    [answers, study.questions]
+  )
+  const visibleQuestionIds = useMemo(
+    () => study.questions.filter((q) => q.type !== 'CONTENT' && visibleQuestionIdSet.has(q.id)).map((q) => q.id),
+    [study.questions, visibleQuestionIdSet]
+  )
+
   function isVisible(q: Question) {
-    if (!q.showIfQuestionId || !q.showIfValue) return true
-    const sourceAnswer = answers[q.showIfQuestionId]
-    if (!sourceAnswer) return false
-    try {
-      const parsed = JSON.parse(sourceAnswer)
-      if (Array.isArray(parsed)) return parsed.includes(q.showIfValue)
-    } catch {}
-    return sourceAnswer === q.showIfValue
+    return visibleQuestionIdSet.has(q.id)
   }
 
   function selectedValues(qId: string) {
@@ -98,10 +124,6 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
     return true
   }
 
-  const pageCount = Math.max(...study.questions.map((q) => q.page ?? 1), 1)
-  const pageQuestions = study.questions.filter((q) => (q.page ?? 1) === currentPage)
-  const visibleQuestionIds = study.questions.filter((q) => q.type !== 'CONTENT' && isVisible(q)).map((q) => q.id)
-
   useEffect(() => {
     const raw = localStorage.getItem(draftKey)
     if (!raw) return
@@ -134,6 +156,12 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
     }
   }, [draftKey])
 
+  useEffect(() => {
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+    }
+  }, [])
+
   function saveDraft() {
     const form = formRef.current
     if (!form) return
@@ -149,6 +177,14 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
       }
     }
     localStorage.setItem(draftKey, JSON.stringify(data))
+  }
+
+  function scheduleDraftSave() {
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+    draftSaveTimerRef.current = setTimeout(() => {
+      saveDraft()
+      draftSaveTimerRef.current = null
+    }, 250)
   }
 
   async function handleFileChange(questionId: string, file: File) {
@@ -175,6 +211,7 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
   function handleNext(e: React.FormEvent) {
     e.preventDefault()
     if (!validateCurrentPage()) return
+    saveDraft()
     setCurrentPage((p) => p + 1)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -183,11 +220,14 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
     <form
       ref={formRef}
       action={action}
-      onInput={saveDraft}
-      onChange={saveDraft}
+      onInput={scheduleDraftSave}
+      onChange={scheduleDraftSave}
       onSubmit={(event) => {
         if (!validateCurrentPage()) event.preventDefault()
-        else localStorage.removeItem(draftKey)
+        else {
+          if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+          localStorage.removeItem(draftKey)
+        }
       }}
       className="space-y-6"
     >
@@ -246,7 +286,7 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
               {q.text && (
                 <div
                   className="prose prose-sm max-w-none text-slate-700"
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.text) }}
+                  dangerouslySetInnerHTML={{ __html: sanitizedQuestionText.get(q.id) ?? '' }}
                 />
               )}
               {q.options?.[0] && (
@@ -262,7 +302,7 @@ export default function EntryForm({ study, today, timezone: initialTimezone = ''
             <div
               className="mb-4 text-base font-semibold leading-relaxed text-slate-900 sm:text-lg"
               dangerouslySetInnerHTML={{
-                __html: sanitizeHtml(q.text) + (q.required ? '<span class="text-red-500 ml-1">*</span>' : ''),
+                __html: (sanitizedQuestionText.get(q.id) ?? '') + (q.required ? '<span class="text-red-500 ml-1">*</span>' : ''),
               }}
             />
 

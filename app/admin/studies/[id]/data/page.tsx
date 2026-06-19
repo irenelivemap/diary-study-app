@@ -5,7 +5,7 @@ import DataExplorer from '@/app/components/DataExplorer'
 import NavBar from '@/app/components/NavBar'
 import StudyTabs from '@/app/components/StudyTabs'
 import { plainTextFromHtml } from '@/app/lib/sanitize-html'
-import { buildDatasetRows } from '@/app/lib/answer-dataset'
+import { buildDatasetRow } from '@/app/lib/answer-dataset'
 
 export default async function DataPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -23,24 +23,38 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
         orderBy: { order: 'asc' },
         include: {
           questions: { orderBy: [{ page: 'asc' }, { order: 'asc' }] },
-          entries: {
-            include: {
-              user: { select: { id: true, name: true, email: true } },
-              journey: { select: { id: true, label: true, createdAt: true, completedAt: true } },
-              answers: {
-                include: {
-                  tags: { include: { tag: true }, orderBy: { tag: { label: 'asc' } } },
-                },
-              },
-            },
-            orderBy: [{ userId: 'asc' }, { date: 'asc' }],
-          },
         },
       },
     },
   })
   if (!study) notFound()
   const includePilotByDefault = study.status === 'PREPARATION'
+  const entries = await prisma.entry.findMany({
+    where: { studyId: id },
+    orderBy: [{ userId: 'asc' }, { date: 'asc' }],
+    select: {
+      id: true,
+      partId: true,
+      date: true,
+      submittedAt: true,
+      timezone: true,
+      isPilot: true,
+      qualityFlags: true,
+      user: { select: { id: true, name: true, email: true } },
+      journey: { select: { id: true, label: true } },
+      answers: {
+        select: {
+          questionId: true,
+          value: true,
+          wasShown: true,
+          tags: {
+            select: { tag: { select: { label: true } } },
+            orderBy: { tag: { label: 'asc' } },
+          },
+        },
+      },
+    },
+  })
 
   // Flatten into a serialisable structure
   const allQuestions = study.parts.flatMap((p) =>
@@ -53,7 +67,11 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
     }))
   )
 
-  const allRows = buildDatasetRows(study.parts)
+  const partById = new Map(study.parts.map((part) => [part.id, { id: part.id, name: part.name }]))
+  const allRows = entries.flatMap((entry) => {
+    const part = partById.get(entry.partId)
+    return part ? [buildDatasetRow(part, entry)] : []
+  })
 
   const parts = study.parts.map((p) => ({ id: p.id, name: p.name }))
 

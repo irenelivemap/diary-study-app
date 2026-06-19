@@ -8,7 +8,6 @@ import bcrypt from 'bcryptjs'
 import { passwordResetTokenHash } from '@/app/lib/password-reset'
 
 const QA_PARTICIPANT_EMAIL = process.env.QA_PARTICIPANT_EMAIL || 'qa.participant@diari.test'
-const QA_PARTICIPANT_PASSWORD = process.env.QA_PARTICIPANT_PASSWORD || 'qa-participant-123'
 const SIMPLE_STUDY_NAME = 'QA Smoke — Simple Diary'
 const JOURNEY_STUDY_NAME = 'QA Smoke — Journey Study'
 const baseURL =
@@ -18,9 +17,13 @@ const baseURL =
   process.env.APP_URL ||
   'http://localhost:3000'
 
-const prisma = process.env.DATABASE_URL
-  ? new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })
-  : null
+function createPrismaClient() {
+  return process.env.DATABASE_URL
+    ? new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })
+    : null
+}
+
+let prisma = createPrismaClient()
 const cleanupEmails: string[] = []
 const cleanupInvitationEmails: string[] = []
 
@@ -38,14 +41,34 @@ test.afterAll(async () => {
 
 async function requirePrisma() {
   if (!prisma) test.skip(true, 'DATABASE_URL is required for QA fixture lookup.')
+  try {
+    await prisma!.$queryRaw`SELECT 1`
+  } catch {
+    await prisma?.$disconnect().catch(() => {})
+    prisma = createPrismaClient()
+  }
   return prisma!
 }
 
 async function loginParticipant(page: Page) {
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill(QA_PARTICIPANT_EMAIL)
-  await page.getByLabel('Password').fill(QA_PARTICIPANT_PASSWORD)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  const db = await requirePrisma()
+  const participant = await db.user.findUnique({ where: { email: QA_PARTICIPANT_EMAIL } })
+  expect(participant, 'Run npm run qa:seed before browser QA.').toBeTruthy()
+  const token = await sessionToken({
+    id: participant!.id,
+    role: participant!.role,
+    name: participant!.name,
+    email: participant!.email,
+  })
+  await page.context().addCookies([{
+    name: 'session',
+    value: token,
+    url: baseURL,
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: baseURL.startsWith('https://'),
+  }])
+  await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByText('Researcher view')).toHaveCount(0)
 }

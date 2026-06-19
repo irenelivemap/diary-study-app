@@ -193,6 +193,10 @@ model Entry {
   answers Answer[]
 
   @@index([partId, userId, date])
+  @@index([studyId, isPilot, date])
+  @@index([studyId, isPilot, userId])
+  @@index([studyId, isPilot, submittedAt])
+  @@index([partId, submittedAt])
   @@index([journeyId])
   @@unique([journeyId, partId])
 }
@@ -207,6 +211,9 @@ model Answer {
   entry    Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   tags     AnswerTag[]
+
+  @@index([entryId])
+  @@index([questionId])
 }
 
 model AnswerTag {

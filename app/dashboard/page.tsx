@@ -44,16 +44,42 @@ export default async function DashboardPage() {
         status: { not: 'ARCHIVED' },
       },
     },
-    include: {
+    select: {
+      joinedAt: true,
+      consentedAt: true,
       study: {
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          consentText: true,
+          contactEmail: true,
+          mode: true,
+          journeyName: true,
+          status: true,
+          isActive: true,
+          isArchived: true,
+          sequential: true,
+          participantEntryAccess: true,
           parts: {
             orderBy: { order: 'asc' },
-            include: {
+            select: {
+              id: true,
+              name: true,
+              instructions: true,
+              flow: true,
+              isActive: true,
+              entryPolicy: true,
+              targetEntries: true,
+              durationDays: true,
+              dueDate: true,
+              unlockRule: true,
+              unlockAt: true,
               entries: {
                 where: { userId: session.userId },
                 orderBy: { submittedAt: 'desc' },
                 take: 8,
+                select: { id: true, date: true, submittedAt: true, isPilot: true },
               },
               _count: {
                 select: {
@@ -67,7 +93,11 @@ export default async function DashboardPage() {
             where: { userId: session.userId },
             orderBy: { createdAt: 'desc' },
             take: 5,
-            include: {
+            select: {
+              id: true,
+              label: true,
+              isPilot: true,
+              completedAt: true,
               entries: {
                 orderBy: { submittedAt: 'asc' },
                 select: { id: true, partId: true, submittedAt: true, date: true, isPilot: true },
